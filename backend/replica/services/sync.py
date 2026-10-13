@@ -346,13 +346,12 @@ def _sync_table(conn, table, extractor, key_kind):
 
     with conn.cursor() as cur:
         if rows:
-            placeholders = ', '.join(['%s'] * len(columns))
             updates = ', '.join(
                 f'{c} = EXCLUDED.{c}' for c in columns if c != key
             )
             sql = (
                 f'INSERT INTO replica.{table} ({", ".join(columns)}) '
-                f'VALUES ({placeholders}) '
+                f'VALUES %s '
                 f'ON CONFLICT ({key}) DO UPDATE SET {updates}'
             )
             values = [

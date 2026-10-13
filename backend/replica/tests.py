@@ -153,6 +153,20 @@ class ExtractorTests(TestCase):
 
 class SyncFailureTests(TestCase):
     @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_table_bulk_insert_uses_single_values_placeholder(self):
+        from replica.services import sync as sync_mod
+
+        conn = mock.MagicMock()
+        rows = [{'id': str(uuid.uuid4()), 'name': 'Dresses'}]
+        with mock.patch.object(sync_mod, 'execute_values') as bulk_insert:
+            sync_mod._sync_table(
+                conn, 'categories', lambda: rows, sync_mod.UUID_TABLES)
+
+        query = bulk_insert.call_args[0][1]
+        self.assertEqual(query.count('%s'), 1)
+        self.assertIn('VALUES %s', query)
+
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
     def test_count_mismatch_fails_the_run(self):
         """A replica that silently disagrees with Django is worse than none."""
         from replica.services import sync as sync_mod
