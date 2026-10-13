@@ -179,6 +179,41 @@ class SyncFailureTests(TestCase):
             sync_replica(triggered_by='someone-else')
 
 
+class ReplicaPermissionSeedTests(TestCase):
+    """The replica permissions must exist in the database, not just the code.
+
+    `manage.py seed_roles` cannot run on the free Render plan (no shell), so the
+    codes only reach the database via a data migration. If that migration is
+    missing the nav link is hidden and the page 403s for every user, with no
+    error anywhere -- exactly the kind of failure worth a test.
+    """
+
+    def test_permissions_are_seeded_in_the_database(self):
+        from access_control.models import Permission
+
+        codes = set(
+            Permission.objects.filter(code__startswith='replica.')
+            .values_list('code', flat=True)
+        )
+
+        self.assertEqual(codes, {'replica.view', 'replica.sync'})
+
+    def test_codes_are_declared_in_the_catalogue(self):
+        from access_control.permissions_catalog import PERMISSIONS
+
+        codes = {p[0] for p in PERMISSIONS}
+
+        self.assertIn('replica.view', codes)
+        self.assertIn('replica.sync', codes)
+
+    def test_sync_is_flagged_sensitive(self):
+        """replica.sync writes to an external system, so it must be flagged."""
+        from access_control.permissions_catalog import PERMISSION_BY_CODE
+
+        self.assertTrue(PERMISSION_BY_CODE['replica.sync'][3])
+        self.assertFalse(PERMISSION_BY_CODE['replica.view'][3])
+
+
 class AdvisoryLockTests(TestCase):
     """Defect 1: two overlapping syncs must not be possible."""
 
