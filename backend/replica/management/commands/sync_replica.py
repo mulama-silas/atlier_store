@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from replica.services.sync import (
     ReplicaNotConfigured,
+    ReplicaStatusUnavailable,
     latest_run,
     replica_configured,
     sync_replica,
@@ -45,7 +46,7 @@ class Command(BaseCommand):
                 'redeploy before syncing.'
             )
 
-        if options['storage_limit'] and not options['skip_storage']:
+        if options['storage_limit'] is not None and not options['skip_storage']:
             from replica.services.storage_mirror import mirror_bucket
             # Honour --storage-limit by mirroring on its own first, so the
             # relational sync does not redo it.
@@ -59,7 +60,7 @@ class Command(BaseCommand):
             summary = sync_replica(
                 triggered_by=options['triggered_by'],
                 include_storage=not options['skip_storage']
-                and not options['storage_limit'],
+                and options['storage_limit'] is None,
             )
         except ReplicaNotConfigured as exc:
             raise CommandError(str(exc)) from exc
@@ -68,6 +69,8 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS('Replica sync finished.'))
         for table, counts in summary['counts'].items():
+            if not isinstance(counts, dict) or 'source' not in counts:
+                continue
             self.stdout.write(
                 f'  {table:<24} django={counts["source"]:<7} '
                 f'supabase={counts["replica"]}'
@@ -81,7 +84,13 @@ class Command(BaseCommand):
                 'SUPABASE_DB_URL is not configured; the replica is unreachable.'
             ))
             return
-        run = latest_run()
+        try:
+            run = latest_run()
+        except ReplicaStatusUnavailable as exc:
+            self.stdout.write(self.style.ERROR(
+                f'Replica status unavailable: {exc}'
+            ))
+            return
         if not run:
             self.stdout.write(self.style.WARNING(
                 'The replica is reachable but has no sync runs recorded yet.'

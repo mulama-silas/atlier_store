@@ -59,6 +59,16 @@ class ReplicaConfigTests(TestCase):
 
         self.assertIsNone(latest_run())
 
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_latest_run_distinguishes_unavailable_from_empty_history(self):
+        from replica.services import sync as sync_mod
+
+        with mock.patch.object(
+                sync_mod, 'get_connection',
+                side_effect=OSError('database unavailable')):
+            with self.assertRaises(sync_mod.ReplicaStatusUnavailable):
+                sync_mod.latest_run()
+
 
 class CustomerAggregateTests(TestCase):
     """The aggregate must not carry identity fields into the replica."""
@@ -69,15 +79,16 @@ class CustomerAggregateTests(TestCase):
 
         from replica.services.sync import customer_rows
 
+        profile_id = uuid.uuid4()
         user = get_user_model().objects.create_user(
-            username=f'supabase_{uuid.uuid4()}', password='x')
+            username=f'supabase_{profile_id}', password='x')
         _order(user=user, total=1500, status=Order.Status.DELIVERED)
         _order(user=user, total=2500, status=Order.Status.CANCELLED)
 
         rows = {r['user_id']: r for r in customer_rows()}
 
-        self.assertIn(str(user.id), rows)
-        row = rows[str(user.id)]
+        self.assertIn(str(profile_id), rows)
+        row = rows[str(profile_id)]
         self.assertEqual(row['order_count'], 2)
         # Cancelled orders must not inflate revenue.
         self.assertEqual(row['total_spent_minor'], 1500)
@@ -87,6 +98,18 @@ class CustomerAggregateTests(TestCase):
         from replica.services.sync import customer_rows
 
         _order(user=None, total=999)
+
+        self.assertEqual(customer_rows(), [])
+
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_local_users_without_supabase_identity_are_excluded(self):
+        from django.contrib.auth import get_user_model
+
+        from replica.services.sync import customer_rows
+
+        user = get_user_model().objects.create_user(
+            username=f'local-{uuid.uuid4().hex}', password='x')
+        _order(user=user)
 
         self.assertEqual(customer_rows(), [])
 
@@ -112,6 +135,35 @@ class CustomerAggregateTests(TestCase):
 
 
 class ExtractorTests(TestCase):
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_order_rows_map_supabase_username_to_profile_uuid(self):
+        from django.contrib.auth import get_user_model
+
+        from replica.services.sync import order_rows
+
+        profile_id = uuid.uuid4()
+        user = get_user_model().objects.create_user(
+            username=f'supabase_{profile_id}', password='x')
+        order = _order(user=user)
+
+        rows = {row['id']: row for row in order_rows()}
+
+        self.assertEqual(rows[str(order.id)]['user_id'], str(profile_id))
+
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_order_rows_leave_local_user_id_null(self):
+        from django.contrib.auth import get_user_model
+
+        from replica.services.sync import order_rows
+
+        user = get_user_model().objects.create_user(
+            username=f'local-{uuid.uuid4().hex}', password='x')
+        order = _order(user=user)
+
+        rows = {row['id']: row for row in order_rows()}
+
+        self.assertIsNone(rows[str(order.id)]['user_id'])
+
     @override_settings(SUPABASE_DB_URL=REPLICA_DB)
     def test_payment_intents_exclude_client_secret(self):
         """client_secret is a live confirmation secret; analytics never needs it."""
@@ -152,6 +204,58 @@ class ExtractorTests(TestCase):
 
 
 class SyncFailureTests(TestCase):
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_failed_table_write_rolls_back(self):
+        from replica.services import sync as sync_mod
+
+        conn = mock.MagicMock()
+        rows = [{'id': str(uuid.uuid4()), 'name': 'Dresses'}]
+        with mock.patch.object(
+                sync_mod, 'execute_values', side_effect=RuntimeError('write failed')):
+            with self.assertRaisesRegex(RuntimeError, 'write failed'):
+                sync_mod._sync_table(
+                    conn, 'categories', lambda: rows, 'id', True)
+
+        conn.rollback.assert_called_once_with()
+        conn.commit.assert_not_called()
+
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_deferred_request_is_committed(self):
+        from replica.services import sync as sync_mod
+
+        conn = mock.MagicMock()
+        with mock.patch.object(sync_mod, 'get_connection', return_value=conn), \
+             mock.patch.object(sync_mod, '_start_run', return_value=7):
+            self.assertEqual(sync_mod.queue_replica_sync(), 7)
+
+        conn.commit.assert_called_once_with()
+        conn.close.assert_called_once_with()
+
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_failure_status_is_written_after_rollback(self):
+        from replica.services import sync as sync_mod
+
+        conn = mock.MagicMock()
+        calls = mock.Mock()
+        conn.rollback.side_effect = calls.rollback
+
+        def finish_run(*args, **kwargs):
+            calls.finish()
+
+        with mock.patch.object(sync_mod, 'get_connection', return_value=conn), \
+             mock.patch.object(sync_mod, '_start_run', return_value=1), \
+             mock.patch.object(
+                 sync_mod, '_sync_table', side_effect=RuntimeError('write failed')):
+            with mock.patch.object(sync_mod, '_finish_run', side_effect=finish_run):
+                with self.assertRaisesRegex(RuntimeError, 'write failed'):
+                    sync_mod.sync_replica(include_storage=False)
+
+        self.assertLess(
+            calls.mock_calls.index(mock.call.rollback()),
+            calls.mock_calls.index(mock.call.finish()),
+        )
+        conn.commit.assert_called_once_with()
+
     @override_settings(SUPABASE_DB_URL=REPLICA_DB)
     def test_table_bulk_insert_uses_single_values_placeholder(self):
         from replica.services import sync as sync_mod
@@ -420,6 +524,20 @@ class ReplicaPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'no sync runs recorded')
 
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_status_page_distinguishes_unavailable_replica(self):
+        from replica.services.sync import ReplicaStatusUnavailable
+
+        with mock.patch(
+                'admin_ui.views.latest_run',
+            side_effect=ReplicaStatusUnavailable('database unavailable')), \
+             mock.patch('admin_ui.views.pending_request', return_value=None):
+            response = self.client.get(reverse('admin-replica'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Status unavailable.')
+        self.assertNotContains(response, 'no sync runs recorded')
+
     def test_status_page_requires_replica_view_permission(self):
         """Non-staff must not reach the page even with a valid session."""
         from django.contrib.auth import get_user_model
@@ -434,6 +552,79 @@ class ReplicaPageTests(TestCase):
 
 
 class StorageMirrorTests(TestCase):
+    def test_recursive_listing_preserves_parent_paths(self):
+        from replica.services.storage_mirror import _list_all
+
+        listings = {
+            '': [{'name': 'products', 'id': None, 'metadata': None}],
+            'products': [{'name': 'summer', 'id': None, 'metadata': None}],
+            'products/summer': [
+                {'name': 'dress.jpg', 'id': 'object-id', 'metadata': {}}
+            ],
+        }
+
+        class FakeStorage:
+            def from_(self, bucket):
+                return self
+
+            def list(self, path, options):
+                return listings[path]
+
+        class FakeClient:
+            storage = FakeStorage()
+
+        self.assertEqual(
+            list(_list_all(FakeClient(), 'product-images', '')),
+            ['products/summer/dress.jpg'],
+        )
+
+    @override_settings(
+        SUPABASE_URL='https://example.supabase.co',
+        SUPABASE_SERVICE_ROLE_KEY='service-key',
+        SUPABASE_STORAGE_BUCKET='product-images',
+        REPLICA_BACKUP_BUCKET='product-images-backup',
+    )
+    def test_zero_limit_copies_no_objects(self):
+        from replica.services import storage_mirror
+
+        admin = mock.MagicMock()
+        with mock.patch.object(
+                storage_mirror, '_clients',
+                return_value=(admin, 'product-images', 'product-images-backup')), \
+             mock.patch.object(
+                 storage_mirror, '_list_all', return_value=['products/a.jpg']):
+            result = storage_mirror.mirror_bucket(limit=0)
+
+        self.assertEqual(result['objects_copied'], 0)
+        admin.storage.from_.return_value.download.assert_not_called()
+
+    def test_cli_handles_integer_snapshot_counts(self):
+        from io import StringIO
+
+        from replica.management.commands.sync_replica import Command
+
+        command = Command()
+        command.stdout = StringIO()
+        summary = {
+            'counts': {
+                'products': {'source': 1, 'replica': 1},
+                'snapshot_rows': 1,
+                'snapshot_total': 1,
+            },
+            'storage': {},
+        }
+        with mock.patch(
+                'replica.management.commands.sync_replica.replica_configured',
+                return_value=True), \
+             mock.patch(
+                 'replica.management.commands.sync_replica.sync_replica',
+                 return_value=summary):
+            command.handle(
+                triggered_by='manual', skip_storage=True,
+                storage_limit=None, status=False)
+
+        self.assertIn('products', command.stdout.getvalue())
+
     @override_settings(
         SUPABASE_URL='https://example.supabase.co',
         SUPABASE_SERVICE_ROLE_KEY='service-key',

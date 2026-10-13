@@ -66,11 +66,12 @@ def _list_all(client, bucket, prefix):
                 name = entry.get('name')
                 if not name:
                     continue
+                key = f'{path}/{name}'.strip('/')
                 # Storage reports folders with a null id and no metadata.
                 if entry.get('id') is None and entry.get('metadata') in (None, {}):
-                    stack.append(name)
+                    stack.append(key)
                 else:
-                    yield name
+                    yield key
             offset += PAGE_SIZE
             if len(entries) < PAGE_SIZE:
                 break
@@ -86,7 +87,7 @@ def mirror_bucket(limit=None):
 
     copied, skipped, bytes_copied = 0, 0, 0
     for key in _list_all(admin, source, ''):
-        if limit and copied + skipped >= limit:
+        if limit is not None and copied + skipped >= limit:
             logger.info('Storage mirror stopped at limit=%s', limit)
             break
 

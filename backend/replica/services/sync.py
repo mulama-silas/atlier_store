@@ -23,6 +23,7 @@ Design notes
 import json
 import logging
 from datetime import datetime, timezone
+from uuid import UUID
 
 import psycopg2
 from django.conf import settings
@@ -55,6 +56,10 @@ class ReplicaAlreadyRunning(RuntimeError):
     """
 
 
+class ReplicaStatusUnavailable(RuntimeError):
+    """The replica could not be queried for its most recent run."""
+
+
 # Session-level advisory lock, namespaced so it cannot collide with anything
 # else the database does. Taken on the connection that does the work and held
 # until that connection closes, so a crashed run releases it automatically.
@@ -83,6 +88,17 @@ def get_connection():
 
 def _dt(value):
     return value.isoformat() if value else None
+
+
+def _supabase_profile_id(username):
+    """Return the Supabase auth UUID encoded in our local username, if any."""
+    prefix = 'supabase_'
+    if not isinstance(username, str) or not username.startswith(prefix):
+        return None
+    try:
+        return str(UUID(username[len(prefix):]))
+    except ValueError:
+        return None
 
 
 def category_rows():
@@ -130,7 +146,7 @@ def order_rows():
     return [
         {
             'id': str(o.id), 'order_number': o.order_number,
-            'user_id': str(o.user_id) if o.user_id else None,
+            'user_id': _supabase_profile_id(o.user.username) if o.user else None,
             'customer': o.customer, 'notes': o.notes,
             'subtotal_minor': o.subtotal_minor, 'discount_minor': o.discount_minor,
             'shipping_cost_minor': o.shipping_cost_minor,
@@ -143,7 +159,7 @@ def order_rows():
             'payment_status': o.payment_status, 'currency': o.currency,
             'created_at': _dt(o.created_at), 'updated_at': _dt(o.updated_at),
         }
-        for o in Order.objects.all()
+        for o in Order.objects.select_related('user').all()
     ]
 
 
@@ -185,10 +201,11 @@ def inventory_transaction_rows():
             'previous_quantity': t.previous_quantity,
             'new_quantity': t.new_quantity, 'reason': t.reason,
             'order_id': str(t.order_id) if t.order_id else None,
-            'actor_id': str(t.actor_id) if t.actor_id else None,
+            'actor_id': _supabase_profile_id(t.actor.username)
+            if t.actor else None,
             'created_at': _dt(t.created_at),
         }
-        for t in InventoryTransaction.objects.all()
+        for t in InventoryTransaction.objects.select_related('actor').all()
     ]
 
 
@@ -234,12 +251,12 @@ def promotion_redemption_rows():
         {
             'id': str(r.id), 'promotion_id': str(r.promotion_id),
             'order_id': str(r.order_id),
-            'user_id': str(r.user_id) if r.user_id else None,
+            'user_id': _supabase_profile_id(r.user.username) if r.user else None,
             'coupon_code': r.coupon_code, 'discount_minor': r.discount_minor,
             'shipping_discount_minor': r.shipping_discount_minor,
             'voided': r.voided, 'redeemed_at': _dt(r.redeemed_at),
         }
-        for r in PromotionRedemption.objects.all()
+        for r in PromotionRedemption.objects.select_related('user').all()
     ]
 
 
@@ -282,15 +299,30 @@ def customer_rows():
             ),
         )
     )
+    aggregates = list(rows)
+    if not aggregates:
+        return []
+
+    from django.contrib.auth import get_user_model
+
+    users = get_user_model().objects.filter(
+        pk__in=[row['user_id'] for row in aggregates]
+    ).values_list('pk', 'username')
+    profile_ids = {
+        user_id: profile_id
+        for user_id, username in users
+        if (profile_id := _supabase_profile_id(username)) is not None
+    }
+
     return [
         {
-            'user_id': str(r['user_id']),
+            'user_id': profile_ids[r['user_id']],
             'first_order_at': _dt(r['first_order_at']),
             'last_order_at': _dt(r['last_order_at']),
             'order_count': r['order_count'],
             'total_spent_minor': int(r['total_spent_minor'] or 0),
         }
-        for r in rows
+        for r in aggregates if r['user_id'] in profile_ids
     ]
 
 
@@ -338,39 +370,45 @@ def _sync_table(conn, table, extractor, key_col, key_is_uuid):
     rows = extractor()
     columns = list(rows[0].keys()) if rows else []
 
-    with conn.cursor() as cur:
-        if rows:
-            updates = ', '.join(
-                f'{c} = EXCLUDED.{c}' for c in columns if c != key_col
-            )
-            sql = (
-                f'INSERT INTO replica.{table} ({", ".join(columns)}) '
-                f'VALUES %s '
-                f'ON CONFLICT ({key_col}) DO UPDATE SET {updates}'
-            )
-            values = [
-                tuple(_adapter(row[c], c) for c in columns) for row in rows
-            ]
-            execute_values(cur, sql, values, page_size=500)
+    try:
+        with conn.cursor() as cur:
+            if rows:
+                updates = ', '.join(
+                    f'{c} = EXCLUDED.{c}' for c in columns if c != key_col
+                )
+                sql = (
+                    f'INSERT INTO replica.{table} ({", ".join(columns)}) '
+                    f'VALUES %s '
+                    f'ON CONFLICT ({key_col}) DO UPDATE SET {updates}'
+                )
+                values = [
+                    tuple(_adapter(row[c], c) for c in columns) for row in rows
+                ]
+                execute_values(cur, sql, values, page_size=500)
 
-            # Drop replica rows whose Django counterpart is gone.
-            ids = [row[key_col] for row in rows]
-            array_cast = 'uuid[]' if key_is_uuid else 'text[]'
-            cur.execute(
-                f'DELETE FROM replica.{table} t '
-                f'WHERE NOT EXISTS (SELECT 1 FROM unnest(%s::{array_cast}) v '
-                f'WHERE v = t.{key_col})',
-                (ids,),
-            )
-        else:
-            # Django has no rows at all: clear the replica table rather than
-            # leaving orphaned data behind.
-            cur.execute(f'DELETE FROM replica.{table}')
+                # Drop replica rows whose Django counterpart is gone.
+                ids = [row[key_col] for row in rows]
+                array_cast = 'uuid[]' if key_is_uuid else 'text[]'
+                cur.execute(
+                    f'DELETE FROM replica.{table} t '
+                    f'WHERE NOT EXISTS '
+                    f'(SELECT 1 FROM unnest(%s::{array_cast}) v '
+                    f'WHERE v = t.{key_col})',
+                    (ids,),
+                )
+            else:
+                # Django has no rows at all: clear the replica table rather than
+                # leaving orphaned data behind.
+                cur.execute(f'DELETE FROM replica.{table}')
 
-        cur.execute(f'SELECT count(*) FROM replica.{table}')
-        replica_count = cur.fetchone()[0]
+            cur.execute(f'SELECT count(*) FROM replica.{table}')
+            replica_count = cur.fetchone()[0]
 
-    conn.commit()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
     return {'source': len(rows), 'replica': replica_count}
 
 
@@ -437,15 +475,16 @@ def _finish_run(conn, run_id, status, counts, storage_info=None, error=None):
 
 
 def latest_run():
-    """Most recent sync run, or ``None``. Never raises -- the status page must
-    render even when the replica has never been reachable."""
+    """Return the most recent run, or ``None`` when no run has been recorded."""
     if not replica_configured():
         return None
     try:
         conn = get_connection()
-    except Exception:  # noqa: BLE001 - status page degrades, never 500s
+    except Exception as exc:  # noqa: BLE001 - status page renders degraded state
         logger.warning('Replica status unavailable: cannot connect.', exc_info=True)
-        return None
+        raise ReplicaStatusUnavailable(
+            'Could not connect to the replica database.'
+        ) from exc
     try:
         with conn.cursor() as cur:
             cur.execute(
@@ -462,9 +501,11 @@ def latest_run():
             'table_counts': row[5] or {}, 'storage': row[6] or {},
             'error': row[7],
         }
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         logger.warning('Replica status query failed.', exc_info=True)
-        return None
+        raise ReplicaStatusUnavailable(
+            'Could not read replica sync history.'
+        ) from exc
     finally:
         conn.close()
 
@@ -483,7 +524,12 @@ def queue_replica_sync(triggered_by='manual'):
         )
     conn = get_connection()
     try:
-        return _start_run(conn, triggered_by, status='requested')
+        run_id = _start_run(conn, triggered_by, status='requested')
+        conn.commit()
+        return run_id
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -538,7 +584,9 @@ def sync_replica(triggered_by='manual', include_storage=True):
 
         try:
             run_id = _start_run(conn, triggered_by)
+            conn.commit()
         except Exception:  # noqa: BLE001 - replica may not exist yet
+            conn.rollback()
             logger.warning('Could not open a sync_runs row.', exc_info=True)
 
         for table, extractor, key_col, key_is_uuid in TABLE_SPECS:
@@ -581,6 +629,10 @@ def sync_replica(triggered_by='manual', include_storage=True):
         }
     except Exception as exc:  # noqa: BLE001
         logger.exception('Replica sync failed.')
+        try:
+            conn.rollback()
+        except Exception:  # noqa: BLE001 - the connection may already be lost
+            logger.warning('Could not roll back failed replica sync.', exc_info=True)
         if run_id is not None:
             try:
                 _finish_run(conn, run_id, 'failure', counts, None, str(exc)[:2000])

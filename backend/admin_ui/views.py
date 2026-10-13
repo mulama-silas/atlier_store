@@ -57,6 +57,7 @@ from receipts.services import read_pdf_bytes, regenerate_receipt
 from replica.services.sync import (
     ReplicaAlreadyRunning,
     ReplicaNotConfigured,
+    ReplicaStatusUnavailable,
     latest_run,
     pending_request,
     queue_replica_sync,
@@ -3537,7 +3538,12 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
 
     def get(self, request):
         configured = replica_configured()
-        run = latest_run() if configured else None
+        run_error = None
+        try:
+            run = latest_run() if configured else None
+        except ReplicaStatusUnavailable as exc:
+            run = None
+            run_error = str(exc)
 
         stale = False
         age_hours = None
@@ -3567,6 +3573,7 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
             'description': 'Supabase replica status and manual sync.',
             'configured': configured,
             'run': run,
+            'run_error': run_error,
             'counts': counts,
             'stale': stale,
             'age_hours': age_hours,
@@ -3610,7 +3617,7 @@ class ReplicaSyncActionView(StaffRequiredMixin, View):
         skip_storage = request.POST.get('skip_storage') == 'on'
         raw_limit = (request.POST.get('storage_limit') or '').strip()
         try:
-            storage_limit = max(0, int(raw_limit)) or None
+            storage_limit = max(0, int(raw_limit))
         except (TypeError, ValueError):
             storage_limit = None
 
@@ -3619,7 +3626,7 @@ class ReplicaSyncActionView(StaffRequiredMixin, View):
 
         # Mirror a bounded number of objects first, so a trial run cannot turn
         # into a full copy because one field was left blank.
-        if not skip_storage and storage_limit:
+        if not skip_storage and storage_limit is not None:
             from replica.services.storage_mirror import mirror_bucket
             try:
                 info = mirror_bucket(limit=storage_limit)
