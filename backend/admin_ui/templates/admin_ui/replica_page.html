@@ -126,9 +126,7 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
   The replica is reachable but has <strong>no sync runs recorded</strong> yet.
   Run the first backup below, or hit the cron endpoint directly.
 </div>
-{% endif %}
-
-{% if run %} {% if run.status == 'failure' %}
+{% endif %} {% if run %} {% if run.status == 'failure' %}
 <div class="replica-alert replica-alert-error">
   <i class="ph ph-warning-circle"></i>
   <strong>The last run failed.</strong>
@@ -166,9 +164,9 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
     <div class="replica-detail">
       {% if run %} Last run #{{ run.id }} &middot; triggered by {{
       run.triggered_by }}<br />
-      Finished {{ run.finished_at|date:"j M Y, H:i" }} T {% if age_hours is not
-      None %}({{ age_hours }}h ago){% endif %} {% else %} No run history yet. {%
-      endif %}
+      Finished {{ run.finished_at|date:"j M Y, H:i" }} T {% if age_hours %}({{
+      age_hours }}h ago){% endif %} {% endif %} {% if not run %}No run history
+      yet.{% endif %}
     </div>
   </div>
 
