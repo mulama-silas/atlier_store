@@ -145,19 +145,22 @@ export async function fetchAssistantHistory(
 }
 
 /**
- * Send one message and consume the Server-Sent Events reply incrementally.
+ * POST one message to an SSE chat endpoint and consume the reply incrementally.
  * Resolves with the turn's metadata; rejects with AssistantApiError on
  * transport/HTTP failures. Stream `error` events resolve normally after
  * calling onError (the reply itself failed, the request did not).
  */
-export async function streamAssistantMessage(options: {
-  message: string;
-  conversationId?: string;
-  signal?: AbortSignal;
-  handlers: AssistantStreamHandlers;
-}): Promise<AssistantDone | null> {
+async function postChatStream(
+  url: string,
+  options: {
+    message: string;
+    conversationId?: string;
+    signal?: AbortSignal;
+    handlers: AssistantStreamHandlers;
+  },
+): Promise<AssistantDone | null> {
   const { message, conversationId, signal, handlers } = options;
-  const response = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: await authHeaders(),
     credentials: 'include',
@@ -252,4 +255,53 @@ export async function streamAssistantMessage(options: {
   }
 
   return done;
+}
+
+/** Stream a chat turn through the current ``/api/assistant/chat`` endpoint. */
+export async function streamAssistantMessage(options: {
+  message: string;
+  conversationId?: string;
+  signal?: AbortSignal;
+  handlers: AssistantStreamHandlers;
+}): Promise<AssistantDone | null> {
+  return postChatStream(`${API_BASE_URL}/api/assistant/chat`, options);
+}
+
+/** Stream a chat turn through the new ``/api/ai/chat`` endpoint. */
+export async function streamAIMessage(options: {
+  message: string;
+  conversationId?: string;
+  signal?: AbortSignal;
+  handlers: AssistantStreamHandlers;
+}): Promise<AssistantDone | null> {
+  return postChatStream(`${API_BASE_URL}/api/ai/chat`, options);
+}
+
+export interface AIHealthReport {
+  success: boolean;
+  status: string;
+  provider: string;
+  model: string;
+  response: string;
+  latencyMs: number;
+  updatedAt?: string | null;
+  error?: { code: string; message: string } | null;
+}
+
+/**
+ * Probe ``GET /api/ai/health/`` (public, throttled). Returns `null` if the
+ * endpoint or payload is unavailable; never throws.
+ */
+export async function fetchAIHealth(signal?: AbortSignal): Promise<AIHealthReport | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/ai/health/`, {
+      headers: await authHeaders(),
+      credentials: 'include',
+      signal,
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as AIHealthReport;
+  } catch {
+    return null;
+  }
 }

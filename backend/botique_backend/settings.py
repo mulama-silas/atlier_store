@@ -221,6 +221,7 @@ INSTALLED_APPS = [
     'receipts',
     'store',
     'assistant',
+    'ai.apps.AiConfig',
 ]
 
 # ---------------------------------------------------------------------------
@@ -523,7 +524,7 @@ USE_X_FORWARDED_FOR = os.getenv(
 # bundle (no VITE_GEMINI_* variable exists) and never appears in a response.
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '').strip()
-GEMINI_MODEL = (os.getenv('GEMINI_MODEL', 'gemini-3.5-flash') or '').strip()
+GEMINI_MODEL = (os.getenv('GEMINI_MODEL', 'gemini-3.5-flash-lite') or '').strip()
 GEMINI_TIMEOUT_SECONDS = _env_int('GEMINI_TIMEOUT_SECONDS', 30)
 GEMINI_MAX_RETRIES = _env_int('GEMINI_MAX_RETRIES', 2)
 # Exponential backoff base between retries (timeout/429/5xx only).
@@ -534,6 +535,12 @@ ASSISTANT_MAX_TOOL_ROUNDS = _env_int('ASSISTANT_MAX_TOOL_ROUNDS', 4)
 # Days an assistant conversation (and its messages) is kept before
 # `purge_assistant_conversations` removes it.
 ASSISTANT_RETENTION_DAYS = _env_int('ASSISTANT_RETENTION_DAYS', 90)
+
+# ---- ai endpoints (backend/ai) -------------------------------------------
+# Max characters for a single customer message to /api/ai/chat/.
+AI_MAX_MESSAGE_LENGTH = _env_int('AI_MAX_MESSAGE_LENGTH', 2000)
+# /api/ai/health/ probes spend real Gemini quota: cache a pass for this long.
+GEMINI_HEALTH_CACHE_SECONDS = _env_int('GEMINI_HEALTH_CACHE_SECONDS', 60)
 
 LOGGING = {
     'version': 1,

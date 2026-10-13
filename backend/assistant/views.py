@@ -125,7 +125,12 @@ class ChatView(APIView):
         payload = _collect(events)
         if payload['error']:
             code = payload['error'].get('code', 'upstream_error')
-            status = 400 if code in ('empty_message',) else 502
+            if code == 'empty_message':
+                status = 400
+            elif code == 'rate_limited':
+                status = 429
+            else:
+                status = 502
             return Response({'error': {
                 'code': code.upper(),
                 'message': payload['error'].get('message', ''),

@@ -101,7 +101,8 @@ boutique-fashion-store/
 │   ├── admin_ui/                  # server-rendered admin dashboard
 │   ├── admin_api/                 # staff REST endpoints
 │   ├── store/                     # /api/health/
-│   └── docs/                      # LOGGING.md, ADMIN_VARIANTS.md, CELERY.md
+│   ├── ai/                        # Gemini assistant (/api/ai/health, /api/ai/chat)
+│   └── docs/                      # LOGGING.md, ADMIN_VARIANTS.md, CELERY.md, AI_ASSISTANT.md
 └── frontend/                      # React + Vite storefront
     ├── package.json, server.ts, vite.config.ts, vercel.json
     ├── src/
@@ -472,7 +473,7 @@ Three templates exist: root `.env.example` (master), `backend/.env.example`, `fr
 | Variable | Purpose |
 |---|---|
 | `GEMINI_API_KEY` | **Server-only** Google AI Studio key; used exclusively by `backend/assistant` |
-| `GEMINI_MODEL` | Model id (default `gemini-3.5-flash`; must support the Interactions API) |
+| `GEMINI_MODEL` | Model id (default `gemini-3.5-flash-lite`; must support the Interactions API) |
 | `GEMINI_TIMEOUT_SECONDS` / `GEMINI_MAX_RETRIES` / `GEMINI_RETRY_BACKOFF_SECONDS` | Per-call timeout and retry budget |
 | `ASSISTANT_MAX_TOOL_ROUNDS` | Max tool round-trips per message (default `4`) |
 | `ASSISTANT_RETENTION_DAYS` | Conversation retention for the purge command (default `90`) |
@@ -572,5 +573,6 @@ npm run test:api    # API integration tests
 | `backend/docs/LOGGING.md` | Logging / audit / notification spec |
 | `backend/docs/ADMIN_VARIANTS.md` | Product variant admin feature spec |
 | `backend/docs/CELERY.md` | Background imports & email subsystem runbook |
+| `backend/docs/AI_ASSISTANT.md` | Gemini assistant runbook (env, endpoints, troubleshooting) |
 | `frontend/README.md` | Frontend local-run instructions |
 | `.env.example` | Master environment variable template |

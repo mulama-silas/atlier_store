@@ -37,6 +37,9 @@ MAX_TOOL_ROUNDS = 4
 # Customer-safe fallbacks. Raw Gemini errors are never shown.
 FRIENDLY_ERROR = ("Sorry, I'm having trouble right now. "
                   "Please try again in a moment.")
+# Distinct copy for quota exhaustion so it reads as capacity, not breakage.
+FRIENDLY_CAPACITY = ("Modeza's assistant has reached today's capacity. "
+                     "Please try again a bit later.")
 
 
 class GeminiError(Exception):
@@ -137,6 +140,17 @@ def reset_client():
 # Error classification / retries
 # ---------------------------------------------------------------------------
 
+def _is_rate_limit(text):
+    return ('rate_limit' in text or 'rate limit' in text
+            or 'resource_exhausted' in text or 'resource exhausted' in text)
+
+
+def _is_daily_rate_limit(text):
+    """A requests-per-day (RPD) quota — retrying now cannot succeed."""
+    lowered = text.lower()
+    return 'per day' in lowered or 'daily' in lowered or ' rpd' in lowered
+
+
 def _classify(exc):
     """Map an SDK/network exception to ``(code, retryable)``."""
     code = getattr(exc, 'code', None)
@@ -147,7 +161,8 @@ def _classify(exc):
         if 'previous_interaction_id' in text:
             return 'stale_interaction', False
         if code == 429:
-            return 'rate_limited', True
+            # Minute-level limits recover in seconds; daily ones do not.
+            return 'rate_limited', not _is_daily_rate_limit(text)
         if code == 401 or code == 403:
             return 'auth_error', False
         return 'client_error', False
@@ -192,7 +207,9 @@ def _create_interaction(client, *, stream, **kwargs):
                 continue
             raise GeminiFailed(
                 f'Gemini request failed ({code})', code=code,
-                retryable=retryable) from exc
+                retryable=retryable,
+                friendly=(FRIENDLY_CAPACITY if code == 'rate_limited'
+                          else FRIENDLY_ERROR)) from exc
 
 
 def _usage_dict(usage):
@@ -277,14 +294,17 @@ _PERMANENT_STREAM_TOKENS = (
 
 
 def _stream_error_retryable(code, message):
-    """Classify a stream ``error`` event: only clearly permanent ones fail.
+    """Classify a stream ``error`` event.
 
-    Everything else — including an empty/unknown mid-stream failure (e.g. a
+    Daily (RPD) rate limits and clearly permanent errors never retry;
+    everything else — including an empty/unknown mid-stream failure (e.g. a
     network blip between Render and Google) — defaults to retryable, which is
     exactly the case a second attempt fixes. Retries in ``run_turn`` only run
     before any text was emitted, so a retry can never duplicate a reply.
     """
     text = f'{code} {message}'.lower()
+    if _is_rate_limit(text) and _is_daily_rate_limit(text):
+        return False
     return not any(token in text for token in _PERMANENT_STREAM_TOKENS)
 
 
@@ -338,6 +358,7 @@ def _consume_stream(stream):
             status = getattr(interaction, 'status', 'completed') or 'completed'
         elif event_type == 'error':
             code, message = _stream_error_detail(event)
+            text = f'{code} {message}'.lower()
             retryable = _stream_error_retryable(code, message)
             try:
                 dump = event.model_dump(mode='json', exclude_none=True)
@@ -348,10 +369,14 @@ def _consume_stream(stream):
                 'code=%s message=%s): %s',
                 retryable, code or 'unknown', message or '<empty>',
                 str(dump)[:500])
+            rate_limited = _is_rate_limit(text)
             raise GeminiFailed(
                 f'Gemini stream error: [{code or "unknown"}] '
                 f'{message or "no detail"}',
-                code='stream_error', retryable=retryable)
+                code='rate_limited' if rate_limited else 'stream_error',
+                retryable=retryable,
+                friendly=(FRIENDLY_CAPACITY if rate_limited
+                          else FRIENDLY_ERROR))
         # 'interaction.status_update' and unknown events are ignored.
 
     flush()
@@ -401,7 +426,7 @@ def run_turn(*, system_instruction: str, payload, tools=None,
     history (list of steps) used only when the stored chain id went stale.
     """
     client = _get_client()
-    model = getattr(settings, 'GEMINI_MODEL', '') or 'gemini-3.5-flash'
+    model = getattr(settings, 'GEMINI_MODEL', '') or 'gemini-3.5-flash-lite'
     timeout = float(getattr(settings, 'GEMINI_TIMEOUT_SECONDS', 30) or 30)
     max_retries = int(getattr(settings, 'GEMINI_MAX_RETRIES', 2) or 0)
     backoff = float(getattr(settings, 'GEMINI_RETRY_BACKOFF_SECONDS', 0.5) or 0)

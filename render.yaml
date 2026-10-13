@@ -77,7 +77,7 @@ services:
       # ---- AI shopping assistant (server-side Gemini, see PROJECT.md) ------
       # Model used by backend/assistant; must support the Interactions API.
       - key: GEMINI_MODEL
-        value: "gemini-3.5-flash"
+        value: "gemini-3.5-flash-lite"
       - key: ASSISTANT_RETENTION_DAYS
         value: "90"
       # Conversation rate limits for /api/assistant/*.

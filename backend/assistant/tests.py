@@ -388,6 +388,59 @@ class AssistantChatApiTests(TestCase):
         self.assertTrue(AuditLog.objects.filter(
             action='assistant_error').exists())
 
+    def test_daily_rate_limit_returns_429_with_capacity_message(self):
+        """JSON mode: per-day quota → 429, no retries, capacity copy."""
+        daily = ('Rate limit exceeded for model gemini-3.5-flash-lite '
+                 '(limit: 1500 requests per day on Free Tier).')
+        with self.settings(GEMINI_MAX_RETRIES=2,
+                           GEMINI_RETRY_BACKOFF_SECONDS=0):
+            response, fake = self._post([FakeAPIError(429, daily)],
+                                        message='hello')
+
+        self.assertEqual(response.status_code, 429)
+        payload = response.json()
+        self.assertEqual(payload['error']['code'], 'RATE_LIMITED')
+        self.assertIn("capacity", payload['error']['message'])
+        self.assertNotIn('per day', payload['error']['message'])
+        self.assertEqual(len(fake.interactions.calls), 1)
+
+    def test_minute_rate_limit_still_retries_then_fails(self):
+        """Minute-level 429s are transient: retries happen, then capacity
+        copy is shown (they share the rate_limited code)."""
+        minute = 'Rate limit exceeded: 20 requests per minute'
+        with self.settings(GEMINI_MAX_RETRIES=2,
+                           GEMINI_RETRY_BACKOFF_SECONDS=0):
+            response, fake = self._post([FakeAPIError(429, minute)] * 3,
+                                        message='hello')
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(len(fake.interactions.calls), 3)
+        self.assertIn('capacity', response.json()['error']['message'])
+
+    def test_daily_rate_limit_stream_error_is_not_retried(self):
+        """SSE mode: the exact production failure — one call, rate_limited
+        code, capacity copy in the error event."""
+        specs = [{'events': [error_stream_event(
+            code='rate_limit_exceeded',
+            message='Rate limit exceeded for model gemini-3.5-flash-lite '
+                    '(limit: 1500 requests per day on Free Tier).')]}]
+        with patch_gemini(specs) as fake:
+            with self.settings(GEMINI_RETRY_BACKOFF_SECONDS=0):
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(
+                        '/api/assistant/chat', {'message': 'hi'},
+                        format='json')
+                    body = b''.join(response.streaming_content).decode()
+
+        self.assertEqual(len(fake.interactions.calls), 1)
+        self.assertIn('event: error', body)
+        error_line = next(line for line in body.split('\n')
+                          if line.startswith('data: ') and '"code"' in line)
+        payload = json.loads(error_line[6:])
+        self.assertEqual(payload['code'], 'rate_limited')
+        self.assertIn('capacity', payload['message'])
+        self.assertNotIn('per day', payload['message'])
+
     def test_support_escalation_is_audited_during_a_chat_turn(self):
         specs = [
             {'calls': [('create_support_request',
@@ -832,6 +885,29 @@ class StreamErrorDetailTests(TestCase):
     def test_invalid_argument_is_not_retryable(self):
         self.assertFalse(_stream_error_retryable(
             'INVALID_ARGUMENT', 'invalid model'))
+
+    def test_daily_rate_limit_is_not_retryable(self):
+        self.assertFalse(_stream_error_retryable(
+            'rate_limit_exceeded',
+            'Rate limit exceeded for model gemini-3.5-flash-lite '
+            '(limit: 1500 requests per day on Free Tier).'))
+
+    def test_minute_rate_limit_is_retryable(self):
+        self.assertTrue(_stream_error_retryable(
+            'rate_limit_exceeded',
+            'Rate limit exceeded: 30 requests per minute, retry in 12s.'))
+
+    def test_daily_rate_limit_is_not_retryable_at_call_time(self):
+        code, retryable = _classify(FakeAPIError(
+            429, 'Rate limit exceeded: 20 requests per day on Free Tier'))
+        self.assertEqual(code, 'rate_limited')
+        self.assertFalse(retryable)
+
+    def test_minute_rate_limit_is_retryable_at_call_time(self):
+        code, retryable = _classify(FakeAPIError(
+            429, 'Rate limit exceeded: 20 requests per minute'))
+        self.assertEqual(code, 'rate_limited')
+        self.assertTrue(retryable)
 
 
 class InsightTests(TestCase):
