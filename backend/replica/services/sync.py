@@ -38,13 +38,7 @@ from receipts.models import Receipt
 
 logger = logging.getLogger(__name__)
 
-# Tables whose replica rows are keyed by a UUID.
-UUID_TABLES = {
-    'categories', 'products', 'product_variants', 'orders', 'order_items',
-    'inventory_transactions', 'stock_reservations', 'promotions',
-    'promotion_redemptions', 'receipts',
-}
-TEXT_KEY_TABLES = {'payment_intents'}
+
 
 
 class ReplicaNotConfigured(RuntimeError):
@@ -301,19 +295,20 @@ def customer_rows():
 
 
 # Ordered so foreign keys land before the rows that reference them.
+# Each entry: (table_name, extractor_fn, key_column, key_is_uuid).
 TABLE_SPECS = [
-    ('categories', category_rows, UUID_TABLES),
-    ('products', product_rows, UUID_TABLES),
-    ('product_variants', variant_rows, UUID_TABLES),
-    ('orders', order_rows, UUID_TABLES),
-    ('order_items', order_item_rows, UUID_TABLES),
-    ('payment_intents', payment_intent_rows, TEXT_KEY_TABLES),
-    ('inventory_transactions', inventory_transaction_rows, UUID_TABLES),
-    ('stock_reservations', stock_reservation_rows, UUID_TABLES),
-    ('promotions', promotion_rows, UUID_TABLES),
-    ('promotion_redemptions', promotion_redemption_rows, UUID_TABLES),
-    ('receipts', receipt_rows, UUID_TABLES),
-    ('customers', customer_rows, UUID_TABLES),
+    ('categories',              category_rows,              'id',      True),
+    ('products',                product_rows,               'id',      True),
+    ('product_variants',        variant_rows,               'id',      True),
+    ('orders',                  order_rows,                 'id',      True),
+    ('order_items',             order_item_rows,            'id',      True),
+    ('payment_intents',         payment_intent_rows,        'id',      False),
+    ('inventory_transactions',  inventory_transaction_rows, 'id',      True),
+    ('stock_reservations',      stock_reservation_rows,     'id',      True),
+    ('promotions',              promotion_rows,             'id',      True),
+    ('promotion_redemptions',   promotion_redemption_rows,  'id',      True),
+    ('receipts',                receipt_rows,               'id',      True),
+    ('customers',               customer_rows,              'user_id', True),
 ]
 
 
@@ -334,7 +329,7 @@ def _adapter(value, column):
     return value
 
 
-def _sync_table(conn, table, extractor, key_kind):
+def _sync_table(conn, table, extractor, key_col, key_is_uuid):
     """Upsert one table and delete rows that vanished in Django.
 
     Commits on success, rolls back on any error -- so a failure leaves this
@@ -342,17 +337,16 @@ def _sync_table(conn, table, extractor, key_kind):
     """
     rows = extractor()
     columns = list(rows[0].keys()) if rows else []
-    key = 'id' if key_kind is UUID_TABLES else 'id'
 
     with conn.cursor() as cur:
         if rows:
             updates = ', '.join(
-                f'{c} = EXCLUDED.{c}' for c in columns if c != key
+                f'{c} = EXCLUDED.{c}' for c in columns if c != key_col
             )
             sql = (
                 f'INSERT INTO replica.{table} ({", ".join(columns)}) '
                 f'VALUES %s '
-                f'ON CONFLICT ({key}) DO UPDATE SET {updates}'
+                f'ON CONFLICT ({key_col}) DO UPDATE SET {updates}'
             )
             values = [
                 tuple(_adapter(row[c], c) for c in columns) for row in rows
@@ -360,11 +354,12 @@ def _sync_table(conn, table, extractor, key_kind):
             execute_values(cur, sql, values, page_size=500)
 
             # Drop replica rows whose Django counterpart is gone.
-            ids = [row[key] for row in rows]
+            ids = [row[key_col] for row in rows]
+            array_cast = 'uuid[]' if key_is_uuid else 'text[]'
             cur.execute(
                 f'DELETE FROM replica.{table} t '
-                f'WHERE NOT EXISTS (SELECT 1 FROM unnest(%s::uuid[]) v '
-                f'WHERE v = t.{key})',
+                f'WHERE NOT EXISTS (SELECT 1 FROM unnest(%s::{array_cast}) v '
+                f'WHERE v = t.{key_col})',
                 (ids,),
             )
         else:
@@ -546,8 +541,9 @@ def sync_replica(triggered_by='manual', include_storage=True):
         except Exception:  # noqa: BLE001 - replica may not exist yet
             logger.warning('Could not open a sync_runs row.', exc_info=True)
 
-        for table, extractor, key_kind in TABLE_SPECS:
-            counts[table] = _sync_table(conn, table, extractor, key_kind)
+        for table, extractor, key_col, key_is_uuid in TABLE_SPECS:
+            counts[table] = _sync_table(conn, table, extractor,
+                                        key_col, key_is_uuid)
 
         counts.update(_write_snapshots(conn))
 

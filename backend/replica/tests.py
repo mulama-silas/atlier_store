@@ -160,7 +160,7 @@ class SyncFailureTests(TestCase):
         rows = [{'id': str(uuid.uuid4()), 'name': 'Dresses'}]
         with mock.patch.object(sync_mod, 'execute_values') as bulk_insert:
             sync_mod._sync_table(
-                conn, 'categories', lambda: rows, sync_mod.UUID_TABLES)
+                conn, 'categories', lambda: rows, 'id', True)
 
         query = bulk_insert.call_args[0][1]
         self.assertEqual(query.count('%s'), 1)
@@ -171,7 +171,7 @@ class SyncFailureTests(TestCase):
         """A replica that silently disagrees with Django is worse than none."""
         from replica.services import sync as sync_mod
 
-        def fake_sync_table(conn, table, extractor, key_kind):
+        def fake_sync_table(conn, table, extractor, key_col, key_is_uuid):
             # Report a mismatch that must abort the run.
             return {'source': 5, 'replica': 1}
 
