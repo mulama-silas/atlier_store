@@ -1,0 +1,158 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Reset demo data | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Reset demo data</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .reset-alert {
+    padding: 16px 20px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+  }
+  .reset-alert-danger {
+    background: rgba(220, 38, 38, .09);
+    border-color: rgba(220, 38, 38, .35);
+    color: #b91c1c;
+  }
+  .reset-alert-info {
+    background: rgba(59, 130, 246, .08);
+    border-color: rgba(59, 130, 246, .28);
+    color: #1d4ed8;
+  }
+  .reset-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .reset-table th, .reset-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .reset-table th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-secondary); font-weight: 600;
+  }
+  .reset-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .reset-keep { columns: 2; font-size: 13px; line-height: 1.9; color: var(--text-secondary); }
+  .reset-confirm-input {
+    padding: 9px 12px; border-radius: 6px; width: 200px;
+    border: 1px solid var(--border-color); font-family: ui-monospace, monospace;
+    letter-spacing: .12em;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Reset demo data</h2>
+    <p class="page-subtitle">
+      Delete every order, payment, product and log &mdash; keeping your admin
+      accounts.
+    </p>
+  </div>
+</div>
+
+<div class="reset-alert reset-alert-danger">
+  <i class="ph ph-warning-octagon"></i>
+  <strong>This cannot be undone.</strong>
+  There is no backup on the free tier and no undo. It runs inside a single
+  database transaction, so a failure rolls back and leaves everything intact
+  &mdash; but a successful run is final. Take a copy first if there is anything
+  here you still need.
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-body">
+    <h3 style="margin-bottom: 4px; font-size: 15px;">
+      {{ total }} row{{ total|pluralize }} will be deleted
+    </h3>
+    <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px;">
+      Review this list before continuing. It is a live count of the production
+      database, not an estimate.
+    </p>
+
+    {% if not has_data %}
+      <div class="reset-alert reset-alert-info" style="margin: 0;">
+        <i class="ph ph-info"></i>
+        There is nothing to delete. The database is already clear.
+      </div>
+    {% else %}
+      <table class="reset-table">
+        <thead>
+          <tr><th>Table</th><th style="text-align: right;">Rows</th></tr>
+        </thead>
+        <tbody>
+          {% for label, count in plan %}
+          <tr>
+            <td style="font-family: ui-monospace, monospace; font-size: 12.5px;">
+              {{ label }}
+            </td>
+            <td class="num">
+              {% if count %}
+                <strong>{{ count }}</strong>
+              {% else %}
+                <span style="color: var(--text-secondary);">0</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-body">
+    <h3 style="margin-bottom: 6px; font-size: 15px;">Kept</h3>
+    <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 10px;">
+      These are never touched:
+    </p>
+    <ul class="reset-keep">
+      {% for item in preserved %}<li>{{ item }}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+
+{% if has_data %}
+  <div class="card">
+    <div class="card-body">
+      <h3 style="margin-bottom: 6px; font-size: 15px;">Confirm</h3>
+      <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px;">
+        Type <code>WIPE</code> to confirm. This is a POST with CSRF &mdash;
+        there is no link that can trigger it by accident.
+      </p>
+      <form method="post" action="{% url 'admin-reset-data-confirm' %}"
+            style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        {% csrf_token %}
+        <input type="text" name="confirm" class="reset-confirm-input"
+               placeholder="WIPE" autocomplete="off" aria-label="Type WIPE to confirm">
+        <button type="submit" class="btn btn-danger">
+          <i class="ph ph-trash"></i> Delete everything above
+        </button>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
+<div class="card" style="margin-top: 20px; background: transparent;
+     box-shadow: none; border-style: dashed;">
+  <div class="card-body" style="color: var(--text-secondary); font-size: 12px;
+       display: flex; gap: 8px;">
+    <i class="ph ph-info"></i>
+    <span>
+      This page only exists while <code>ENABLE_DATA_RESET</code> is set. Remove
+      that variable before handing the project over and these URLs answer 404.
+      Never use <code>manage.py flush</code> for this job &mdash; it truncates
+      <code>auth_user</code> too and would delete the admin accounts listed
+      above.
+    </span>
+  </div>
+</div>
+{% endblock %}

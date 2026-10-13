@@ -202,6 +202,7 @@
   .dashboard-kpi-card.alert-card .dashboard-kpi-insight { color: var(--status-danger); }
 
   .dashboard-chart-card {
+    position: relative;
     border-radius: 16px;
     margin-bottom: 22px;
   }
@@ -233,7 +234,22 @@
   .dashboard-chart-controls {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 14px;
+  }
+  .dashboard-chart-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .dashboard-chart-legend .legend-line {
+    width: 16px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--dash-sage);
   }
   .dashboard-range-select {
     appearance: none;
@@ -252,68 +268,64 @@
   .dashboard-chart-scroll {
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 6px 6px 0;
+    padding: 10px 6px 0;
   }
-  .dashboard-chart-bars {
+  .dashboard-line-svg { display: block; }
+  .dashboard-chart-area { fill: url(#sales-area-gradient); }
+  .dashboard-chart-stroke {
+    fill: none;
+    stroke: var(--dash-sage);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .dashboard-chart-baseline {
+    stroke: var(--border-light);
+    stroke-width: 1;
+  }
+  .dashboard-chart-peak {
+    fill: none;
+    stroke: var(--dash-gold);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+    opacity: .55;
+  }
+  .dashboard-chart-peak-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    fill: var(--dash-gold);
+    text-anchor: end;
+  }
+  .dashboard-chart-axis-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    fill: var(--text-secondary);
+    text-anchor: middle;
+  }
+  .sales-chart-point {
+    fill: var(--panel);
+    stroke: var(--dash-sage);
+    stroke-width: 2;
+    transition: r .15s ease;
+  }
+  .sales-chart-point:hover,
+  .sales-chart-point:focus { r: 5; outline: none; }
+  .sales-chart-point.peak { fill: var(--dash-gold); stroke: var(--dash-gold); }
+  .dashboard-chart-empty {
     min-width: 540px;
     height: 220px;
     display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    padding: 22px 20px 0;
-  }
-  .dashboard-bar {
-    flex: 1 0 34px;
-    border-radius: 7px 7px 3px 3px;
-    background: linear-gradient(180deg, #4A5D4E 0%, #7C917A 130%);
-    min-height: 10px;
-    position: relative;
-    cursor: pointer;
-    transition: filter .18s ease, transform .18s ease;
-  }
-  .dashboard-bar::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(180deg, rgba(255,255,255,0) 55%, rgba(255,255,255,0.16));
-  }
-  .dashboard-bar:hover { filter: brightness(1.06); transform: translateY(-2px); }
-  .dashboard-bar.alt {
-    background: linear-gradient(180deg, #C9A227 0%, #E3C97A 130%);
-  }
-  .dashboard-bar .tooltip {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    background: var(--text);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 5px 9px;
-    border-radius: 7px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity .15s ease, transform .15s ease;
-    z-index: 5;
-  }
-  .dashboard-bar:hover .tooltip { opacity: 1; transform: translateX(-50%) translateY(0); }
-  .dashboard-chart-labels {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px 20px 16px;
+    align-items: center;
+    justify-content: center;
     color: var(--text-secondary);
-    font-size: 10.5px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-size: 12.5px;
   }
-  .dashboard-chart-labels span { flex: 1 0 34px; text-align: center; }
-  .dashboard-chart-card.is-loading .dashboard-chart-scroll,
-  .dashboard-chart-card.is-loading .dashboard-chart-labels { opacity: .35; pointer-events: none; }
+  .dashboard-chart-empty i { font-size: 22px; margin-right: 8px; opacity: .5; }
+  .dashboard-chart-card.is-loading .dashboard-chart-scroll { opacity: .35; pointer-events: none; }
   .dashboard-chart-shimmer {
     display: none;
     position: absolute;
@@ -326,306 +338,12 @@
   .dashboard-chart-card.is-loading .dashboard-chart-shimmer { display: block; }
   @keyframes dashShimmer { to { background-position: -200% 0; } }
 
-  .dashboard-grid-2 {
-    display: grid;
-    grid-template-columns: 1.15fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-    align-items: start;
-  }
-  .dashboard-panels-grid {
-    display: grid;
-    grid-template-columns: 1.15fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-    align-items: start;
-  }
-  .dashboard-panels-grid > .dashboard-grid-2 { display: contents; }
-  .dashboard-panel-orders { grid-column: 1; grid-row: 1; }
-  .dashboard-panel-customers { grid-column: 2; grid-row: 1; }
-  .dashboard-panel-actions { grid-column: 1; grid-row: 2; }
-  .dashboard-panel-attention { grid-column: 2; grid-row: 2; }
-  .dashboard-panel-inventory { grid-column: 1; grid-row: 3; }
-  .dashboard-panel-errors { grid-column: 2; grid-row: 3; }
-  .dashboard-panel {
-    border-radius: 16px;
-    overflow: hidden;
-  }
-  .dashboard-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-light);
-  }
-  .dashboard-panel-header h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-  }
-  .dashboard-panel-header h3 i { color: var(--dash-sage); font-size: 16px; }
-  .dashboard-panel-link {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--dash-sage);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .dashboard-panel-link:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-  .dashboard-table { width: 100%; border-collapse: collapse; }
-  .dashboard-table th {
-    text-align: left;
-    padding: 10px 20px;
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-    background: #FAFAF8;
-    border-bottom: 1px solid var(--border-light);
-  }
-  .dashboard-table td {
-    padding: 13px 20px;
-    font-size: 13px;
-    color: var(--text);
-    border-bottom: 1px solid var(--border-light);
-    vertical-align: middle;
-  }
-  .dashboard-table tbody tr:last-child td { border-bottom: none; }
-  .dashboard-table tbody tr { transition: background .12s ease; }
-  .dashboard-table tbody tr:hover { background: #FBFAF7; }
-  .dashboard-order-no {
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    color: var(--dash-ink);
-  }
-  .dashboard-order-customer {
-    color: var(--text-secondary);
-    font-size: 12.5px;
-    max-width: 190px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dashboard-order-total { font-weight: 600; font-variant-numeric: tabular-nums; }
-
-  .dashboard-list { list-style: none; margin: 0; padding: 4px 0; }
-  .dashboard-list li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 20px;
-    border-bottom: 1px solid var(--border-light);
-  }
-  .dashboard-list li:last-child { border-bottom: none; }
-  .dashboard-list li:hover { background: #FBFAF7; }
-  .dashboard-stock-block {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    color: var(--dash-sage);
-    flex-shrink: 0;
-  }
-  .dashboard-stock-info { flex: 1; min-width: 0; }
-  .dashboard-stock-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--dash-ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dashboard-stock-meta {
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    margin-top: 2px;
-    font-family: ui-monospace, "SF Mono", Consolas, monospace;
-  }
-  .dashboard-stock-qty {
-    font-size: 13px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    padding: 3px 9px;
-    border-radius: 999px;
-  }
-  .dashboard-stock-qty.warn { background: var(--status-warning-bg); color: var(--status-warning); }
-  .dashboard-stock-qty.out { background: var(--status-danger-bg); color: var(--status-danger); }
-
-  .dashboard-empty {
-    padding: 26px 20px;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 12.5px;
-  }
-  .dashboard-empty i { font-size: 22px; display: block; margin-bottom: 8px; opacity: .5; }
-
-  .dashboard-attention {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border-light);
-  }
-  .dashboard-attention-item {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 9px 11px;
-    border-radius: 11px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    text-decoration: none;
-    color: var(--text);
-    transition: border-color .15s ease, transform .15s ease;
-  }
-  .dashboard-attention-item:hover { border-color: var(--text-secondary); transform: translateY(-1px); }
-  .dashboard-attention-item i { font-size: 16px; }
-  .dashboard-attention-item .count {
-    font-size: 17px;
-    font-weight: 700;
-    line-height: 1;
-  }
-  .dashboard-attention-item .label {
-    font-size: 10.5px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-top: 2px;
-  }
-  .dashboard-attention-item.warn { color: var(--status-warning); }
-  .dashboard-attention-item.danger { color: var(--status-danger); }
-  .dashboard-attention-item.info { color: var(--status-info); }
-
-  .dashboard-activity-list { list-style: none; margin: 0; padding: 2px 0 6px; }
-  .dashboard-activity-list li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 20px;
-    border-bottom: 1px solid var(--border-light);
-  }
-  .dashboard-activity-list li:last-child { border-bottom: none; }
-  .dashboard-activity-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    color: var(--dash-sage);
-    background: var(--dash-sage-soft);
-    flex-shrink: 0;
-  }
-  .dashboard-activity-icon.gold { background: #F6EFE0; color: #A8831E; }
-  .dashboard-activity-main { flex: 1; min-width: 0; }
-  .dashboard-activity-title {
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--dash-ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dashboard-activity-desc {
-    font-size: 11.5px;
-    color: var(--text-secondary);
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .dashboard-activity-time {
-    font-size: 11px;
-    color: var(--text-secondary);
-    flex-shrink: 0;
-  }
-
-  .dashboard-actions {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    padding: 16px 20px;
-  }
-  .dashboard-action {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 11px 12px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    text-decoration: none;
-    color: var(--text);
-    transition: all .15s ease;
-  }
-  .dashboard-action:hover {
-    border-color: var(--dash-sage);
-    background: var(--dash-sage-soft);
-  }
-  .dashboard-action i { font-size: 17px; color: var(--dash-sage); }
-  .dashboard-action span { display: block; }
-  .dashboard-action .action-label { font-size: 12.5px; font-weight: 600; color: var(--dash-ink); }
-  .dashboard-action .action-hint { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
-
-  .dashboard-errors-table { width: 100%; border-collapse: collapse; }
-  .dashboard-errors-table td {
-    padding: 10px 20px;
-    font-size: 12.5px;
-    border-bottom: 1px solid var(--border-light);
-    color: var(--text);
-  }
-  .dashboard-errors-table tr:last-child td { border-bottom: none; }
-  .dashboard-errors-table .error-action {
-    font-family: ui-monospace, "SF Mono", Consolas, monospace;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .dashboard-errors-table .error-action i { color: var(--status-danger); font-size: 14px; }
-  .dashboard-errors-table .error-total {
-    text-align: right;
-    font-weight: 700;
-    color: var(--status-danger);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .dashboard-badge { font-size: 12px; }
-  .dashboard-scroll-feed { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; }
-
   @media (max-width: 1080px) {
     .dashboard-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .dashboard-grid-2,
-    .dashboard-panels-grid { grid-template-columns: 1fr; }
-    .dashboard-panels-grid > .dashboard-grid-2 { display: contents; }
-    .dashboard-panel-orders,
-    .dashboard-panel-customers,
-    .dashboard-panel-actions,
-    .dashboard-panel-attention,
-    .dashboard-panel-inventory,
-    .dashboard-panel-errors { grid-column: 1; grid-row: auto; }
   }
   @media (max-width: 640px) {
     .dashboard-hero { padding: 20px; }
     .dashboard-kpi-grid { grid-template-columns: 1fr; }
-    .dashboard-attention { grid-template-columns: 1fr; }
-    .dashboard-actions { grid-template-columns: 1fr; }
-    .dashboard-table th, .dashboard-table td { padding: 11px 14px; }
   }
 </style>
 {% endblock %}
@@ -720,6 +438,10 @@
         <span class="period-total" id="sales-period-total">KES {{ sales_period_total_kes|floatformat:0 }}</span>
       </h3>
       <div class="dashboard-chart-controls">
+        <span class="dashboard-chart-legend">
+          <span class="legend-line"></span>
+          <span id="sales-peak-total">Peak KES {{ sales_peak_kes|floatformat:0 }}</span>
+        </span>
         <form method="get" id="dashboard-range-form" style="margin: 0;">
           <select name="range" class="dashboard-range-select" id="dashboard-range-select" aria-label="Sales range">
             <option value="7" {% if sales_range == 7 %}selected{% endif %}>7 Days</option>
@@ -730,230 +452,50 @@
       </div>
     </div>
     <div class="dashboard-chart-scroll">
-      <div class="dashboard-chart-bars" id="dashboard-chart-bars">
-        {% for point in sales_overview %}
-        <div class="dashboard-bar{% if forloop.counter|divisibleby:2 %} alt{% endif %} sales-chart-bar"
-             style="height: {{ point.height }}%;"
-             data-value="{{ point.value|floatformat:2 }}"
-             title="{{ point.day }}: KES {{ point.value|floatformat:2 }}">
-          <span class="tooltip">{{ point.day }} &middot; KES {{ point.value|floatformat:2 }}</span>
-        </div>
-        {% empty %}
-        <div class="dashboard-bar" style="height: 20%"></div>
-        <div class="dashboard-bar alt" style="height: 30%"></div>
-        <div class="dashboard-bar" style="height: 25%"></div>
-        <div class="dashboard-bar alt" style="height: 35%"></div>
-        <div class="dashboard-bar" style="height: 40%"></div>
-        <div class="dashboard-bar alt" style="height: 25%"></div>
-        <div class="dashboard-bar" style="height: 15%"></div>
-        {% endfor %}
-      </div>
-    </div>
-    <div class="dashboard-chart-labels" id="dashboard-chart-labels">
-      {% for point in sales_overview %}
-      <span>{{ point.label }}</span>
-      {% empty %}
-      <span>Mon</span>
-      <span>Tue</span>
-      <span>Wed</span>
-      <span>Thu</span>
-      <span>Fri</span>
-      <span>Sat</span>
-      <span>Sun</span>
-      {% endfor %}
+      {% if sales_overview %}
+      <svg class="dashboard-line-svg sales-chart-line" id="dashboard-chart-line"
+           width="{{ sales_chart.width }}" height="{{ sales_chart.height }}"
+           viewBox="0 0 {{ sales_chart.width }} {{ sales_chart.height }}"
+           role="img" aria-label="Daily sales over the selected period">
+        <defs>
+          <linearGradient id="sales-area-gradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4A5D4E" stop-opacity="0.26"></stop>
+            <stop offset="100%" stop-color="#4A5D4E" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <line class="dashboard-chart-peak" id="sales-peak-line"
+              x1="0" y1="{{ sales_chart.plot_top }}" x2="{{ sales_chart.width }}" y2="{{ sales_chart.plot_top }}"></line>
+        <text class="dashboard-chart-peak-label" id="sales-peak-label"
+              x="{{ sales_chart.width }}" y="{{ sales_chart.plot_top_label }}">Peak KES {{ sales_peak_kes|floatformat:0 }}</text>
+        <line class="dashboard-chart-baseline" id="sales-baseline"
+              x1="0" y1="{{ sales_chart.baseline_y }}" x2="{{ sales_chart.width }}" y2="{{ sales_chart.baseline_y }}"></line>
+        <polygon class="dashboard-chart-area" id="sales-area" points="{{ sales_chart.area_points }}"></polygon>
+        <polyline class="dashboard-chart-stroke sales-chart-line" id="sales-line" points="{{ sales_chart.line_points }}"></polyline>
+        <g id="sales-points" role="list" aria-label="Daily sales values">
+          {% for point in sales_overview %}
+          <circle class="sales-chart-point{% if point.is_peak %} peak{% endif %}"
+                  id="sales-point-{{ forloop.counter0 }}"
+                  cx="{{ point.x }}" cy="{{ point.y }}" r="3.5"
+                  data-value="{{ point.value|floatformat:2 }}"
+                  tabindex="0" role="listitem"
+                  aria-label="{{ point.day }}: KES {{ point.value|floatformat:2 }}">
+            <title>{{ point.day }}: KES {{ point.value|floatformat:2 }}</title>
+          </circle>
+          {% endfor %}
+        </g>
+        <g id="sales-labels">
+          {% for point in sales_overview %}
+          {% if point.show_label %}
+          <text class="dashboard-chart-axis-label" x="{{ point.x }}" y="{{ sales_chart.label_y }}">{{ point.label }}</text>
+          {% endif %}
+          {% endfor %}
+        </g>
+      </svg>
+      {% else %}
+      <div class="dashboard-chart-empty"><i class="ph ph-chart-line-up"></i>No sales recorded for this period.</div>
+      {% endif %}
     </div>
   </section>
-
-  <div class="dashboard-panels-grid">
-  <div class="dashboard-grid-2">
-
-    <section class="card dashboard-panel dashboard-panel-orders">
-      <div class="dashboard-panel-header">
-        <h3><i class="ph ph-receipt"></i> Recent Orders</h3>
-        <a class="dashboard-panel-link" href="/admin/dashboard/orders/">View all <i class="ph ph-arrow-right"></i></a>
-      </div>
-      <div class="table-container">
-        <table class="dashboard-table dashboard-orders-table">
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Customer</th>
-              <th>Total</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for order in orders %}
-            <tr>
-              <td class="dashboard-order-no"><a href="/admin/dashboard/orders/{{ order.id }}/" style="color: inherit; text-decoration: none;">#{{ order.order_number }}</a></td>
-              <td class="dashboard-order-customer">{% firstof order.customer.fullName order.customer.full_name order.customer.email 'Guest' %}</td>
-              <td class="dashboard-order-total">{{ order.total_display }}</td>
-              <td><span class="status-badge status-{{ order.status|lower }} dashboard-badge">{{ order.get_status_display }}</span></td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4" class="dashboard-empty"><i class="ph ph-receipt"></i>No orders yet.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="card dashboard-panel dashboard-panel-inventory">
-      <div class="dashboard-panel-header">
-        <h3><i class="ph ph-archive-box"></i> Inventory Alerts</h3>
-        <a class="dashboard-panel-link" href="/admin/dashboard/inventory/adjust/">Manage stock <i class="ph ph-arrow-right"></i></a>
-      </div>
-      <ul class="dashboard-list dashboard-inventory-list" id="dashboard-inventory-list">
-        {% for variant in low_stock_products %}
-        <li>
-          <span class="dashboard-stock-block"><i class="ph ph-t-shirt"></i></span>
-          <div class="dashboard-stock-info">
-            <div class="dashboard-stock-name">{{ variant.product.name }}</div>
-            <div class="dashboard-stock-meta">{{ variant.sku }}{% if variant.size %} &middot; {{ variant.size }}{% endif %}{% if variant.color %} &middot; {{ variant.color }}{% endif %}</div>
-          </div>
-          <span class="dashboard-stock-qty {% if variant.stock_quantity <= 0 %}out{% else %}warn{% endif %}">
-            {% if variant.stock_quantity <= 0 %}Out{% else %}{{ variant.stock_quantity }}{% endif %}
-          </span>
-        </li>
-        {% empty %}
-        <li class="dashboard-empty"><i class="ph ph-check-circle"></i>All products well stocked.</li>
-        {% endfor %}
-      </ul>
-    </section>
-
-  </div>
-
-  <div class="dashboard-grid-2">
-
-    <section class="card dashboard-panel dashboard-panel-actions">
-      <div class="dashboard-panel-header">
-        <h3><i class="ph ph-list-checks"></i> Quick Actions</h3>
-      </div>
-      <div class="dashboard-actions">
-        {% if request.user|can:'products.create' %}
-        <a class="dashboard-action" href="/admin/dashboard/products/new/"><i class="ph ph-plus"></i>
-          <span><span class="action-label">Add Product</span><span class="action-hint">Create a new catalog item</span></span>
-        </a>
-        {% endif %}
-        {% if request.user|can:'products.import' %}
-        <a class="dashboard-action" href="/admin/dashboard/products/import/"><i class="ph ph-upload-simple"></i>
-          <span><span class="action-label">Bulk Import</span><span class="action-hint">Upload a validated ZIP package</span></span>
-        </a>
-        {% endif %}
-        {% if request.user|can:'inventory.adjust' %}
-        <a class="dashboard-action" href="/admin/dashboard/inventory/adjust/"><i class="ph ph-arrows-clockwise"></i>
-          <span><span class="action-label">Adjust Stock</span><span class="action-hint">Update variant quantities</span></span>
-        </a>
-        {% endif %}
-        {% if request.user|can:'categories.create' %}
-        <a class="dashboard-action" href="/admin/dashboard/categories/new/"><i class="ph ph-folders"></i>
-          <span><span class="action-label">Add Category</span><span class="action-hint">Organize your collections</span></span>
-        </a>
-        {% endif %}
-        {% if request.user|can:'orders.confirm' %}
-        <a class="dashboard-action" href="/admin/dashboard/orders/"><i class="ph ph-check-square"></i>
-          <span><span class="action-label">Approve Orders</span><span class="action-hint">Review and confirm pending</span></span>
-        </a>
-        {% endif %}
-        {% if request.user|can:'reports.view' %}
-        <a class="dashboard-action" href="/admin/dashboard/reports/"><i class="ph ph-file-text"></i>
-          <span><span class="action-label">Sales Reports</span><span class="action-hint">Financial &amp; export tools</span></span>
-        </a>
-        {% endif %}
-      </div>
-    </section>
-
-    <section class="card dashboard-panel dashboard-panel-attention">
-      <div class="dashboard-panel-header">
-        <h3><i class="ph ph-pulse"></i> Activity &amp; Attention</h3>
-        <a class="dashboard-panel-link" href="/admin/dashboard/activity/">View logs <i class="ph ph-arrow-right"></i></a>
-      </div>
-
-      <div class="dashboard-attention">
-        <a class="dashboard-attention-item warn" href="/admin/dashboard/orders/">
-          <i class="ph ph-list-checks"></i>
-          <div><div class="count" id="attention-orders">{{ orders_needing_attention }}</div><div class="label">Pending approval</div></div>
-        </a>
-        <a class="dashboard-attention-item info" href="/admin/dashboard/inventory/">
-          <i class="ph ph-archive-box"></i>
-          <div><div class="count" id="attention-low-stock">{{ low_stock_count }}</div><div class="label">Low stock</div></div>
-        </a>
-        <a class="dashboard-attention-item danger" href="/admin/dashboard/activity/errors/">
-          <i class="ph ph-warning-octagon"></i>
-          <div><div class="count" id="attention-errors">{{ customer_error_total }}</div><div class="label">Errors</div></div>
-        </a>
-      </div>
-
-      <ul class="dashboard-activity-list dashboard-activity-feed" id="dashboard-activity-feed">
-        {% for item in recent_activity %}
-        <li>
-          <span class="dashboard-activity-icon {% if item.icon == 'Product' %}gold{% endif %}">
-            <i class="ph {% if item.icon == 'Product' %}ph-pencil-simple{% else %}ph-receipt{% endif %}"></i>
-          </span>
-          <div class="dashboard-activity-main">
-            <div class="dashboard-activity-title">{{ item.title }}</div>
-            <div class="dashboard-activity-desc">{{ item.description }}</div>
-          </div>
-          <time class="dashboard-activity-time">{{ item.timestamp }}</time>
-        </li>
-        {% empty %}
-        <li class="dashboard-empty"><i class="ph ph-scroll"></i>No recent activity.</li>
-        {% endfor %}
-      </ul>
-    </section>
-
-  </div>
-
-  <div class="dashboard-grid-2">
-
-    <section class="card dashboard-panel dashboard-panel-customers">
-      <div class="dashboard-panel-header">
-        <h3><i class="ph ph-users"></i> Recent Customer Activity</h3>
-        <a class="dashboard-panel-link" href="/admin/dashboard/activity/">Full audit <i class="ph ph-arrow-right"></i></a>
-      </div>
-      <div class="dashboard-scroll-feed">
-        <ul class="dashboard-activity-list dashboard-customer-feed" id="dashboard-customer-activity">
-          {% for log in recent_customer_activity %}
-          <li>
-            <span class="dashboard-activity-icon {% if log.result == 'failure' %}gold{% endif %}">
-              <i class="ph {% if log.result == 'failure' %}ph-warning-circle{% else %}ph-user-circle{% endif %}"></i>
-            </span>
-            <div class="dashboard-activity-main">
-              <div class="dashboard-activity-title">{{ log.action }}</div>
-              <div class="dashboard-activity-desc">{{ log.description }} &middot; {{ log.object_repr|default:log.category }}</div>
-            </div>
-            <time class="dashboard-activity-time">{{ log.created_at|date:'M d, H:i' }}</time>
-          </li>
-          {% empty %}
-          <li class="dashboard-empty"><i class="ph ph-users"></i>No customer activity recorded yet.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </section>
-
-    <section class="card dashboard-panel dashboard-panel-errors">
-      <div class="dashboard-panel-header">
-        <h3><i class="ph ph-warning-octagon"></i> Customer Errors (7 days)</h3>
-        <a class="dashboard-panel-link" href="/admin/dashboard/activity/errors/">Error center <i class="ph ph-arrow-right"></i></a>
-      </div>
-      <div>
-        <table class="dashboard-errors-table" id="dashboard-error-summary">
-          {% for row in customer_error_summary %}
-          <tr>
-            <td class="error-action"><i class="ph ph-warning-circle"></i>{{ row.action }}</td>
-            <td class="error-total">{{ row.total }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="2" class="dashboard-empty"><i class="ph ph-check-circle"></i>No failures in the last 7 days.</td></tr>
-          {% endfor %}
-        </table>
-      </div>
-    </section>
-
-  </div>
-
-  </div>
-
 </div>
 {% endblock %}
 
@@ -972,13 +514,7 @@
   var rangeSelect = document.getElementById('dashboard-range-select');
   var rangeForm = document.getElementById('dashboard-range-form');
   var timer = null;
-
-  var ICONS = {
-    order: 'ph-receipt',
-    product: 'ph-pencil-simple',
-    failure: 'ph-warning-circle',
-    ok: 'ph-user-circle',
-  };
+  var SVG_NS = 'http://www.w3.org/2000/svg';
 
   function setStatus(mode, text) {
     if (!dot || !syncState) return;
@@ -1006,211 +542,74 @@
     if (el) el.textContent = String(value);
   }
 
-  function rebuildBars(points) {
-    var bars = document.getElementById('dashboard-chart-bars');
-    var labels = document.getElementById('dashboard-chart-labels');
-    if (!bars || !labels || !Array.isArray(points)) return;
-    bars.innerHTML = '';
-    labels.innerHTML = '';
-    points.slice(0, 90).forEach(function (point, idx) {
-      var bar = document.createElement('div');
-      bar.className = 'dashboard-bar' + ((idx + 1) % 2 === 0 ? ' alt' : '') + ' sales-chart-bar';
-      bar.style.height = String(Number(point.height) || 8) + '%';
-      bar.setAttribute('data-value', point.value || '0.00');
-      bar.title = point.day + ': KES ' + point.value;
-      var tip = document.createElement('span');
-      tip.className = 'tooltip';
-      tip.textContent = point.day + ' · KES ' + point.value;
-      bar.appendChild(tip);
-      bars.appendChild(bar);
-
-      var label = document.createElement('span');
-      label.textContent = point.label;
-      labels.appendChild(label);
+  function svgNode(name, attributes) {
+    var node = document.createElementNS(SVG_NS, name);
+    Object.keys(attributes || {}).forEach(function (key) {
+      node.setAttribute(key, attributes[key]);
     });
+    return node;
   }
 
-  function rebuildOrders(orders) {
-    var table = document.querySelector('.dashboard-orders-table tbody');
-    if (!table || !Array.isArray(orders)) return;
-    table.innerHTML = '';
-    if (!orders.length) {
-      var empty = document.createElement('tr');
-      var cell = document.createElement('td');
-      cell.colSpan = 4;
-      cell.className = 'dashboard-empty';
-      cell.innerHTML = '<i class="ph ph-receipt"></i>No orders yet.';
-      empty.appendChild(cell);
-      table.appendChild(empty);
-      return;
-    }
-    orders.forEach(function (order) {
-      var tr = document.createElement('tr');
-      var no = document.createElement('td');
-      no.className = 'dashboard-order-no';
-      var link = document.createElement('a');
-      link.href = '/admin/dashboard/orders/';
-      link.style.color = 'inherit';
-      link.style.textDecoration = 'none';
-      link.textContent = '#' + order.order_number;
-      no.appendChild(link);
-
-      var customer = document.createElement('td');
-      customer.className = 'dashboard-order-customer';
-      customer.textContent = order.customer;
-
-      var total = document.createElement('td');
-      total.className = 'dashboard-order-total';
-      total.textContent = order.total_display;
-
-      var statusTd = document.createElement('td');
-      var badge = document.createElement('span');
-      badge.className = 'status-badge status-' + (order.status || '') + ' dashboard-badge';
-      badge.textContent = order.status_display;
-      statusTd.appendChild(badge);
-
-      tr.appendChild(no);
-      tr.appendChild(customer);
-      tr.appendChild(total);
-      tr.appendChild(statusTd);
-      table.appendChild(tr);
-    });
+  function clearNode(node) {
+    while (node && node.firstChild) node.removeChild(node.firstChild);
   }
 
-  function rebuildInventory(items) {
-    var list = document.getElementById('dashboard-inventory-list');
-    if (!list || !Array.isArray(items)) return;
-    list.innerHTML = '';
-    if (!items.length) {
-      var empty = document.createElement('li');
-      empty.className = 'dashboard-empty';
-      empty.innerHTML = '<i class="ph ph-check-circle"></i>All products well stocked.';
-      list.appendChild(empty);
-      return;
-    }
-    items.forEach(function (item) {
-      var li = document.createElement('li');
-      var block = document.createElement('span');
-      block.className = 'dashboard-stock-block';
-      block.innerHTML = '<i class="ph ph-t-shirt"></i>';
-      var info = document.createElement('div');
-      info.className = 'dashboard-stock-info';
-      var name = document.createElement('div');
-      name.className = 'dashboard-stock-name';
-      name.textContent = item.product;
-      var meta = document.createElement('div');
-      meta.className = 'dashboard-stock-meta';
-      meta.textContent = [item.sku, item.size, item.color].filter(Boolean).join(' · ');
-      info.appendChild(name);
-      info.appendChild(meta);
-      var qty = document.createElement('span');
-      qty.className = 'dashboard-stock-qty ' + (item.out ? 'out' : 'warn');
-      qty.textContent = item.out ? 'Out' : String(item.stock);
-      li.appendChild(block);
-      li.appendChild(info);
-      li.appendChild(qty);
-      list.appendChild(li);
-    });
-  }
+  function renderLineChart(points, chart) {
+    var svg = document.getElementById('dashboard-chart-line');
+    var line = document.getElementById('sales-line');
+    var area = document.getElementById('sales-area');
+    var baseline = document.getElementById('sales-baseline');
+    var peakLine = document.getElementById('sales-peak-line');
+    var dots = document.getElementById('sales-points');
+    var labels = document.getElementById('sales-labels');
+    if (!svg || !line || !area || !baseline || !dots || !labels) return;
+    if (!chart || !Array.isArray(points) || !points.length) return;
 
-  function rebuildActivity(feed) {
-    var list = document.getElementById('dashboard-activity-feed');
-    if (!list || !Array.isArray(feed)) return;
-    list.innerHTML = '';
-    if (!feed.length) {
-      var empty = document.createElement('li');
-      empty.className = 'dashboard-empty';
-      empty.innerHTML = '<i class="ph ph-scroll"></i>No recent activity.';
-      list.appendChild(empty);
-      return;
+    svg.setAttribute('viewBox', '0 0 ' + chart.width + ' ' + chart.height);
+    svg.setAttribute('width', chart.width);
+    svg.setAttribute('height', chart.height);
+    baseline.setAttribute('y1', chart.baseline_y);
+    baseline.setAttribute('y2', chart.baseline_y);
+    baseline.setAttribute('x2', chart.width);
+    if (peakLine) {
+      peakLine.setAttribute('y1', chart.plot_top);
+      peakLine.setAttribute('y2', chart.plot_top);
+      peakLine.setAttribute('x2', chart.width);
     }
-    feed.forEach(function (item) {
-      var li = document.createElement('li');
-      var icon = document.createElement('span');
-      icon.className = 'dashboard-activity-icon ' + (item.icon === 'Product' ? 'gold' : '');
-      icon.innerHTML = '<i class="ph ' + (item.icon === 'Product' ? ICONS.product : ICONS.order) + '"></i>';
-      var main = document.createElement('div');
-      main.className = 'dashboard-activity-main';
-      var title = document.createElement('div');
-      title.className = 'dashboard-activity-title';
-      title.textContent = item.title;
-      var desc = document.createElement('div');
-      desc.className = 'dashboard-activity-desc';
-      desc.textContent = item.description;
-      main.appendChild(title);
-      main.appendChild(desc);
-      var time = document.createElement('time');
-      time.className = 'dashboard-activity-time';
-      time.textContent = item.timestamp;
-      li.appendChild(icon);
-      li.appendChild(main);
-      li.appendChild(time);
-      list.appendChild(li);
-    });
-  }
 
-  function rebuildCustomerFeed(feed) {
-    var list = document.getElementById('dashboard-customer-activity');
-    if (!list || !Array.isArray(feed)) return;
-    list.innerHTML = '';
-    if (!feed.length) {
-      var empty = document.createElement('li');
-      empty.className = 'dashboard-empty';
-      empty.innerHTML = '<i class="ph ph-users"></i>No customer activity recorded yet.';
-      list.appendChild(empty);
-      return;
-    }
-    feed.forEach(function (item) {
-      var li = document.createElement('li');
-      var icon = document.createElement('span');
-      icon.className = 'dashboard-activity-icon ' + (item.result === 'failure' ? 'gold' : '');
-      icon.innerHTML = '<i class="ph ' + (item.result === 'failure' ? ICONS.failure : ICONS.ok) + '"></i>';
-      var main = document.createElement('div');
-      main.className = 'dashboard-activity-main';
-      var title = document.createElement('div');
-      title.className = 'dashboard-activity-title';
-      title.textContent = item.action;
-      var desc = document.createElement('div');
-      desc.className = 'dashboard-activity-desc';
-      desc.textContent = (item.description || '') + (item.object_repr ? ' · ' + item.object_repr : '');
-      main.appendChild(title);
-      main.appendChild(desc);
-      var time = document.createElement('time');
-      time.className = 'dashboard-activity-time';
-      time.textContent = item.created_at;
-      li.appendChild(icon);
-      li.appendChild(main);
-      li.appendChild(time);
-      list.appendChild(li);
+    var coords = points.map(function (point) {
+      return point.x + ',' + point.y;
     });
-  }
+    line.setAttribute('points', coords.join(' '));
+    area.setAttribute('points', [points[0].x + ',' + chart.baseline_y]
+      .concat(coords, [points[points.length - 1].x + ',' + chart.baseline_y])
+      .join(' '));
 
-  function rebuildErrors(rows) {
-    var table = document.getElementById('dashboard-error-summary');
-    if (!table || !Array.isArray(rows)) return;
-    table.innerHTML = '';
-    if (!rows.length) {
-      var empty = document.createElement('tr');
-      var cell = document.createElement('td');
-      cell.colSpan = 2;
-      cell.className = 'dashboard-empty';
-      cell.innerHTML = '<i class="ph ph-check-circle"></i>No failures in the last 7 days.';
-      empty.appendChild(cell);
-      table.appendChild(empty);
-      return;
-    }
-    rows.forEach(function (row) {
-      var tr = document.createElement('tr');
-      var action = document.createElement('td');
-      action.className = 'error-action';
-      action.innerHTML = '<i class="ph ph-warning-circle"></i>';
-      action.appendChild(document.createTextNode(row.action));
-      var total = document.createElement('td');
-      total.className = 'error-total';
-      total.textContent = String(row.total);
-      tr.appendChild(action);
-      tr.appendChild(total);
-      table.appendChild(tr);
+    clearNode(dots);
+    clearNode(labels);
+    points.forEach(function (point, index) {
+      var dot = svgNode('circle', {
+        'class': point.is_peak ? 'sales-chart-point peak' : 'sales-chart-point',
+        'id': 'sales-point-' + index,
+        'cx': point.x,
+        'cy': point.y,
+        'r': 3.5,
+        'data-value': point.value,
+        'tabindex': '0',
+        'role': 'listitem',
+        'aria-label': point.day + ': KES ' + point.value,
+      });
+      var tip = svgNode('title', {});
+      tip.textContent = point.day + ': KES ' + point.value;
+      dot.appendChild(tip);
+      dots.appendChild(dot);
+
+      if (!point.show_label) return;
+      labels.appendChild(svgNode('text', {
+        'class': 'dashboard-chart-axis-label',
+        'x': point.x,
+        'y': chart.label_y,
+      })).textContent = point.label;
     });
   }
 
@@ -1226,19 +625,13 @@
     setText('#kpi-low-stock', k.low_stock);
     setText('#kpi-orders-attention', k.attention_orders);
     setText('#sales-period-total', data.sales_period_total);
-    setText('#attention-orders', k.attention_orders);
-    setText('#attention-low-stock', data.low_stock_count);
-    setText('#attention-errors', data.error_total);
+    setText('#sales-peak-total', 'Peak ' + data.sales_peak);
+    setText('#sales-peak-label', 'Peak ' + data.sales_peak);
     document.getElementById('kpi-orders').classList.toggle('alert-card', attentionOrders > 0);
     document.getElementById('kpi-products').classList.toggle('alert-card', lowStock > 0);
     document.getElementById('kpi-orders-attention').classList.toggle('alert', attentionOrders > 0);
     document.getElementById('kpi-low-stock').classList.toggle('alert', lowStock > 0);
-    rebuildBars(data.overview);
-    rebuildOrders(data.orders);
-    rebuildInventory(data.low_stock);
-    rebuildActivity(data.activity);
-    rebuildCustomerFeed(data.customer_activity);
-    rebuildErrors(data.error_summary);
+    renderLineChart(data.overview, data.sales_chart);
   }
 
   function refresh() {

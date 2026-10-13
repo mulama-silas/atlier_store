@@ -1,0 +1,322 @@
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Backup to Supabase | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
+<li>MODEZA</li>
+<li><i class="ph ph-caret-right"></i></li>
+<li class="active">Backup to Supabase</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .replica-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .replica-card {
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .replica-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .replica-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .replica-name i { font-size: 18px; color: var(--accent); }
+  .replica-detail {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .replica-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .replica-table th,
+  .replica-table td {
+    padding: 9px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .replica-table th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+  .replica-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .replica-alert {
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 18px;
+    border: 1px solid transparent;
+  }
+  .replica-alert-error {
+    background: rgba(220, 38, 38, .08);
+    border-color: rgba(220, 38, 38, .3);
+    color: #b91c1c;
+  }
+  .replica-alert-warn {
+    background: rgba(234, 179, 8, .1);
+    border-color: rgba(234, 179, 8, .35);
+    color: #a16207;
+  }
+  .replica-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2 class="page-title">Backup to Supabase</h2>
+    <p class="page-subtitle">
+      Analytics replica status, catalogue snapshot history and the image mirror.
+    </p>
+  </div>
+</div>
+
+{% if not configured %}
+  <div class="replica-alert replica-alert-error">
+    <i class="ph ph-warning-circle"></i>
+    <strong>Not configured.</strong>
+    <code>SUPABASE_DB_URL</code> is not set on this deployment, so the replica
+    is unreachable and no sync has run. Add it in the Render dashboard
+    (<em>Settings &rarr; Environment</em>) as the direct Postgres connection
+    string from Supabase &rarr; Project Settings &rarr; Database, then redeploy.
+  </div>
+{% endif %}
+
+{% if configured and pending %}
+  <div class="replica-alert replica-alert-warn">
+    <i class="ph ph-timer"></i>
+    <strong>Queued.</strong>
+    Run #{{ pending.id }} was requested {{ pending.started_at|date:"j M Y, H:i" }}
+    T and is waiting for the scheduled job
+    (<code>REPLICA_SYNC_MODE={{ sync_mode }}</code>). It will start on the next
+    cron tick.
+  </div>
+{% endif %}
+
+{% if configured and not run and not pending %}
+  <div class="replica-alert replica-alert-warn">
+    <i class="ph ph-info"></i>
+    The replica is reachable but has <strong>no sync runs recorded</strong> yet.
+    Run the first backup below, or hit the cron endpoint directly.
+  </div>
+{% endif %}
+
+{% if run %}
+  {% if run.status == 'failure' %}
+    <div class="replica-alert replica-alert-error">
+      <i class="ph ph-warning-circle"></i>
+      <strong>The last run failed.</strong>
+      {% if run.error %}<br>{{ run.error }}{% endif %}
+      <br>Counts below are from the last run that got far enough to record them.
+    </div>
+  {% elif stale %}
+    <div class="replica-alert replica-alert-warn">
+      <i class="ph ph-clock"></i>
+      <strong>Overdue.</strong>
+      The last successful run finished {{ age_hours }} hours ago, past the
+      {{ stale_after_hours }}-hour window. Either the cron has stopped or a run
+      is failing silently.
+    </div>
+  {% endif %}
+{% endif %}
+
+<div class="replica-grid">
+  <div class="card replica-card">
+    <div class="replica-card-head">
+      <div class="replica-name">
+        <i class="ph ph-database"></i> Replica
+      </div>
+      {% if not configured %}
+        <span class="status-badge status-danger">Unreachable</span>
+      {% elif not run %}
+        <span class="status-badge status-neutral">Never run</span>
+      {% elif run.status == 'success' and not stale %}
+        <span class="status-badge status-success">Current</span>
+      {% elif run.status == 'success' and stale %}
+        <span class="status-badge status-warning">Stale</span>
+      {% else %}
+        <span class="status-badge status-danger">Failed</span>
+      {% endif %}
+    </div>
+    <div class="replica-detail">
+      {% if run %}
+        Last run #{{ run.id }} &middot; triggered by {{ run.triggered_by }}<br>
+        Finished {{ run.finished_at|date:"j M Y, H:i" }} T
+        {% if age_hours is not None %}({{ age_hours }}h ago){% endif %}
+      {% else %}
+        No run history yet.
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card replica-card">
+    <div class="replica-card-head">
+      <div class="replica-name">
+        <i class="ph ph-images"></i> Image mirror
+      </div>
+      {% if run and run.storage and run.storage.status == 'ok' %}
+        <span class="status-badge status-success">Mirrored</span>
+      {% elif run and run.storage and run.storage.status == 'failed' %}
+        <span class="status-badge status-danger">Failed</span>
+      {% else %}
+        <span class="status-badge status-neutral">Unknown</span>
+      {% endif %}
+    </div>
+    <div class="replica-detail">
+      {% if run and run.storage and run.storage.status == 'ok' %}
+        {{ run.storage.objects_copied }} object{{ run.storage.objects_copied|pluralize }}
+        copied to <code>{{ backup_bucket }}</code>
+        ({{ run.storage.bytes_copied }} bytes)
+      {% elif run and run.storage and run.storage.status == 'failed' %}
+        {{ run.storage.error }}
+      {% else %}
+        No mirror result recorded yet.<br>
+        Database backups do <strong>not</strong> include Storage objects, so
+        images need this copy of their own.
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card replica-card">
+    <div class="replica-card-head">
+      <div class="replica-name">
+        <i class="ph ph-timer"></i> Scheduled cron
+      </div>
+      {% if cron_configured %}
+        <span class="status-badge status-success">Armed</span>
+      {% else %}
+        <span class="status-badge status-warning">Not configured</span>
+      {% endif %}
+    </div>
+    <div class="replica-detail">
+      {% if cron_configured %}
+        A cron can call
+        <code>POST /api/admin/replica/sync</code> with the
+        <code>x-replica-token</code> header.
+        {% if not can_sync %}
+          <br>Without a scheduled job, nothing runs unless someone presses
+          the button below &mdash; which is not a backup policy.
+        {% endif %}
+      {% else %}
+        <code>REPLICA_SYNC_TOKEN</code> is unset, so the sync endpoint returns
+        404. Set it as a secret in Render to arm the scheduled backup.
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-body">
+    <h3 style="margin-bottom: 12px; font-size: 15px;">Row counts</h3>
+    {% if counts %}
+      <table class="replica-table">
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th style="text-align: right;">Django</th>
+            <th style="text-align: right;">Supabase</th>
+            <th style="text-align: right;">Match</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in counts %}
+          <tr>
+            <td>{{ row.table }}</td>
+            <td class="num">{{ row.source }}</td>
+            <td class="num">{{ row.replica }}</td>
+            <td class="num">
+              {% if row.matched %}
+                <span class="status-badge status-success">OK</span>
+              {% else %}
+                <span class="status-badge status-danger">Mismatch</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="replica-detail">No counts recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h3 style="margin-bottom: 6px; font-size: 15px;">Run a backup now</h3>
+    <p class="replica-detail" style="margin-bottom: 14px;">
+      Useful after a bulk import, or to confirm the replica is readable. A run
+      upserts every table and appends today's catalogue snapshot.
+    </p>
+    {% if can_sync %}
+      <form method="post"
+            action="{% url 'admin-replica-sync-action' %}"
+            class="replica-actions">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">
+          <i class="ph ph-cloud-arrow-up"></i>
+          {% if sync_mode == 'deferred' %}Queue backup{% else %}Back up to Supabase{% endif %}
+        </button>
+        <label style="display: inline-flex; align-items: center; gap: 7px;
+                      font-size: 13px; color: var(--text-secondary);">
+          <input type="checkbox" name="skip_storage" checked>
+          Skip the image mirror (unchanged images do not need re-copying)
+        </label>
+        <label style="display: inline-flex; align-items: center; gap: 7px;
+                      font-size: 13px; color: var(--text-secondary);">
+          Copy at most
+          <input type="number" name="storage_limit" min="1" step="1"
+                 placeholder="all"
+                 style="width: 88px; padding: 6px 8px; border-radius: 6px;
+                        border: 1px solid var(--border-color);">
+          image(s)
+        </label>
+      </form>
+      {% if sync_mode == 'deferred' %}
+        <p class="replica-detail" style="margin-top: 10px;">
+          <i class="ph ph-info"></i>
+          Deferred mode: this queues the run and returns immediately, so a long
+          sync cannot time out mid-request. The scheduled job does the work.
+        </p>
+      {% endif %}
+    {% else %}
+      <p class="replica-detail">
+        <i class="ph ph-lock"></i>
+        Your role cannot run backups. Ask an administrator for the
+        <code>replica.sync</code> permission.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top: 20px; background: transparent;
+     box-shadow: none; border-style: dashed;">
+  <div class="card-body" style="color: var(--text-secondary); font-size: 12px;
+       display: flex; gap: 8px;">
+    <i class="ph ph-info"></i>
+    <span>
+      The replica is an analytics copy, not a disaster-recovery target:
+      Django cannot be pointed at it. The <code>replica</code> schema is
+      deliberately excluded from Supabase's <code>db-schemas</code>, so the
+      anonymous key in the public storefront bundle cannot read it &mdash; query
+      it from the Supabase SQL editor or with the service-role key.
+    </span>
+  </div>
+</div>
+{% endblock %}

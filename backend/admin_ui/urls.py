@@ -49,9 +49,13 @@ from .views import (
     ProductImportTemplateDownloadView,
     ProfileSettingsPageView,
     RequestTracePageView,
+    ReplicaStatusPageView,
+    ReplicaSyncActionView,
     SecurityCenterPageView,
     StockAdjustmentPageView,
     SystemHealthPageView,
+    ResetDataPageView,
+    ResetDataConfirmView,
 )
 
 
@@ -64,6 +68,15 @@ urlpatterns = [
     path('refresh/', DashboardDataView.as_view(), name='admin-dashboard-refresh'),
     path('audit-logs/', AuditLogsPageView.as_view(), name='admin-audit-logs'),
     path('activity/', ActivityOverviewPageView.as_view(), name='admin-activity'),
+    # Supabase replica: status page (read) and POST-only manual sync trigger.
+    path('replica/', ReplicaStatusPageView.as_view(), name='admin-replica'),
+    path('replica/sync/', ReplicaSyncActionView.as_view(),
+         name='admin-replica-sync-action'),
+    # Demo-data reset. Inert unless ENABLE_DATA_RESET is on -- the views answer
+    # 404 rather than existing, so the feature needs no code removal at handover.
+    path('reset-data/', ResetDataPageView.as_view(), name='admin-reset-data'),
+    path('reset-data/confirm/', ResetDataConfirmView.as_view(),
+         name='admin-reset-data-confirm'),
     path('activity/errors/', ErrorCenterPageView.as_view(), name='admin-errors'),
     path('activity/request/<request_id>/', RequestTracePageView.as_view(),
          name='admin-request-trace'),

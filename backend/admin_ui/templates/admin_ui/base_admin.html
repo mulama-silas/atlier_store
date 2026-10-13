@@ -1279,6 +1279,16 @@
           <a class="nav-link {% if admin_page == 'system-health' %}active{% endif %}" href="/admin/dashboard/system-health/">
             <i class="ph ph-pulse"></i><span>System Health</span>
           </a>
+          {% if request.user|can:'replica.view' %}
+          <a class="nav-link {% if admin_page == 'replica' %}active{% endif %}" href="/admin/dashboard/replica/">
+            <i class="ph ph-cloud-check"></i><span>Backup to Supabase</span>
+          </a>
+          {% endif %}
+          {% if reset_enabled and request.user.is_superuser %}
+          <a class="nav-link {% if admin_page == 'reset-data' %}active{% endif %}" href="/admin/dashboard/reset-data/">
+            <i class="ph ph-trash-simple"></i><span>Reset demo data</span>
+          </a>
+          {% endif %}
           {% if request.user|can:'staff.view' %}
           <a class="nav-link {% if admin_page == 'admin-users' %}active{% endif %}" href="/admin/dashboard/admin-users/">
             <i class="ph ph-shield-check"></i><span>Admin Users</span>

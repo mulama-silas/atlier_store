@@ -255,14 +255,12 @@
               <h3 style="font-size: 16px; font-weight: 600; color: var(--text); margin: 0 0 8px 0;">{{ page_data.empty_title|default:"No records found" }}</h3>
               <p style="font-size: 13px; margin: 0 0 24px 0;">{{ page_data.empty_description|default:"Get started by creating your first record." }}</p>
               {% if page_data.page == 'products' %}
-              <select class="admin-action-select" aria-label="More actions" title="More actions" onchange="if (this.value) window.location.href=this.value" style="appearance: none; -webkit-appearance: none; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 40px; min-width: 40px; height: 32px; padding: 0 28px 0 10px; font-size: 22px; line-height: 1; cursor: pointer; text-align: center; background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%), linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%); background-position: calc(100% - 14px) calc(50% - 2px), calc(100% - 9px) calc(50% - 2px); background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; margin-bottom: 16px;">
-                <option value="" selected>⋯</option>
-                <option value="/admin/dashboard/products/" style="font-size: 20px; padding: 10px 12px;">View</option>
-                <option value="/admin/dashboard/products/new/" style="font-size: 20px; padding: 10px 12px;">Edit</option>
-                <option value="/admin/dashboard/products/new/" style="font-size: 20px; padding: 10px 12px;">Duplicate</option>
-                <option value="/admin/dashboard/products/new/" style="font-size: 20px; padding: 10px 12px; background: #2c76ff; color: #fff;">Archive</option>
-                <option value="/admin/dashboard/products/new/" style="font-size: 20px; padding: 10px 12px;">Delete</option>
-              </select>
+              {% comment %}
+                No action dropdown in the empty state: there are no rows to act
+                on, and the previous version pointed Edit/Duplicate/Archive/
+                Delete at /products/new/ regardless. The primary action button
+                below is the real affordance here.
+              {% endcomment %}
               {% endif %}
               {% if page_data.primary_action %}
               <a class="btn btn-primary" href="{{ page_data.primary_url }}"><i class="ph ph-plus"></i> {{ page_data.primary_action|cut:"+ " }}</a>

@@ -177,8 +177,9 @@ authenticated non-staff → 403 Access Denied page), and read directly from the
 | `/admin/dashboard/notifications/` | Notification center: filter by category, severity and read status; severity badges and per-item read state |
 
 Order and product detail pages also render an "activity" card of events for the
-record. The dashboard surfaces a "Recent Customer Activity" feed and a
-"Customer Errors (7 days)" summary alongside the existing KPIs.
+record. The dashboard itself is limited to KPI cards plus a sales line graph;
+audit activity lives in `/admin/dashboard/activity/` (and the error summary in
+`/admin/dashboard/activity/errors/`).
 `/admin/dashboard/audit-logs/` remains as a legacy alias of the overview.
 
 Event metadata is sanitized server-side before display; the client drawer

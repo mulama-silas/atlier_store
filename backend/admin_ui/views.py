@@ -6,6 +6,7 @@ import os
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
+from math import ceil
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -21,6 +22,7 @@ from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import HttpResponseNotFound
 from django.http import FileResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
@@ -52,6 +54,15 @@ from orders.models import Order, OrderItem
 from orders.services import approve_order
 from receipts.models import Receipt
 from receipts.services import read_pdf_bytes, regenerate_receipt
+from replica.services.sync import (
+    ReplicaAlreadyRunning,
+    ReplicaNotConfigured,
+    latest_run,
+    pending_request,
+    queue_replica_sync,
+    replica_configured,
+    sync_replica,
+)
 
 from .audit_ui import (
     RANGE_CHOICES,
@@ -1521,28 +1532,67 @@ def _build_sales_overview(sales_window_days):
             'value': daily_total,
             'day': day.strftime('%b %d'),
         })
-    for point in sales_overview:
-        percentage = 0
-        if max_total:
-            percentage = (float(point['value']) / max_total) * 100
-        point['height'] = max(8, percentage)
     return sales_overview, max_total
 
 
-def _customer_display_name(customer):
-    """Best-effort human-readable customer name from the order JSON field."""
-    customer = customer or {}
-    return (
-        customer.get('fullName')
-        or customer.get('full_name')
-        or customer.get('name')
-        or ' '.join(filter(None, [
-            customer.get('first_name'),
-            customer.get('last_name'),
-        ]))
-        or customer.get('email')
-        or 'Guest customer'
+# Geometry for the sales line graph, shared by the page render and refresh API.
+SALES_CHART_MIN_WIDTH = 560
+SALES_CHART_POINT_SPACING = 28
+SALES_CHART_INSET_X = 16
+SALES_CHART_PLOT_TOP = 26
+SALES_CHART_PLOT_HEIGHT = 200
+SALES_CHART_MAX_LABELS = 12
+
+
+def _build_sales_chart(sales_overview, max_total):
+    """Return the SVG geometry used to draw the sales line graph.
+
+    Each point is annotated in place with ``x``/``y`` coordinates so the
+    template and the refresh API render the exact same series.
+    """
+    count = len(sales_overview)
+    width = max(
+        SALES_CHART_MIN_WIDTH,
+        count * SALES_CHART_POINT_SPACING + SALES_CHART_INSET_X * 2,
     )
+    span = width - SALES_CHART_INSET_X * 2
+    baseline_y = SALES_CHART_PLOT_TOP + SALES_CHART_PLOT_HEIGHT
+    label_y = baseline_y + 24
+    label_step = max(1, ceil(count / SALES_CHART_MAX_LABELS))
+    peak_index = (
+        max(range(count), key=lambda i: float(sales_overview[i]['value']))
+        if count else None
+    )
+
+    coordinates = []
+    for index, point in enumerate(sales_overview):
+        ratio = (float(point['value']) / max_total) if max_total else 0.0
+        ratio = min(1.0, max(0.0, ratio))
+        offset = (span * index / (count - 1)) if count > 1 else span / 2
+        x = round(SALES_CHART_INSET_X + offset, 2)
+        y = round(
+            SALES_CHART_PLOT_TOP + (1 - ratio) * SALES_CHART_PLOT_HEIGHT, 2)
+        point['x'] = x
+        point['y'] = y
+        point['show_label'] = index % label_step == 0
+        point['is_peak'] = bool(max_total) and index == peak_index
+        coordinates.append(f'{x},{y}')
+
+    return {
+        'width': width,
+        'height': label_y + 12,
+        'plot_top': SALES_CHART_PLOT_TOP,
+        'plot_top_label': SALES_CHART_PLOT_TOP - 11,
+        'baseline_y': baseline_y,
+        'label_y': label_y,
+        'label_step': label_step,
+        'line_points': ' '.join(coordinates),
+        'area_points': ' '.join([
+            f'{SALES_CHART_INSET_X},{baseline_y}',
+            *coordinates,
+            f'{width - SALES_CHART_INSET_X},{baseline_y}',
+        ]),
+    }
 
 
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
@@ -1746,61 +1796,11 @@ class DashboardView(View):
 
         total_orders = Order.objects.count()
         total_customers = get_user_model().objects.filter(is_staff=False).count()
-        low_stock_variants = ProductVariant.objects.filter(
-            stock_quantity__lte=3).select_related('product')
-        low_stock_count = low_stock_variants.count()
-        recent_orders = Order.objects.order_by('-created_at')[:5]
+        low_stock_count = ProductVariant.objects.filter(
+            stock_quantity__lte=3).count()
 
-        sales_overview, _ = _build_sales_overview(sales_window_days)
-
-        for order in recent_orders:
-            order.total_display = f'KES {Decimal(order.total_minor) / Decimal(100):.2f}'
-
-        # Build recent activity list from known order and product changes.
-        # This mirrors the requested admin dashboard experience without changing the existing data model.
-        recent_activity = []
-        for order in recent_orders:
-            name = _customer_display_name(order.customer)
-            recent_activity.append({
-                'title': f'New order received: #{order.order_number}',
-                'description': f'{name} • KES {Decimal(order.total_minor)/Decimal(100):.2f}',
-                'timestamp': order.created_at.strftime('%b %d, %Y'),
-                'icon': 'Order',
-            })
-
-        for product in Product.objects.order_by('-updated_at')[:3]:
-            recent_activity.append({
-                'title': f'Product updated: {product.name}',
-                'description': product.status,
-                'timestamp': product.updated_at.strftime('%b %d, %Y'),
-                'icon': 'Product',
-            })
-
-        # Keep the list concise and relevant for the template.
-        recent_activity = recent_activity[:5]
-
-        customer_actions = (
-            'signup', 'login', 'login_failed', 'registration_failed',
-            'product_viewed', 'category_viewed', 'search_performed',
-            'cart_item_added', 'cart_item_updated', 'cart_item_removed',
-            'cart_cleared', 'checkout_started', 'checkout_failed',
-            'order_created', 'order_creation_failed', 'order_cancelled',
-            'order_confirmed', 'order_received', 'payment_initiated',
-            'payment_success', 'payment_failed', 'payment_initiation_failed',
-            'payment_timeout', 'refund_completed', 'wishlist_item_added',
-            'wishlist_item_removed', 'wishlist_cleared', 'review_submitted',
-            'support_message_submitted', 'profile_updated', 'password_reset',
-        )
-        recent_customer_activity = list(
-            AuditLog.objects.filter(action__in=customer_actions)
-            .order_by('-created_at')[:6])
-        customer_error_summary = list(
-            AuditLog.objects.filter(
-                result='failure',
-                created_at__gte=timezone.now() - timedelta(days=7))
-            .values('action')
-            .annotate(total=Count('id'))
-            .order_by('-total')[:6])
+        sales_overview, sales_peak = _build_sales_overview(sales_window_days)
+        sales_chart = _build_sales_chart(sales_overview, sales_peak)
 
         return render(request, self.template_name, {
             'products': products,
@@ -1821,14 +1821,9 @@ class DashboardView(View):
                 Q(payment_status=Order.PaymentStatus.PAID)
                 | Q(payment_method__in=['cash_on_delivery', 'pay_on_delivery'])
             ).count(),
-            'orders': recent_orders,
-            'low_stock_products': low_stock_variants[:8],
-            'recent_activity': recent_activity,
-            'recent_customer_activity': recent_customer_activity,
-            'customer_error_summary': customer_error_summary,
-            'customer_error_total': sum(
-                (row['total'] for row in customer_error_summary), 0),
             'sales_overview': sales_overview,
+            'sales_chart': sales_chart,
+            'sales_peak_kes': sales_peak,
             'sales_period_total_kes': sum(
                 (point['value'] for point in sales_overview), Decimal('0')),
             'sales_range': sales_window_days,
@@ -1989,59 +1984,11 @@ class DashboardDataView(View):
             Q(payment_status=Order.PaymentStatus.PAID)
             | Q(payment_method__in=['cash_on_delivery', 'pay_on_delivery'])).count()
 
-        low_stock_variants = list(
-            ProductVariant.objects.filter(stock_quantity__lte=3)
-            .select_related('product').order_by('stock_quantity')[:8])
         low_stock_count = ProductVariant.objects.filter(
             stock_quantity__lte=3).count()
 
-        recent_orders = list(Order.objects.order_by('-created_at')[:5])
-        for order in recent_orders:
-            order.total_display = f'KES {Decimal(order.total_minor) / Decimal(100):.2f}'
-
-        sales_overview, _ = _build_sales_overview(sales_window_days)
-
-        customer_actions = (
-            'signup', 'login', 'login_failed', 'registration_failed',
-            'product_viewed', 'category_viewed', 'search_performed',
-            'cart_item_added', 'cart_item_updated', 'cart_item_removed',
-            'cart_cleared', 'checkout_started', 'checkout_failed',
-            'order_created', 'order_creation_failed', 'order_cancelled',
-            'order_confirmed', 'order_received', 'payment_initiated',
-            'payment_success', 'payment_failed', 'payment_initiation_failed',
-            'payment_timeout', 'refund_completed', 'wishlist_item_added',
-            'wishlist_item_removed', 'wishlist_cleared', 'review_submitted',
-            'support_message_submitted', 'profile_updated', 'password_reset',
-        )
-        recent_customer_activity = list(
-            AuditLog.objects.filter(action__in=customer_actions)
-            .order_by('-created_at')[:6])
-        customer_error_summary = list(
-            AuditLog.objects.filter(
-                result='failure',
-                created_at__gte=timezone.now() - timedelta(days=7))
-            .values('action')
-            .annotate(total=Count('id'))
-            .order_by('-total')[:6])
-
-        recent_activity = []
-        for order in recent_orders:
-            recent_activity.append({
-                'title': f'New order received: #{order.order_number}',
-                'description': (
-                    f'{_customer_display_name(order.customer)} • '
-                    f'KES {Decimal(order.total_minor)/Decimal(100):.2f}'),
-                'timestamp': order.created_at.strftime('%b %d, %Y'),
-                'icon': 'Order',
-            })
-        for product in Product.objects.order_by('-updated_at')[:3]:
-            recent_activity.append({
-                'title': f'Product updated: {product.name}',
-                'description': product.status,
-                'timestamp': product.updated_at.strftime('%b %d, %Y'),
-                'icon': 'Product',
-            })
-        recent_activity = recent_activity[:5]
+        sales_overview, sales_peak = _build_sales_overview(sales_window_days)
+        sales_chart = _build_sales_chart(sales_overview, sales_peak)
 
         payload = {
             'kpis': {
@@ -2054,39 +2001,17 @@ class DashboardDataView(View):
                 'attention_orders': orders_needing_attention,
             },
             'sales_period_total': f'KES {sum((point["value"] for point in sales_overview), Decimal("0")):.0f}',
+            'sales_peak': f'KES {sales_peak:.0f}',
+            'sales_chart': sales_chart,
             'overview': [{
                 'label': point['label'],
                 'day': point['day'],
                 'value': f"{point['value']:.2f}",
-                'height': point['height'],
+                'x': point['x'],
+                'y': point['y'],
+                'show_label': point['show_label'],
+                'is_peak': point['is_peak'],
             } for point in sales_overview],
-            'orders': [{
-                'order_number': order.order_number,
-                'customer': _customer_display_name(order.customer),
-                'total_display': order.total_display,
-                'status': order.status.lower() if order.status else '',
-                'status_display': order.get_status_display(),
-            } for order in recent_orders],
-            'low_stock': [{
-                'product': variant.product.name,
-                'sku': variant.sku,
-                'size': variant.size or '',
-                'color': variant.color or '',
-                'stock': variant.stock_quantity,
-                'out': variant.stock_quantity <= 0,
-            } for variant in low_stock_variants],
-            'low_stock_count': low_stock_count,
-            'activity': recent_activity,
-            'customer_activity': [{
-                'action': log.action,
-                'result': log.result or '',
-                'description': log.description,
-                'object_repr': log.object_repr or log.category,
-                'created_at': log.created_at.strftime('%b %d, %H:%M'),
-            } for log in recent_customer_activity],
-            'error_summary': list(customer_error_summary),
-            'error_total': sum(
-                (row['total'] for row in customer_error_summary), 0),
             'updated_at': timezone.now().isoformat(),
         }
         return JsonResponse(payload)
@@ -3591,6 +3516,286 @@ class SystemHealthPageView(StaffRequiredMixin, View):
             'title': 'System Health',
             'description': 'Service health and configuration status.',
         })
+
+
+# Anything older than this without a successful run is surfaced as overdue, so
+# a sync that broke silently cannot go unnoticed for weeks.
+REPLICA_STALE_AFTER = timedelta(hours=36)
+
+
+@permission_required('replica.view')
+class ReplicaStatusPageView(StaffRequiredMixin, View):
+    """Backup status for the Supabase analytics replica.
+
+    Reports what the replica actually knows -- last run, outcome, per-table
+    row counts, image mirror result -- rather than inventing health numbers.
+    When Supabase is unreachable the page says so plainly instead of showing
+    stale data as if it were current.
+    """
+
+    template_name = 'admin_ui/replica_page.html'
+
+    def get(self, request):
+        configured = replica_configured()
+        run = latest_run() if configured else None
+
+        stale = False
+        age_hours = None
+        if run and run.get('finished_at'):
+            age_hours = round(
+                (timezone.now() - run['finished_at']).total_seconds() / 3600, 1
+            )
+            stale = age_hours > REPLICA_STALE_AFTER.total_seconds() / 3600
+
+        counts = []
+        for table, values in ((run or {}).get('table_counts') or {}).items():
+            if isinstance(values, dict) and 'source' in values:
+                counts.append({
+                    'table': table.replace('_', ' ').title(),
+                    'source': values['source'],
+                    'replica': values['replica'],
+                    'matched': values['source'] == values['replica'],
+                })
+
+        return render(request, self.template_name, {
+            'page_title': 'Backup to Supabase',
+            'page_subtitle': (
+                'Analytics replica status, run history and the image mirror.'
+            ),
+            'admin_page': 'replica',
+            'title': 'Backup to Supabase',
+            'description': 'Supabase replica status and manual sync.',
+            'configured': configured,
+            'run': run,
+            'counts': counts,
+            'stale': stale,
+            'age_hours': age_hours,
+            'stale_after_hours': int(
+                REPLICA_STALE_AFTER.total_seconds() / 3600),
+            'can_sync': user_has_permission(request.user, 'replica.sync'),
+            'backup_bucket': getattr(
+                settings, 'REPLICA_BACKUP_BUCKET', ''),
+            'cron_configured': bool(
+                (getattr(settings, 'REPLICA_SYNC_TOKEN', '') or '').strip()),
+            'sync_mode': getattr(settings, 'REPLICA_SYNC_MODE', 'inline'),
+            'pending': pending_request() if configured else None,
+        })
+
+
+@permission_required('replica.sync')
+class ReplicaSyncActionView(StaffRequiredMixin, View):
+    """POST-only manual sync trigger.
+
+    Deliberately POST with CSRF: this writes to an external system, and a GET
+    link that performs a write can be triggered by a prefetch or a crawler.
+
+    Honours ``REPLICA_SYNC_MODE``. In ``deferred`` the button only queues a run
+    and returns immediately, so a long sync cannot outrun the proxy timeout and
+    tempt the operator into a retry that starts a second one.
+    """
+
+    def get(self, request):
+        # Never write on GET -- send the operator to the page instead.
+        return redirect('admin-replica')
+
+    def post(self, request):
+        if not replica_configured():
+            messages.error(
+                request,
+                'SUPABASE_DB_URL is not set on this deployment, so there is '
+                'nowhere to write the replica.'
+            )
+            return redirect('admin-replica')
+
+        skip_storage = request.POST.get('skip_storage') == 'on'
+        raw_limit = (request.POST.get('storage_limit') or '').strip()
+        try:
+            storage_limit = max(0, int(raw_limit)) or None
+        except (TypeError, ValueError):
+            storage_limit = None
+
+        deferred = getattr(
+            settings, 'REPLICA_SYNC_MODE', 'inline') == 'deferred'
+
+        # Mirror a bounded number of objects first, so a trial run cannot turn
+        # into a full copy because one field was left blank.
+        if not skip_storage and storage_limit:
+            from replica.services.storage_mirror import mirror_bucket
+            try:
+                info = mirror_bucket(limit=storage_limit)
+                messages.info(
+                    request,
+                    'Mirrored {} object(s) ({} bytes) to the backup '
+                    'bucket.'.format(
+                        info['objects_copied'], info['bytes_copied']))
+            except Exception as exc:  # noqa: BLE001 - reported to the operator
+                messages.error(request, f'Storage mirror failed: {exc}')
+            skip_storage = True
+
+        if deferred:
+            try:
+                run_id = queue_replica_sync(triggered_by='manual')
+            except ReplicaNotConfigured as exc:
+                messages.error(request, str(exc))
+                return redirect('admin-replica')
+            messages.success(
+                request,
+                f'Backup queued (run #{run_id}). The scheduled job will pick it '
+                'up -- watch this page for the result.'
+            )
+            return redirect('admin-replica')
+
+        try:
+            summary = sync_replica(
+                triggered_by='manual', include_storage=not skip_storage)
+        except ReplicaNotConfigured as exc:
+            messages.error(request, str(exc))
+            return redirect('admin-replica')
+        except ReplicaAlreadyRunning:
+            messages.warning(
+                request,
+                'A replica sync is already running. Wait for it to finish '
+                'before starting another.'
+            )
+            return redirect('admin-replica')
+        except Exception as exc:  # noqa: BLE001 - shown to the operator
+            logger.exception('Manual replica sync failed.')
+            messages.error(request, f'Replica sync failed: {exc}')
+            return redirect('admin-replica')
+
+        AuditLogService.log(
+            'admin_action',
+            actor=request.user,
+            category='replica',
+            result='success',
+            metadata={'counts': summary.get('counts', {})},
+            path=request.path,
+            description='Manual replica sync completed.',
+        )
+        messages.success(
+            request,
+            f'Replica sync finished. '
+            f'{len(summary.get("counts", {}))} tables written.'
+        )
+        return redirect('admin-replica')
+
+
+class DataResetDisabled(Exception):
+    """ENABLE_DATA_RESET is off, so the reset must not exist."""
+
+
+def _data_reset_enabled(request):
+    """Gate the whole reset surface. Returns None when allowed, else a response.
+
+    Every layer checks this -- the views, the nav template and the management
+    command -- so removing one environment variable fully disables the feature
+    instead of merely hiding the button. Mirrors how EmailSweepView answers 404
+    when its token is unset: an unconfigured deployment must not advertise a
+    route anyone can knock on.
+    """
+    if not getattr(settings, 'ENABLE_DATA_RESET', False):
+        return HttpResponseNotFound(
+            'Data reset is not enabled on this deployment.')
+    # Hard superuser gate, not a permission code: codes in the permissions
+    # catalog can be granted to other roles, and this one is irreversible.
+    if not (request.user.is_authenticated and request.user.is_superuser):
+        return access_denied_response(request)
+    return None
+
+
+class ResetDataMixin:
+    """Shared gate for the reset views."""
+
+    def dispatch(self, request, *args, **kwargs):
+        denied = _data_reset_enabled(request)
+        if denied is not None:
+            return denied
+        return super().dispatch(request, *args, **kwargs)
+
+
+class ResetDataPageView(ResetDataMixin, View):
+    """Preview what a reset would delete. Read-only, safe to load."""
+
+    template_name = 'admin_ui/reset_data_page.html'
+
+    def get(self, request):
+        from maintenance.management.commands.reset_demo_data import (
+            DELETION_ORDER,
+            PRESERVED,
+            build_plan,
+        )
+
+        plan = build_plan()
+        total = sum(count for _, count in plan)
+        return render(request, self.template_name, {
+            'page_title': 'Reset demo data',
+            'page_subtitle': (
+                'One-shot cleanup before real customers arrive.'
+            ),
+            'admin_page': 'reset-data',
+            'title': 'Reset demo data',
+            'description': 'Delete all demo and test data.',
+            'plan': plan,
+            'total': total,
+            'has_data': total > 0,
+            'preserved': PRESERVED,
+            'unknown_models': [
+                label for label in DELETION_ORDER
+                if build_plan.__module__ and label not in [p[0] for p in plan]
+            ],
+        })
+
+
+class ResetDataConfirmView(ResetDataMixin, View):
+    """POST-only execution. Requires the operator to type ``WIPE``."""
+
+    template_name = 'admin_ui/reset_data_page.html'
+
+    def get(self, request):
+        # Never destroy on GET -- a prefetch must not be able to wipe the store.
+        return redirect('admin-reset-data')
+
+    def post(self, request):
+        from maintenance.management.commands.reset_demo_data import reset_demo_data
+
+        typed = (request.POST.get('confirm') or '').strip().upper()
+        if typed != 'WIPE':
+            messages.error(
+                request,
+                'Confirmation did not match. Nothing was deleted.'
+            )
+            return redirect('admin-reset-data')
+
+        try:
+            summary = reset_demo_data()
+        except ProtectedError as exc:
+            # Should not happen -- deletion order avoids PROTECT -- but a
+            # failure must leave the database untouched, not half-wiped.
+            messages.error(
+                request,
+                f'Reset aborted and rolled back: {exc}'
+            )
+            return redirect('admin-reset-data')
+        except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+            logger.exception('Demo data reset failed.')
+            messages.error(request, f'Reset failed and was rolled back: {exc}')
+            return redirect('admin-reset-data')
+
+        AuditLogService.log(
+            'security_event',
+            actor=request.user,
+            category='maintenance',
+            result='success',
+            severity='critical',
+            metadata={'deleted': summary['deleted']},
+            path=request.path,
+            description='Demo data reset executed.',
+        )
+        messages.success(
+            request,
+            'Demo data removed. Admin and staff accounts were preserved.'
+        )
+        return redirect('admin-reset-data')
 
 
 @permission_required('reports.view')

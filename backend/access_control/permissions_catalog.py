@@ -94,6 +94,9 @@ PERMISSIONS = [
     # Emails
     ("emails.view", "View emails", "View the outbound email log.", False, []),
     ("emails.manage", "Manage emails", "Re-send failed or stuck outbound emails.", False, ["emails.view"]),
+    # Supabase replica
+    ("replica.view", "View backup status", "View Supabase replica status and run history.", False, []),
+    ("replica.sync", "Run backup now", "Trigger a manual backup to Supabase.", True, ["replica.view"]),
 ]
 
 PERMISSION_BY_CODE = {code: p for p in PERMISSIONS for code in ([p[0]] if isinstance(p[0], str) else p[0])}

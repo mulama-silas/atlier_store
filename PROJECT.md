@@ -144,7 +144,7 @@ boutique-fashion-store/
 - UI kit (`components/ui/`): Button, Input, Select, Modal, Badge, Toast, Price, QuantitySelector, Loading/Error/EmptyState
 
 ### Admin dashboard (server-rendered, `admin_ui/`)
-- Staff login, KPIs, dashboard
+- Staff login, KPI cards, and a sales line graph (7 / 30 / 90 day range)
 - Product / category / variant management (size-matrix bulk creation, SKU generation)
 - Stock adjustments, Excel product import
 - Order detail, customer detail, notifications center

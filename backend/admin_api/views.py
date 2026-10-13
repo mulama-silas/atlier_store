@@ -18,6 +18,11 @@ from catalog.services import BulkImportTemplateService
 from catalog.tasks import enqueue_import_job
 from emails.services import sweep_pending_emails
 from inventory.services import adjust_stock, expire_reservations
+from replica.services.sync import (
+    ReplicaAlreadyRunning,
+    ReplicaNotConfigured,
+    sync_replica,
+)
 
 from .serializers import CategoryWriteSerializer, ProductWriteSerializer, StockAdjustmentSerializer
 from .services import create_product, update_product
@@ -549,5 +554,87 @@ class EmailSweepView(APIView):
         summary = sweep_pending_emails(
             older_than=max(0, _sweep_int(request, 'olderThan', 45)),
             limit=max(1, _sweep_int(request, 'limit', 10)),
+        )
+        return Response(summary)
+
+
+class ReplicaSyncView(APIView):
+    """Mirror Django into the Supabase replica schema, for an external cron.
+
+    Deliberately mirrors :class:`EmailSweepView` rather than requiring staff
+    credentials: a scheduled job has no session. It therefore carries no
+    authentication, and instead requires ``REPLICA_SYNC_TOKEN``. When that
+    variable is unset the endpoint reports itself as unavailable instead of
+    existing unauthenticated -- an unconfigured deployment must not advertise a
+    POST route anyone can knock on.
+
+    Staff-triggered runs go through the admin page instead, which is
+    session-authenticated and permission-checked; both call the same
+    ``sync_replica`` service function.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+    throttle_scope = 'admin'
+
+    def post(self, request):
+        configured = (getattr(settings, 'REPLICA_SYNC_TOKEN', '') or '').strip()
+        if not configured:
+            return Response(
+                {'detail': 'Replica sync is not configured.'}, status=404)
+
+        offered = (
+            request.headers.get('x-replica-token')
+            or request.query_params.get('token', '')
+        )
+        if not offered or not secrets.compare_digest(str(offered), configured):
+            AuditLogService.log(
+                'security_event',
+                category='security',
+                result='failure',
+                severity='critical',
+                metadata={'has_token': bool(offered)},
+                path=request.path,
+                description='Replica sync rejected an invalid token.',
+            )
+            return Response({'detail': 'Invalid replica token.'}, status=401)
+
+        # A full run writes every table plus the image mirror, so it can take
+        # longer than a request should block. `skipStorage` lets a cron keep the
+        # relational replica fresh without re-copying unchanged images.
+        skip_storage = str(
+            request.query_params.get('skipStorage', '')
+        ).lower() in {'1', 'true', 'yes', 'on'}
+
+        try:
+            summary = sync_replica(triggered_by='cron',
+                                   include_storage=not skip_storage)
+        except ReplicaNotConfigured as exc:
+            return Response({'detail': str(exc)}, status=503)
+        except ReplicaAlreadyRunning as exc:
+            # Another sync holds the advisory lock. This is expected whenever a
+            # manual run overlaps a cron tick, so it is a 409 -- not a failure.
+            return Response({'detail': str(exc), 'skipped': True}, status=409)
+        except Exception as exc:  # noqa: BLE001 - reported, not raised
+            logger.exception('Cron-triggered replica sync failed.')
+            AuditLogService.log(
+                'security_event',
+                category='security',
+                result='failure',
+                severity='high',
+                metadata={'error': str(exc)[:500]},
+                path=request.path,
+                description='Cron replica sync failed.',
+            )
+            return Response({'detail': f'Replica sync failed: {exc}'},
+                            status=500)
+
+        AuditLogService.log(
+            'admin_action',
+            category='replica',
+            result='success',
+            metadata={'counts': summary.get('counts', {})},
+            path=request.path,
+            description='Cron replica sync completed.',
         )
         return Response(summary)

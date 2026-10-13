@@ -20,4 +20,11 @@ RUN python manage.py collectstatic --noinput
 EXPOSE 8000
 # Apply schema migrations before serving traffic. Render's free tier supports
 # no pre-deploy command, so this runs on every container start (idempotent).
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn botique_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --threads 4 --timeout 120 --max-requests 1000 --max-requests-jitter 100 --access-logfile -"]
+#
+# ensure_superuser is the ONLY recovery path into the admin on the free plan:
+# Render offers no shell, so there is no way to run createsuperuser by hand if
+# the superuser is ever lost. It reads DJANGO_SUPERUSER_* from the environment,
+# is idempotent, and re-promotes the account on every boot. With those variables
+# unset it falls back to prompting, so it is chained with `|| true` and must
+# never be able to stop the container from serving.
+CMD ["sh", "-c", "python manage.py migrate --noinput && (echo y | python manage.py ensure_superuser --noinput 2>/dev/null || true) && gunicorn botique_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --threads 4 --timeout 120 --max-requests 1000 --max-requests-jitter 100 --access-logfile -"]

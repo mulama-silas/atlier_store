@@ -221,6 +221,8 @@ INSTALLED_APPS = [
     'receipts',
     'store',
     'assistant',
+    'replica.apps.ReplicaConfig',
+    'maintenance.apps.MaintenanceConfig',
     'ai.apps.AiConfig',
 ]
 
@@ -327,6 +329,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'admin_ui.context_processors.admin_notifications',
                 'access_control.context_processors.staff_permissions',
+                'maintenance.context_processors.maintenance_flags',
             ],
         },
     },
@@ -482,6 +485,36 @@ SUPABASE_URL = os.getenv('SUPABASE_URL', '').rstrip('/')
 SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
 SUPABASE_STORAGE_BUCKET = os.getenv(
     'SUPABASE_STORAGE_BUCKET', 'product-images')
+
+# --- Supabase analytics replica (see supabase/replica_schema.sql) -------------
+# SUPABASE_DB_URL is the DIRECT Postgres connection string (Supabase Dashboard
+# -> Project Settings -> Database -> URI), not the PostgREST URL. The replica
+# lives in its own schema precisely so the anon key in the public bundle cannot
+# read it, and PostgREST only serves schemas listed in `db-schemas` -- so the
+# REST API cannot be used to write it.
+SUPABASE_DB_URL = os.getenv('SUPABASE_DB_URL', '')
+# Destination bucket for the image mirror. Must be PRIVATE and must differ from
+# SUPABASE_STORAGE_BUCKET.
+REPLICA_BACKUP_BUCKET = os.getenv(
+    'REPLICA_BACKUP_BUCKET', 'product-images-backup')
+# Guards POST /api/admin/replica/sync for the external cron. When unset the
+# endpoint reports 404 rather than existing unauthenticated.
+REPLICA_SYNC_TOKEN = os.getenv('REPLICA_SYNC_TOKEN', '')
+# inline   = the admin button runs the sync inside the request (lock-protected).
+# deferred = the button only queues a run; the cron does the work. Preferred on
+# a free-tier instance, where a long sync can outrun the proxy timeout and an
+# operator retrying would otherwise start a second one.
+REPLICA_SYNC_MODE = os.getenv('REPLICA_SYNC_MODE', 'inline').strip().lower()
+if REPLICA_SYNC_MODE not in {'inline', 'deferred'}:
+    REPLICA_SYNC_MODE = 'inline'
+
+# --- One-shot demo-data reset (see maintenance/management/commands) ----------
+# Gates the destructive admin page and `manage.py reset_demo_data`. While this
+# is off the page answers 404, the nav link is hidden and the command refuses
+# to run, so handover to a client is a config change rather than a code
+# deletion. Turn it on, wipe once, then remove it again.
+ENABLE_DATA_RESET = os.getenv(
+    'ENABLE_DATA_RESET', '').lower() in {'1', 'true', 'yes', 'on'}
 
 if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
     DEFAULT_STORAGE_BACKEND = 'botique_backend.storage.SupabaseStorage'

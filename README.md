@@ -135,6 +135,9 @@ authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
       until a sending domain exists.
 - [ ] Sweeper endpoint answers `POST https://<backend>/api/admin/emails/sweep`
       with `x-sweep-token` and returns 401 when the token is wrong.
+- [ ] (If the replica is enabled) `/admin/dashboard/replica/` loads, the first
+      `manage.py sync_replica` reconciles, and the anon key cannot read
+      `replica.*` from the Supabase SQL editor.
 
 ## Background work (bulk imports & email)
 
@@ -162,6 +165,169 @@ python manage.py requeue_stuck_emails   --dry-run
 
 Full runbook — switches, queues, retry ladders, the sweeper endpoint, and how
 to enable the worker on a paid plan — is in `backend/docs/CELERY.md`.
+
+## Admin recovery (no Render Shell on free)
+
+The free plan has no shell, so `createsuperuser` cannot be run by hand. The
+Dockerfile therefore runs `ensure_superuser --noinput` on **every container
+start**, alongside `migrate`:
+
+```
+python manage.py migrate --noinput && (echo y | python manage.py ensure_superuser --noinput || true) && gunicorn ...
+```
+
+Set `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` in Render (all three
+are already declared in `render.yaml`). The command is idempotent and re-promotes
+the account on every boot, so a lost superuser is recoverable by redeploying.
+
+## Resetting demo data
+
+A one-shot cleanup for the moment before real customers arrive, when every order,
+payment and receipt is test-generated.
+
+Gated on `ENABLE_DATA_RESET`. While it is off - the default, and what
+`render.yaml` ships - the page answers **404**, the nav link is hidden, and
+`manage.py reset_demo_data` refuses to run. Handover to a client is therefore a
+config change, not a code deletion.
+
+```bash
+ENABLE_DATA_RESET=true python manage.py reset_demo_data --dry-run   # preview
+ENABLE_DATA_RESET=true python manage.py reset_demo_data --force     # execute
+```
+
+Or from the admin: set the variable, redeploy, then use
+`/admin/dashboard/reset-data/`. That page shows a **live per-table count** of
+what will be deleted and what will be kept, before offering the confirming POST,
+which additionally requires the superuser and typing `WIPE`.
+
+**Kept:** `auth_user` (admin + staff), `auth_permission`, `auth_group`,
+`access_control.Permission` / `Role`, `django_content_type`,
+`django_migrations`, `django_session`.
+
+**Deletion order matters.** `PaymentIntent->order`,
+`PromotionRedemption->promotion`/`->order`, `StockReservation->variant`,
+`InventoryTransaction->variant` and `Product->category` all use
+`on_delete=PROTECT`, so a naive cascade raises `ProtectedError` partway through.
+Children are deleted first, inside a single transaction, so a failure rolls back
+and leaves the database untouched.
+
+> Do **not** use `manage.py flush` for this. It truncates every table including
+> `auth_user`, which would delete the admin accounts this reset exists to
+> preserve.
+
+Wipe **before** the first replica sync, so the initial backfill and the snapshot
+history start clean.
+
+This does not touch Supabase: `auth.users` still holds the test signups (and
+Django recreates their shadow rows on next login), and the `product-images`
+bucket still holds the files. Both need a manual pass before handover.
+
+## Backup to Supabase (analytics replica)
+
+Supabase holds a **read-only analytics copy** of the Django database, plus a
+mirror of the product-image bucket. It is **not** a disaster-recovery target —
+Django cannot be repointed at it.
+
+Because the project is on the **Free plan, Supabase takes no automatic backups
+at all** (Pro/Team/Enterprise get daily backups automatically), so this job
+*is* the backup. RPO equals the cron interval.
+
+### One-time setup
+
+1. **Schema** — Supabase → SQL Editor → run `supabase/replica_schema.sql`.
+   Creates the `replica` schema. It is deliberately **not** added to
+   `db-schemas`, so the anon key in the public storefront bundle cannot read it;
+   every table also has RLS enabled with no policies.
+2. **Destination bucket** — Storage → New bucket →
+   `product-images-backup`, set to **private**. A backup copy that is publicly
+   served is not a backup.
+   ⚠️ Mirroring doubles bucket usage; check Storage → Usage against your quota
+   first. If it does not fit, point the mirror at external S3 instead —
+   `replica/services/storage_mirror.py` is the only file that changes.
+3. **Profiles hardening** (optional, unrelated to backups) — run
+   `frontend/supabase/migrations/202610130001_profiles_hardening.sql`, then the
+   commented backfill at the bottom. Creates a `profiles` row for every signup
+   and closes a `role` escalation (RLS cannot restrict columns; that needs
+   `REVOKE`/`GRANT`).
+4. **Backend secrets** (Render → Settings → Environment), then redeploy:
+   - `SUPABASE_DB_URL` — the *direct Postgres* URI from Supabase → Project
+     Settings → Database. Not the PostgREST URL.
+   - `REPLICA_SYNC_TOKEN` — long random string.
+   - `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` — the only admin
+     recovery path on the free plan (see *Admin recovery* above).
+
+### Running it
+
+```bash
+python manage.py sync_replica --status                  # read-only
+python manage.py sync_replica --triggered-by first      # first full backfill
+python manage.py sync_replica --skip-storage            # relational only
+python manage.py sync_replica --storage-limit 5         # trial the mirror
+```
+
+The first run backfills everything at once — it is a full refresh, not an
+incremental sync. Admin status page: `/admin/dashboard/replica/`
+(`replica.view` to view, `replica.sync` to run).
+
+### Scheduling it
+
+The page is the control panel; the cron is the alarm clock. Neither replaces
+the other - a button nobody presses is not a backup policy, and a silent cron
+failure goes unnoticed for weeks.
+
+Create a free job at **cron-job.org** hitting:
+
+```
+POST https://<backend>/api/admin/replica/sync?skipStorage=true
+x-replica-token: <REPLICA_SYNC_TOKEN>
+```
+
+Run it nightly; add `skipStorage=true` if images change rarely, and drop the
+flag on a schedule of its own when they do. While `REPLICA_SYNC_TOKEN` is unset
+the endpoint answers **404** rather than existing unauthenticated. If a run is
+already in progress it answers **409** with `skipped: true` - that is expected
+when a tick lands during a manual run, not a failure.
+
+### Concurrency and long runs
+
+Two things protect a sync from itself:
+
+- **Advisory lock** - `pg_try_advisory_lock` on the working connection, released
+  when it closes. A second sync is refused rather than interleaved with the
+  first. This is what stops the dangerous case where the admin button times out,
+  the operator retries, and a second full sync starts alongside the first.
+- **`REPLICA_SYNC_MODE`** - `inline` runs the sync inside the button's request;
+  `deferred` only queues a run and returns immediately, leaving the cron to do
+  the work. `deferred` is the safe choice on a free instance, where a long sync
+  can outrun the proxy timeout. `render.yaml` ships `deferred`.
+
+Each table commits in its own transaction, so a failure rolls that table back
+rather than leaving it half-written, and Django/Supabase row counts are
+reconciled - a mismatch fails the run loudly.
+
+### What it replicates
+
+Catalogue, variants, orders, order items, payment intents, inventory
+transactions and reservations, promotions and redemptions, receipts, plus a
+derived `replica.customers` aggregate. Skipped: `auth_user` (password hashes —
+customer identity joins from `public.profiles` instead), sessions, migrations,
+assistant conversations, email logs.
+
+`replica.orders.customer` carries shipping name/phone/address. That PII is
+unavoidable for sales reporting and needs a retention decision.
+
+Each run also appends to `replica.catalogue_snapshots`, giving
+*"what did the catalogue look like on date X?"*:
+
+```sql
+select entity_id, payload from replica.catalogue_snapshots
+where entity = 'product' and snapshot_date = '2026-10-01';
+```
+
+Writes are **upsert, never truncate** (truncating would destroy that history),
+each table commits in its own transaction so a failure rolls back rather than
+leaving a half-empty replica, and Django/Supabase row counts are reconciled -
+a mismatch fails the run loudly.
 
 ## Observability (logging & audit)
 

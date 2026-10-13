@@ -38,6 +38,16 @@ services:
         value: "https://ngpzjddvkgopfmghjqnv.supabase.co"
       - key: SUPABASE_STORAGE_BUCKET
         value: "product-images"
+      # Analytics replica (see supabase/replica_schema.sql). The destination
+      # bucket must be created once in the dashboard as PRIVATE.
+      - key: REPLICA_BACKUP_BUCKET
+        value: "product-images-backup"
+      # inline   = the admin button runs the sync inside the request.
+      # deferred = the button only queues a run; the cron does the work.
+      # Preferred on a free instance, where a long sync can outrun the proxy
+      # timeout and an operator retrying would start a second concurrent sync.
+      - key: REPLICA_SYNC_MODE
+        value: "deferred"
 
       # ---- Background work: Celery + Redis (see backend/docs/CELERY.md) ----
       # REDIS_URL is injected automatically by Render once the Redis resource
@@ -105,6 +115,29 @@ services:
       - key: EMAIL_SWEEP_TOKEN
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # DIRECT Postgres connection string for the analytics replica — Supabase
+      # Dashboard -> Project Settings -> Database -> URI. Not the PostgREST URL:
+      # the replica lives in its own schema so the anon key in the public
+      # bundle cannot read it, and PostgREST only serves `db-schemas` entries.
+      - key: SUPABASE_DB_URL
+        sync: false
+      # Guards POST /api/admin/replica/sync for the external cron. While unset
+      # the endpoint returns 404 rather than existing unauthenticated.
+      - key: REPLICA_SYNC_TOKEN
+        sync: false
+      # Demo-data reset. Set "true", wipe once, then set back to "false" --
+      # while it is off the page answers 404 and the command refuses to run.
+      - key: ENABLE_DATA_RESET
+        value: "false"
+      # DJANGO_SUPERUSER_* are read by `ensure_superuser`, which the Dockerfile
+      # runs on every container start. With no Render Shell on the free plan
+      # this is the ONLY way back into the admin if the superuser is lost.
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false

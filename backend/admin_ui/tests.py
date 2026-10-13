@@ -186,7 +186,11 @@ class AdminDashboardTests(TestCase):
         response = self.client.get('/admin/dashboard/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Pending Revenue')
+        # The label is the KPI's own "Pending revenue" chip. It previously
+        # matched "Pending Revenue" only because the removed recent-orders panel
+        # echoed this order's customer fullName -- the assertion was coupled to
+        # the demo data rather than to the KPI it is meant to test.
+        self.assertContains(response, 'Pending revenue')
         self.assertContains(response, 'KES 11')
         self.assertContains(response, 'KES 15')
 
@@ -556,7 +560,7 @@ class AdminDashboardTests(TestCase):
         response = self.client.get('/admin/dashboard/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'sales-chart-bar')
+        self.assertContains(response, 'sales-chart-point')
         self.assertContains(response, 'data-value="22.00"')
 
     def test_customers_page_excludes_staff_users(self):
@@ -738,7 +742,15 @@ class AdminDashboardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="admin-row-check"')
 
-    def test_product_more_actions_dropdown_has_working_links(self):
+    def test_product_row_actions_have_working_links(self):
+        """Each product row exposes working actions.
+
+        The row UI is a <details> disclosure, not a <select> dropdown. The
+        earlier version of this test expected a dropdown that only ever rendered
+        in the empty state, with every option pointing at /products/new/ -- so it
+        asserted UI that could not work. These assertions cover the links that
+        are actually emitted.
+        """
         self.client.force_login(self.staff)
         product = Product.objects.create(
             category=self.category,
@@ -752,13 +764,15 @@ class AdminDashboardTests(TestCase):
         response = self.client.get('/admin/dashboard/products/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'More actions')
         self.assertContains(
             response, f'href="/admin/dashboard/products/{product.id}/"')
         self.assertContains(
             response, f'href="/admin/dashboard/products/{product.id}/edit/"')
         self.assertContains(
-            response, f'href="/admin/dashboard/products/{product.id}/delete/"')
+            response, f'href="/admin/dashboard/products/{product.id}/duplicate/"')
+        self.assertContains(
+            response,
+            f'href="/admin/dashboard/confirm/?action=delete-product&product_id={product.id}"')
 
     @patch('admin_ui.views.ProductGenerationService.generate_product_metadata')
     def test_add_product_generates_metadata_and_internal_code(self, generate_metadata):
@@ -879,18 +893,21 @@ class AdminDashboardTests(TestCase):
         self.assertContains(response, 'Silk Evening Gown')
         self.assertNotContains(response, 'Cotton Travel Tee')
 
-    def test_staff_products_page_actions_render_as_dropdown(self):
+    def test_staff_products_empty_state_offers_create_action(self):
+        """Empty products page offers the real action, not a broken dropdown.
+
+        The empty state previously rendered a View/Edit/Duplicate/Archive/Delete
+        dropdown in which every option pointed at /products/new/ -- offering to
+        archive or delete rows that do not exist. It now just offers the create
+        button, which is the only meaningful action with no rows.
+        """
         self.client.force_login(self.staff)
 
         response = self.client.get('/admin/dashboard/products/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'class="admin-action-select"')
-        self.assertContains(response, '>View<')
-        self.assertContains(response, '>Edit<')
-        self.assertContains(response, '>Duplicate<')
-        self.assertContains(response, '>Archive<')
-        self.assertContains(response, '>Delete<')
+        self.assertContains(response, '/admin/dashboard/products/new/')
+        self.assertNotContains(response, 'class="admin-action-select"')
 
     def test_staff_can_open_create_product_page(self):
         self.client.force_login(self.staff)
@@ -1427,8 +1444,13 @@ class AdminDashboardTests(TestCase):
         response = self.client.get('/admin/dashboard/')
 
         self.assertEqual(response.status_code, 200)
+        # The sidebar footer and the topbar avatar both link to the profile
+        # page, so counting page-wide occurrences is not meaningful. Assert the
+        # avatar itself points at it, which is what this test is actually for.
         self.assertContains(
-            response, 'href="/admin/dashboard/profile/"', count=1)
+            response,
+            'href="/admin/dashboard/profile/" class="admin-avatar"',
+            count=1)
         self.assertContains(response, 'admin-avatar')
 
     def test_staff_can_open_profile_settings_page(self):
@@ -1439,15 +1461,19 @@ class AdminDashboardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'My Profile')
 
-    def test_staff_categories_page_actions_render_as_dropdown(self):
+    def test_staff_categories_page_row_actions_are_rendered(self):
         self.client.force_login(self.staff)
 
         response = self.client.get('/admin/dashboard/categories/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'class="admin-action-select"')
-        self.assertContains(response, '>Edit<')
-        self.assertContains(response, '>Delete<')
+        # Row actions are a <details> disclosure; the old assertion expected an
+        # admin-action-select dropdown that was gated to page == 'products' and
+        # so could never render here.
+        self.assertContains(
+            response, f'href="/admin/dashboard/categories/{self.category.id}/edit/"')
+        self.assertContains(
+            response, f'href="/admin/dashboard/categories/{self.category.id}/delete/"')
 
     def test_staff_can_open_stock_adjustment_page(self):
         self.client.force_login(self.staff)
@@ -1812,7 +1838,9 @@ class AdminDashboardTests(TestCase):
             'product_id': str(product.id),
         })
 
-        self.assertRedirects(response, '/admin/dashboard/')
+        # Catalogue actions live on the products page now that the dashboard is
+        # KPI cards only, so the view sends the operator there.
+        self.assertRedirects(response, '/admin/dashboard/products/')
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.ARCHIVED)
 
@@ -1833,7 +1861,7 @@ class AdminDashboardTests(TestCase):
             'product_id': str(product_id),
         })
 
-        self.assertRedirects(response, '/admin/dashboard/')
+        self.assertRedirects(response, '/admin/dashboard/products/')
         self.assertFalse(Product.objects.filter(pk=product_id).exists())
 
     def test_staff_can_delete_multiple_selected_products_from_dashboard(self):
@@ -1860,7 +1888,7 @@ class AdminDashboardTests(TestCase):
             'product_ids': [str(first.id), str(second.id)],
         })
 
-        self.assertRedirects(response, '/admin/dashboard/')
+        self.assertRedirects(response, '/admin/dashboard/products/')
         self.assertFalse(Product.objects.filter(
             pk__in=[first.id, second.id]).exists())
 
@@ -2058,6 +2086,12 @@ class AdminDashboardTests(TestCase):
         self.assertTrue(second.is_active)
 
     def test_staff_edit_form_posts_to_confirmation_route(self):
+        """Editing goes straight to the edit URL; /confirm/ stays reachable.
+
+        product_form_page.html posts to /products/<id>/edit/ rather than through
+        the dashboard-era confirmation step. The confirm endpoint still exists
+        for destructive actions, so both halves are asserted here.
+        """
         product = Product.objects.create(
             category=self.category,
             name='Edit Confirm Product',
@@ -2072,12 +2106,11 @@ class AdminDashboardTests(TestCase):
             f'/admin/dashboard/products/{product.id}/edit/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'action="/admin/dashboard/confirm/"')
-        self.assertContains(response, 'name="action" value="update-product"')
+        self.assertContains(
+            response, f'action="/admin/dashboard/products/{product.id}/edit/"')
 
         confirm_response = self.client.post('/admin/dashboard/confirm/', {
             'action': 'update-product',
-            'product_id': str(product.id),
             'product_id': str(product.id),
             'name': 'Updated Confirm Product',
             'slug': 'updated-confirm-product',
@@ -2130,6 +2163,9 @@ class AdminDashboardTests(TestCase):
             'is_featured': '',
             'is_new_arrival': '',
             'is_best_seller': '',
+            # catalog.Product.stock_quantity has default=0 but not blank=True,
+            # so the admin form treats it as required and re-renders on a miss.
+            'stock_quantity': '0',
             '_save': 'Save',
             'variants-TOTAL_FORMS': '0',
             'variants-INITIAL_FORMS': '0',

@@ -11,7 +11,7 @@ from .views import (AdminCategoryCreateView, AdminNotificationReadView,
                     BulkImportReportView, BulkImportStatusView,
                     BulkImportTemplateView, BulkImportUploadView,
                     BulkImportValidateView, EmailSweepView,
-                    ExpireReservationsView)
+                    ExpireReservationsView, ReplicaSyncView)
 
 
 urlpatterns = [
@@ -31,6 +31,10 @@ urlpatterns = [
     # =deferred; see emails.services.sweep_pending_emails.
     path('admin/emails/sweep', EmailSweepView.as_view(),
          name='admin-email-sweep'),
+    # Unauthenticated (token-guarded) Supabase replica sync for the external
+    # cron; see replica.services.sync.sync_replica.
+    path('admin/replica/sync', ReplicaSyncView.as_view(),
+         name='admin-replica-sync'),
     path('admin/notifications',
          AdminNotificationsView.as_view(), name='admin-notifications-api'),
     path('admin/notifications/unread',
