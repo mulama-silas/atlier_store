@@ -106,7 +106,7 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
   >) as the direct Postgres connection string from Supabase &rarr; Project
   Settings &rarr; Database, then redeploy.
 </div>
-{% endif %} {% if configured and pending %}
+{% elif configured and pending %}
 <div class="replica-alert replica-alert-warn">
   <i class="ph ph-timer"></i>
   <strong>Queued.</strong>
@@ -115,7 +115,7 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
     >REPLICA_SYNC_MODE={{ sync_mode }}</code
   >). It will start on the next cron tick.
 </div>
-{% endif %} {% if run_error %}
+{% elif run_error %}
 <div class="replica-alert replica-alert-error">
   <i class="ph ph-warning-circle"></i>
   <strong>Status unavailable.</strong> {{ run_error }}
@@ -126,7 +126,9 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
   The replica is reachable but has <strong>no sync runs recorded</strong> yet.
   Run the first backup below, or hit the cron endpoint directly.
 </div>
-{% endif %} {% if run %} {% if run.status == 'failure' %}
+{% endif %}
+
+{% if run %} {% if run.status == 'failure' %}
 <div class="replica-alert replica-alert-error">
   <i class="ph ph-warning-circle"></i>
   <strong>The last run failed.</strong>
