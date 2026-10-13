@@ -165,7 +165,10 @@ class SyncFailureTests(TestCase):
         with mock.patch.object(sync_mod, 'get_connection', return_value=conn), \
              mock.patch.object(sync_mod, '_start_run', return_value=1), \
              mock.patch.object(sync_mod, '_sync_table', side_effect=fake_sync_table), \
-             mock.patch.object(sync_mod, '_write_snapshots', return_value={}):
+             mock.patch.object(
+                 sync_mod, '_write_snapshots',
+                 return_value={'snapshot_rows': 0, 'snapshot_total': 0},
+             ):
             with self.assertRaises(RuntimeError) as ctx:
                 sync_mod.sync_replica(triggered_by='manual', include_storage=False)
 

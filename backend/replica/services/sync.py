@@ -555,7 +555,9 @@ def sync_replica(triggered_by='manual', include_storage=True):
         mismatches = [
             f'{t}: django={v["source"]} supabase={v["replica"]}'
             for t, v in counts.items()
-            if 'source' in v and v['source'] != v['replica']
+            if isinstance(v, dict)
+            and 'source' in v
+            and v['source'] != v['replica']
         ]
 
         if mismatches:
