@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   ArrowRight,
   Bell,
@@ -13,16 +13,16 @@ import {
   Sparkles,
   User,
   X,
-} from 'lucide-react';
-import { motion } from 'motion/react';
-import { CategorySlug } from '../types';
-import { useAuth } from '../context/AuthContext';
-import { useCart } from '../context/CartContext';
-import { useNotifications } from '../context/NotificationsContext';
-import { useStore } from '../context/StoreContext';
-import { useWishlist } from '../context/WishlistContext';
-import { useRouter, AppRoute } from '../router/RouterContext';
-import { CollapsibleGroup } from './CollapsibleGroup';
+} from "lucide-react";
+import { motion } from "motion/react";
+import { CategorySlug } from "../types";
+import { useAuth } from "../context/AuthContext";
+import { useCart } from "../context/CartContext";
+import { useNotifications } from "../context/NotificationsContext";
+import { useStore } from "../context/StoreContext";
+import { useWishlist } from "../context/WishlistContext";
+import { useRouter, AppRoute } from "../router/RouterContext";
+import { CollapsibleGroup } from "./CollapsibleGroup";
 import {
   Badge,
   Dialog,
@@ -33,9 +33,11 @@ import {
   PopoverContent,
   PopoverTrigger,
   ScrollArea,
-} from './modeza';
+} from "./modeza";
 
-const backendBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const backendBaseUrl = (
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
 const modezaLogoUrl = `${backendBaseUrl}/static/images/logo.png`;
 
 export interface NavbarProps {
@@ -59,19 +61,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
   const categories: NavigationItem[] = storeCategories.map((category) => ({
     label: category.name,
     slug: category.slug as CategorySlug,
-    path: category.slug === 'all' ? '/shop' : `/shop/${category.slug}`,
+    path: category.slug === "all" ? "/shop" : `/shop/${category.slug}`,
   }));
-  const productCategories = categories.filter((category) => category.slug !== 'all');
-  const currentCategory = route.path === '/shop' ? route.category || 'all' : undefined;
-  const isHomeActive = route.path === '/';
-  const isNewArrivalsActive = route.path === '/shop' && route.collection === 'new-arrivals';
-  const isSaleActive = route.path === '/shop' && route.sale === true;
-  const isCollectionsActive = route.path === '/shop'
-    && !route.category
-    && !route.collection
-    && !route.occasion
-    && !route.query
-    && !route.sale;
+  const productCategories = categories.filter(
+    (category) => category.slug !== "all",
+  );
+  const currentCategory =
+    route.path === "/shop" ? route.category || "all" : undefined;
+  const isHomeActive = route.path === "/";
+  const isNewArrivalsActive =
+    route.path === "/shop" && route.collection === "new-arrivals";
+  const isSaleActive = route.path === "/shop" && route.sale === true;
+  const isCollectionsActive =
+    route.path === "/shop" &&
+    !route.category &&
+    !route.collection &&
+    !route.occasion &&
+    !route.query &&
+    !route.sale;
 
   const navigateFromShopMenu = (path: string) => {
     navigate(path);
@@ -122,10 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
         </div>
       </motion.div>
 
-      <Dialog
-        open={isMobileMenuOpen}
-        onOpenChange={setIsMobileMenuOpen}
-      >
+      <Dialog open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <MobileMenu
           isOpen={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
@@ -144,11 +148,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
 
 const AnnouncementBar: React.FC = () => (
   <div className="relative overflow-hidden bg-[#181716] px-4 py-2">
-    <div className="absolute inset-0 bg-gradient-to-r from-[#181716] via-[#A2574F]/25 to-[#181716]" aria-hidden="true" />
+    <div
+      className="absolute inset-0 bg-gradient-to-r from-[#181716] via-[#A2574F]/25 to-[#181716]"
+      aria-hidden="true"
+    />
     <p className="relative text-center text-[9px] font-medium uppercase tracking-[0.18em] text-[#FAF9F6] sm:text-[10px] sm:tracking-[0.2em]">
-      <Sparkles className="mr-1.5 inline-block h-3 w-3 text-[#E6C8CD]" aria-hidden="true" />
+      <Sparkles
+        className="mr-1.5 inline-block h-3 w-3 text-[#E6C8CD]"
+        aria-hidden="true"
+      />
       Free shipping on orders over KES 5,000
-      <Sparkles className="ml-1.5 inline-block h-3 w-3 text-[#E6C8CD]" aria-hidden="true" />
+      <Sparkles
+        className="ml-1.5 inline-block h-3 w-3 text-[#E6C8CD]"
+        aria-hidden="true"
+      />
     </p>
   </div>
 );
@@ -187,15 +200,25 @@ const LeftNavigation: React.FC<LeftNavigationProps> = ({
       type="button"
       onClick={onToggleMobileMenu}
       className="flex items-center gap-2 rounded-full p-2 text-[#181716] transition-colors hover:bg-[#F3F1ED] hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 lg:hidden"
-      aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+      aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
       aria-expanded={isMobileMenuOpen}
     >
-      {isMobileMenuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+      {isMobileMenuOpen ? (
+        <X className="h-5 w-5" aria-hidden="true" />
+      ) : (
+        <Menu className="h-5 w-5" aria-hidden="true" />
+      )}
     </button>
 
-    <nav className="hidden items-center gap-7 lg:flex xl:gap-8" aria-label="Primary navigation">
-      <NavButton label="Home" onClick={() => onNavigate('/')} />
-      <NavButton label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
+    <nav
+      className="hidden items-center gap-7 lg:flex xl:gap-8"
+      aria-label="Primary navigation"
+    >
+      <NavButton label="Home" onClick={() => onNavigate("/")} />
+      <NavButton
+        label="New Arrivals"
+        onClick={() => onNavigate("/shop?collection=new-arrivals")}
+      />
 
       <Popover open={isCategoriesOpen} onOpenChange={onCategoriesOpenChange}>
         <PopoverTrigger asChild>
@@ -203,14 +226,14 @@ const LeftNavigation: React.FC<LeftNavigationProps> = ({
             type="button"
             className={`flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 ${
               currentCategory
-                ? 'bg-[#F4ECE9] text-[#A2574F]'
-                : 'text-[#63605A] hover:bg-[#F3F1ED] hover:text-[#181716]'
+                ? "bg-[#F4ECE9] text-[#A2574F]"
+                : "text-[#63605A] hover:bg-[#F3F1ED] hover:text-[#181716]"
             }`}
             aria-label="Shop categories"
           >
             Categories
             <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform duration-200 ${isCategoriesOpen ? 'rotate-180' : ''}`}
+              className={`h-3.5 w-3.5 transition-transform duration-200 ${isCategoriesOpen ? "rotate-180" : ""}`}
               aria-hidden="true"
             />
           </button>
@@ -220,17 +243,24 @@ const LeftNavigation: React.FC<LeftNavigationProps> = ({
           sideOffset={10}
           className="w-[min(90vw,36rem)] rounded-2xl border border-[#E8E5DF] bg-white p-5 shadow-2xl sm:p-6"
         >
-          <ShopDropdown categories={categories} onNavigate={onNavigateFromShop} />
+          <ShopDropdown
+            categories={categories}
+            onNavigate={onNavigateFromShop}
+          />
         </PopoverContent>
       </Popover>
 
-      <NavButton label="Collections" onClick={() => onNavigate('/shop')} />
-      <NavButton label="Sale" onClick={() => onNavigate('/shop?sale=true')} />
+      <NavButton label="Collections" onClick={() => onNavigate("/shop")} />
+      <NavButton label="Sale" onClick={() => onNavigate("/shop?sale=true")} />
+      <NavButton label="Contact Us" onClick={() => onNavigate("/contact")} />
     </nav>
   </div>
 );
 
-const NavButton: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
+const NavButton: React.FC<{ label: string; onClick: () => void }> = ({
+  label,
+  onClick,
+}) => (
   <button
     type="button"
     onClick={onClick}
@@ -247,13 +277,26 @@ const ShopDropdown: React.FC<{
   <div>
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
       <DropdownColumn title="Shop">
-        <DropdownLink label="All Products" onClick={() => onNavigate('/shop')} icon={<Sparkles className="h-3.5 w-3.5" />} />
-        <DropdownLink label="Best Sellers" onClick={() => onNavigate('/shop?collection=best-sellers')} />
-        <DropdownLink label="New Arrivals" onClick={() => onNavigate('/shop?collection=new-arrivals')} />
+        <DropdownLink
+          label="All Products"
+          onClick={() => onNavigate("/shop")}
+          icon={<Sparkles className="h-3.5 w-3.5" />}
+        />
+        <DropdownLink
+          label="Best Sellers"
+          onClick={() => onNavigate("/shop?collection=best-sellers")}
+        />
+        <DropdownLink
+          label="New Arrivals"
+          onClick={() => onNavigate("/shop?collection=new-arrivals")}
+        />
       </DropdownColumn>
 
       <DropdownColumn title="Shop by Category">
-        <DropdownLink label="All Products" onClick={() => onNavigate('/shop')} />
+        <DropdownLink
+          label="All Products"
+          onClick={() => onNavigate("/shop")}
+        />
         {categories.map((category) => (
           <DropdownLink
             key={category.slug}
@@ -264,26 +307,43 @@ const ShopDropdown: React.FC<{
       </DropdownColumn>
 
       <DropdownColumn title="Shop by Occasion">
-        <DropdownLink label="Everyday" onClick={() => onNavigate('/shop?occasion=everyday')} />
-        <DropdownLink label="Evening" onClick={() => onNavigate('/shop?occasion=evening')} />
-        <DropdownLink label="Special Occasions" onClick={() => onNavigate('/shop?occasion=special-occasions')} />
+        <DropdownLink
+          label="Everyday"
+          onClick={() => onNavigate("/shop?occasion=everyday")}
+        />
+        <DropdownLink
+          label="Evening"
+          onClick={() => onNavigate("/shop?occasion=evening")}
+        />
+        <DropdownLink
+          label="Special Occasions"
+          onClick={() => onNavigate("/shop?occasion=special-occasions")}
+        />
       </DropdownColumn>
     </div>
 
     <div className="mt-6 border-t border-[#E8E5DF] pt-4">
       <button
         type="button"
-        onClick={() => onNavigate('/shop?collection=new-arrivals')}
+        onClick={() => onNavigate("/shop?collection=new-arrivals")}
         className="group flex w-full items-center justify-between rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-3 py-2.5 transition-colors hover:bg-[#F4ECE9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
       >
-        <span className="text-xs font-medium text-[#181716]">Explore New Collection</span>
-        <ArrowRight className="h-4 w-4 text-[#A2574F] transition-transform group-hover:translate-x-1" aria-hidden="true" />
+        <span className="text-xs font-medium text-[#181716]">
+          Explore New Collection
+        </span>
+        <ArrowRight
+          className="h-4 w-4 text-[#A2574F] transition-transform group-hover:translate-x-1"
+          aria-hidden="true"
+        />
       </button>
     </div>
   </div>
 );
 
-const DropdownColumn: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+const DropdownColumn: React.FC<{
+  title: string;
+  children: React.ReactNode;
+}> = ({ title, children }) => (
   <div>
     <p className="px-2 pb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
       {title}
@@ -298,7 +358,11 @@ interface DropdownLinkProps {
   icon?: React.ReactNode;
 }
 
-const DropdownLink: React.FC<DropdownLinkProps> = ({ label, onClick, icon }) => (
+const DropdownLink: React.FC<DropdownLinkProps> = ({
+  label,
+  onClick,
+  icon,
+}) => (
   <button
     type="button"
     onClick={onClick}
@@ -309,11 +373,13 @@ const DropdownLink: React.FC<DropdownLinkProps> = ({ label, onClick, icon }) => 
   </button>
 );
 
-const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({ onNavigate }) => (
+const CenterLogo: React.FC<{ onNavigate: (path: string) => void }> = ({
+  onNavigate,
+}) => (
   <div className="absolute left-1/2 w-[124px] -translate-x-1/2 text-center sm:w-[170px] lg:left-0 lg:w-[170px] lg:translate-x-0">
     <button
       type="button"
-      onClick={() => onNavigate('/')}
+      onClick={() => onNavigate("/")}
       className="group block rounded-sm text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-4"
       aria-label="MODEZA Home"
     >
@@ -332,7 +398,8 @@ const RightActions: React.FC<{
   cartCount: number;
   wishlistCount: number;
 }> = ({ onNavigate, onOpenSearch, cartCount, wishlistCount }) => {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+    useNotifications();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
 
@@ -340,7 +407,7 @@ const RightActions: React.FC<{
     <div className="relative flex shrink-0 items-center gap-1.5 border-l border-[#E8E5DF] pl-3 sm:gap-2 sm:pl-4 lg:gap-3 lg:pl-5">
       <button
         type="button"
-        onClick={() => onNavigate('/about')}
+        onClick={() => onNavigate("/about")}
         className="hidden rounded-full px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#63605A] transition-colors hover:bg-[#F3F1ED] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] lg:block"
       >
         About
@@ -355,7 +422,10 @@ const RightActions: React.FC<{
       </IconButton>
 
       <div className="relative">
-        <Popover open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
+        <Popover
+          open={isNotificationsOpen}
+          onOpenChange={setIsNotificationsOpen}
+        >
           <PopoverTrigger asChild>
             <button
               type="button"
@@ -369,7 +439,7 @@ const RightActions: React.FC<{
                   variant="danger"
                   className="absolute -right-1 -top-1 h-4 min-w-4 justify-center px-1 text-[9px]"
                 >
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </Badge>
               )}
             </button>
@@ -385,7 +455,9 @@ const RightActions: React.FC<{
                   Notifications
                 </span>
                 {unreadCount > 0 && (
-                  <Badge variant="warning" size="sm">{unreadCount} unread</Badge>
+                  <Badge variant="warning" size="sm">
+                    {unreadCount} unread
+                  </Badge>
                 )}
               </div>
               {unreadCount > 0 && (
@@ -400,11 +472,14 @@ const RightActions: React.FC<{
                   className="inline-flex shrink-0 items-center gap-1 rounded-sm text-[10px] font-semibold uppercase tracking-[0.12em] text-[#A2574F] transition-colors hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] disabled:cursor-wait disabled:opacity-50"
                 >
                   {isMarkingAll ? (
-                    <LoaderCircle className="h-3 w-3 animate-spin" aria-hidden="true" />
+                    <LoaderCircle
+                      className="h-3 w-3 animate-spin"
+                      aria-hidden="true"
+                    />
                   ) : (
                     <CheckCheck className="h-3 w-3" aria-hidden="true" />
                   )}
-                  {isMarkingAll ? 'Saving' : 'Mark all read'}
+                  {isMarkingAll ? "Saving" : "Mark all read"}
                 </button>
               )}
             </div>
@@ -429,8 +504,8 @@ const RightActions: React.FC<{
                       }}
                       className={`w-full rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
                         notification.isRead
-                          ? 'border-[#E8E5DF] bg-[#FAF9F6] hover:border-[#D8D3CB]'
-                          : 'border-[#E7D8B3] bg-[#FFFDF8] hover:border-[#D8C99E]'
+                          ? "border-[#E8E5DF] bg-[#FAF9F6] hover:border-[#D8D3CB]"
+                          : "border-[#E7D8B3] bg-[#FFFDF8] hover:border-[#D8C99E]"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -438,13 +513,20 @@ const RightActions: React.FC<{
                           <div className="text-[10px] uppercase tracking-[0.14em] text-[#827E77]">
                             {notification.category}
                           </div>
-                          <div className="mt-1 text-sm font-medium text-[#181716]">{notification.title}</div>
+                          <div className="mt-1 text-sm font-medium text-[#181716]">
+                            {notification.title}
+                          </div>
                         </div>
                         {!notification.isRead && (
-                          <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#A2574F]" aria-label="Unread" />
+                          <span
+                            className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#A2574F]"
+                            aria-label="Unread"
+                          />
                         )}
                       </div>
-                      <p className="mt-2 text-xs leading-5 text-[#63605A]">{notification.message}</p>
+                      <p className="mt-2 text-xs leading-5 text-[#63605A]">
+                        {notification.message}
+                      </p>
                     </button>
                   ))
                 )}
@@ -455,7 +537,7 @@ const RightActions: React.FC<{
               <button
                 type="button"
                 onClick={() => {
-                  onNavigate('/account/notifications');
+                  onNavigate("/account/notifications");
                   setIsNotificationsOpen(false);
                 }}
                 className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#E8E5DF] py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A2574F] transition-colors hover:bg-[#FAF9F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
@@ -469,7 +551,7 @@ const RightActions: React.FC<{
       </div>
 
       <IconButton
-        onClick={() => onNavigate('/account')}
+        onClick={() => onNavigate("/account")}
         ariaLabel="Customer account"
         title="Customer account"
       >
@@ -478,7 +560,7 @@ const RightActions: React.FC<{
 
       <div className="hidden sm:flex">
         <IconButton
-          onClick={() => onNavigate('/wishlist')}
+          onClick={() => onNavigate("/wishlist")}
           ariaLabel={`Wishlist with ${wishlistCount} saved items`}
           title="Wishlist"
         >
@@ -486,7 +568,7 @@ const RightActions: React.FC<{
             <Heart className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
             {wishlistCount > 0 && (
               <Badge className="absolute -right-2.5 -top-2.5 h-4 min-w-4 justify-center px-1 text-[9px]">
-                {wishlistCount > 99 ? '99+' : wishlistCount}
+                {wishlistCount > 99 ? "99+" : wishlistCount}
               </Badge>
             )}
           </span>
@@ -495,7 +577,7 @@ const RightActions: React.FC<{
 
       <button
         type="button"
-        onClick={() => onNavigate('/cart')}
+        onClick={() => onNavigate("/cart")}
         className="relative flex items-center gap-2 rounded-full p-2.5 text-[#181716] transition-colors hover:bg-[#F3F1ED] hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
         aria-label={`View shopping cart with ${cartCount} items`}
         title="View Cart"
@@ -556,43 +638,80 @@ const MobileMenu: React.FC<{
   const { user, signOut } = useAuth();
   if (!isOpen) return null;
 
-  const shopRoute = route.path === '/shop' ? route : undefined;
-  const browseActive = route.path === '/' || route.path === '/about' || Boolean(shopRoute?.sale);
+  const shopRoute = route.path === "/shop" ? route : undefined;
+  const browseActive =
+    route.path === "/" || route.path === "/about" || Boolean(shopRoute?.sale);
   const categoriesActive = Boolean(shopRoute?.category);
   const shopActive = Boolean(
     shopRoute && !shopRoute.category && !shopRoute.occasion && !shopRoute.sale,
   );
   const occasionActive = Boolean(shopRoute?.occasion);
   const isPlainShop = Boolean(
-    shopRoute && !shopRoute.category && !shopRoute.occasion && !shopRoute.collection
-      && !shopRoute.query && !shopRoute.sale,
+    shopRoute &&
+    !shopRoute.category &&
+    !shopRoute.occasion &&
+    !shopRoute.collection &&
+    !shopRoute.query &&
+    !shopRoute.sale,
   );
 
   return (
     <DialogContent className="left-auto right-0 top-0 flex h-dvh max-h-dvh w-[min(90vw,24rem)] max-w-[calc(100%-1rem)] translate-x-0 translate-y-0 flex-col overflow-hidden rounded-l-3xl rounded-r-none border-y-0 border-r-0 p-0 shadow-2xl lg:hidden">
       <div className="flex items-center justify-between border-b border-[#E8E5DF] px-6 py-5 pr-16">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#827E77]">MODEZA</p>
-          <DialogTitle className="mt-1 font-serif text-2xl font-normal text-[#181716]">Menu</DialogTitle>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#827E77]">
+            MODEZA
+          </p>
+          <DialogTitle className="mt-1 font-serif text-2xl font-normal text-[#181716]">
+            Menu
+          </DialogTitle>
         </div>
       </div>
       <DialogDescription className="sr-only">
-        Browse the boutique, manage your account, and review your wishlist and cart.
+        Browse the boutique, manage your account, and review your wishlist and
+        cart.
       </DialogDescription>
 
       <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-7">
-        <CollapsibleGroup title="Browse" defaultOpen={browseActive} active={browseActive} className="mb-6">
-          <MobileLink label="Home" isActive={route.path === '/'} onClick={() => onNavigate('/')} />
-          <MobileLink label="About" isActive={route.path === '/about'} onClick={() => onNavigate('/about')} />
+        <CollapsibleGroup
+          title="Browse"
+          defaultOpen={browseActive}
+          active={browseActive}
+          className="mb-6"
+        >
+          <MobileLink
+            label="Home"
+            isActive={route.path === "/"}
+            onClick={() => onNavigate("/")}
+          />
+          <MobileLink
+            label="About"
+            isActive={route.path === "/about"}
+            onClick={() => onNavigate("/about")}
+          />
+          <MobileLink
+            label="Contact Us"
+            isActive={route.path === "/contact"}
+            onClick={() => onNavigate("/contact")}
+          />
           <MobileLink
             label="New Arrivals"
-            isActive={shopRoute?.collection === 'new-arrivals'}
-            onClick={() => onNavigate('/shop?collection=new-arrivals')}
+            isActive={shopRoute?.collection === "new-arrivals"}
+            onClick={() => onNavigate("/shop?collection=new-arrivals")}
           />
-          <MobileLink label="Sale" isActive={Boolean(shopRoute?.sale)} onClick={() => onNavigate('/shop?sale=true')} />
+          <MobileLink
+            label="Sale"
+            isActive={Boolean(shopRoute?.sale)}
+            onClick={() => onNavigate("/shop?sale=true")}
+          />
         </CollapsibleGroup>
 
-        <CollapsibleGroup title="Categories" defaultOpen={categoriesActive} active={categoriesActive} className="mb-6">
+        <CollapsibleGroup
+          title="Categories"
+          defaultOpen={categoriesActive}
+          active={categoriesActive}
+          className="mb-6"
+        >
           {productCategories.map((category) => (
             <MobileLink
               key={category.slug}
@@ -603,43 +722,57 @@ const MobileMenu: React.FC<{
           ))}
         </CollapsibleGroup>
 
-        <CollapsibleGroup title="Shop" defaultOpen={shopActive} active={shopActive} className="mb-6">
-          <MobileLink label="All Products" isActive={isPlainShop} onClick={() => onNavigate('/shop')} />
+        <CollapsibleGroup
+          title="Shop"
+          defaultOpen={shopActive}
+          active={shopActive}
+          className="mb-6"
+        >
+          <MobileLink
+            label="All Products"
+            isActive={isPlainShop}
+            onClick={() => onNavigate("/shop")}
+          />
           <MobileLink
             label="Best Sellers"
-            isActive={shopRoute?.collection === 'best-sellers'}
-            onClick={() => onNavigate('/shop?collection=best-sellers')}
+            isActive={shopRoute?.collection === "best-sellers"}
+            onClick={() => onNavigate("/shop?collection=best-sellers")}
           />
           <MobileLink
             label="New Arrivals"
-            isActive={shopRoute?.collection === 'new-arrivals'}
-            onClick={() => onNavigate('/shop?collection=new-arrivals')}
+            isActive={shopRoute?.collection === "new-arrivals"}
+            onClick={() => onNavigate("/shop?collection=new-arrivals")}
           />
         </CollapsibleGroup>
 
-        <CollapsibleGroup title="Shop by Occasion" defaultOpen={occasionActive} active={occasionActive} className="mb-6">
+        <CollapsibleGroup
+          title="Shop by Occasion"
+          defaultOpen={occasionActive}
+          active={occasionActive}
+          className="mb-6"
+        >
           <MobileLink
             label="Everyday"
-            isActive={shopRoute?.occasion === 'everyday'}
-            onClick={() => onNavigate('/shop?occasion=everyday')}
+            isActive={shopRoute?.occasion === "everyday"}
+            onClick={() => onNavigate("/shop?occasion=everyday")}
           />
           <MobileLink
             label="Evening"
-            isActive={shopRoute?.occasion === 'evening'}
-            onClick={() => onNavigate('/shop?occasion=evening')}
+            isActive={shopRoute?.occasion === "evening"}
+            onClick={() => onNavigate("/shop?occasion=evening")}
           />
           <MobileLink
             label="Special Occasions"
-            isActive={shopRoute?.occasion === 'special-occasions'}
-            onClick={() => onNavigate('/shop?occasion=special-occasions')}
+            isActive={shopRoute?.occasion === "special-occasions"}
+            onClick={() => onNavigate("/shop?occasion=special-occasions")}
           />
         </CollapsibleGroup>
 
         <div className="mt-8 space-y-2 border-t border-[#E8E5DF] pt-6">
           <MobileLink
             label="My Account"
-            isActive={route.path.startsWith('/account')}
-            onClick={() => onNavigate('/account')}
+            isActive={route.path.startsWith("/account")}
+            onClick={() => onNavigate("/account")}
           />
           {user && (
             <button
@@ -656,20 +789,25 @@ const MobileMenu: React.FC<{
           )}
           <MobileLink
             label={`Wishlist (${wishlistCount})`}
-            isActive={route.path === '/wishlist'}
-            onClick={() => onNavigate('/wishlist')}
+            isActive={route.path === "/wishlist"}
+            onClick={() => onNavigate("/wishlist")}
           />
-          <MobileLink label="Track Order" isActive={route.path === '/track'} onClick={() => onNavigate('/track')} />
+          <MobileLink
+            label="Track Order"
+            isActive={route.path === "/track"}
+            onClick={() => onNavigate("/track")}
+          />
           <MobileLink
             label={`Cart (${cartCount})`}
-            isActive={route.path === '/cart'}
-            onClick={() => onNavigate('/cart')}
+            isActive={route.path === "/cart"}
+            onClick={() => onNavigate("/cart")}
           />
         </div>
 
         <div className="mt-8 border-t border-[#E8E5DF] pt-6">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
-            {categories.length} collection{categories.length === 1 ? '' : 's'} available
+            {categories.length} collection{categories.length === 1 ? "" : "s"}{" "}
+            available
           </p>
         </div>
       </div>
@@ -687,10 +825,10 @@ const MobileLink: React.FC<{
     onClick={onClick}
     className={`w-full rounded-xl px-4 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
       isActive
-        ? 'bg-[#A2574F] font-medium text-[#FAF9F6] shadow-sm'
-        : 'text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716]'
+        ? "bg-[#A2574F] font-medium text-[#FAF9F6] shadow-sm"
+        : "text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716]"
     }`}
-    aria-current={isActive ? 'page' : undefined}
+    aria-current={isActive ? "page" : undefined}
   >
     {label}
   </button>
