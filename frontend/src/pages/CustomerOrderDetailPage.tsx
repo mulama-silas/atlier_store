@@ -447,39 +447,50 @@ export const CustomerOrderDetailPage: React.FC<
             </p>
           )}
 
-          <header className="flex flex-col gap-5 border-b border-[#D8D3CB] pb-6 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
-                Order details
-              </p>
-              <h1 className="mt-2 break-all font-serif text-3xl font-normal leading-tight text-[#181716] sm:text-4xl">
-                {order.orderNumber}
-              </h1>
-              <p className="mt-2 text-sm text-[#63605A]">
-                Placed{" "}
-                {formatOrderDate(order.createdAt, {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <div className="flex items-center gap-2 rounded-lg border border-[#E8E5DF] bg-white px-3 py-2">
-                <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#827E77]">
-                  Status
-                </span>
-                <StatusBadge status={order.status} />
+          <header className="relative isolate overflow-hidden rounded-xl bg-[#181716] text-white">
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-4 -top-14 select-none font-serif text-[15rem] leading-none text-white/[0.035]"
+            >
+              M
+            </span>
+            <div className="relative grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-9">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#E6B2A2]">
+                    Order details
+                  </p>
+                  <StatusBadge status={order.status} />
+                </div>
+                <h1 className="mt-3 break-all font-serif text-3xl font-normal leading-tight text-white sm:text-4xl">
+                  {order.orderNumber}
+                </h1>
+                <p className="mt-2 text-sm text-white/65">
+                  Placed{" "}
+                  {formatOrderDate(order.createdAt, {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
               </div>
-              <div className="flex items-center gap-2 rounded-lg border border-[#E8E5DF] bg-white px-3 py-2">
-                <CreditCard
-                  className="h-3.5 w-3.5 text-[#A2574F]"
-                  aria-hidden="true"
-                />
-                <span className="text-xs font-medium text-[#181716]">
-                  {paymentMethodLabel(order.paymentMethod)}
-                </span>
-                <PaymentStatusBadge status={order.paymentStatus} />
+              <div className="flex items-end justify-between gap-5 border-t border-white/15 pt-4 lg:min-w-56 lg:justify-end lg:border-0 lg:pt-0 lg:text-right">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                    Order total
+                  </p>
+                  <p className="mt-1 font-serif text-3xl text-white sm:text-4xl">
+                    {formatPrice(order.total)}
+                  </p>
+                </div>
+                <div className="pb-1 text-right lg:hidden">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                    Payment
+                  </p>
+                  <p className="mt-1 text-xs text-white/85">
+                    {paymentMethodLabel(order.paymentMethod)}
+                  </p>
+                </div>
               </div>
             </div>
           </header>
@@ -487,78 +498,71 @@ export const CustomerOrderDetailPage: React.FC<
           <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,0.8fr)] lg:gap-12">
             <div className="min-w-0 space-y-7">
               {order.status === "cancelled" ? (
-                <Card className="border-[#F8B4B4] bg-[#FDF2F2] p-5 shadow-none sm:p-6">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#9E332B]">
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-[#181716]">
-                        This order was cancelled
+                <div className="flex items-start gap-4 border-y border-[#E7C7C4] bg-[#FDF2F2] px-4 py-5 sm:px-6">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#9E332B]">
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-[#181716]">
+                      This order was cancelled
+                    </p>
+                    {cancellationTimestamp && (
+                      <p className="mt-1 text-xs text-[#63605A]">
+                        Recorded on{" "}
+                        {formatOrderDate(cancellationTimestamp, {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                        .
                       </p>
-                      {cancellationTimestamp && (
-                        <p className="mt-1 text-xs text-[#63605A]">
-                          Recorded on{" "}
-                          {formatOrderDate(cancellationTimestamp, {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
-                          .
-                        </p>
-                      )}
-                      <p className="mt-2 text-xs leading-5 text-[#63605A]">
-                        Reserved MODEZA stock has been returned to available
-                        inventory.
-                      </p>
-                    </div>
+                    )}
+                    <p className="mt-2 text-xs leading-5 text-[#63605A]">
+                      Reserved MODEZA stock has been returned to available
+                      inventory.
+                    </p>
                   </div>
-                </Card>
+                </div>
               ) : order.status === "delivered" ||
                 order.status === "received" ? (
-                <Card className="border-[#C8D8CA] bg-[#F2F6F2] p-5 shadow-none sm:p-6">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#2E5A44] shadow-xs">
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-[#181716]">
-                        {order.status === "delivered"
-                          ? "Delivered"
-                          : "Order received"}
-                        {deliveryTimestamp && (
-                          <span>
-                            {" "}
-                            on{" "}
-                            {formatOrderDate(deliveryTimestamp, {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </span>
-                        )}
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-[#63605A]">
-                        Thank you for shopping with the modeza.
-                      </p>
-                    </div>
+                <div className="flex items-start gap-4 border-y border-[#C8D8CA] bg-[#F2F6F2] px-4 py-5 sm:px-6">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#2E5A44]">
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-[#181716]">
+                      {order.status === "delivered"
+                        ? "Delivered"
+                        : "Order received"}
+                      {deliveryTimestamp &&
+                        ` on ${formatOrderDate(deliveryTimestamp, { day: "numeric", month: "long", year: "numeric" })}`}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#63605A]">
+                      Thank you for shopping with MODEZA.
+                    </p>
                   </div>
-                </Card>
+                </div>
               ) : isActiveOrder(order.status) ? (
-                <Card className="border-[#E8E5DF] p-5 shadow-sm sm:p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                <section
+                  aria-labelledby="order-progress-heading"
+                  className="border-y border-[#D8D3CB] bg-white px-4 py-5 sm:px-6 sm:py-6"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">
-                        Order status
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">
+                        Order progress
                       </p>
-                      <h2 className="mt-1 text-sm font-semibold text-[#181716]">
+                      <h2
+                        id="order-progress-heading"
+                        className="mt-1 font-serif text-2xl font-normal text-[#181716]"
+                      >
                         Your journey so far
                       </h2>
                     </div>
                     {isTrackable(order.status) && (
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() =>
                           navigate(
@@ -579,11 +583,11 @@ export const CustomerOrderDetailPage: React.FC<
                     aria-valuetext={`${progressValue}% complete`}
                   />
                   <OrderProgress order={order} className="mt-6" />
-                </Card>
+                </section>
               ) : null}
 
               {order.status === "shipped" && (
-                <Card className="flex items-start gap-3.5 bg-[#FAF9F6] p-5 shadow-none sm:p-6">
+                <div className="flex items-start gap-3.5 border-b border-[#D8D3CB] bg-[#F4ECE9] px-4 py-5 sm:px-6">
                   <Truck
                     className="mt-0.5 h-5 w-5 shrink-0 text-[#181716]"
                     aria-hidden="true"
@@ -597,115 +601,115 @@ export const CustomerOrderDetailPage: React.FC<
                       email updates as they travel to you.
                     </p>
                   </div>
-                </Card>
+                </div>
               )}
 
-              <Tabs defaultValue="items" className="w-full">
-                <TabsList
-                  className="h-11 w-full justify-start overflow-x-auto rounded-lg bg-[#F3F1ED] p-1"
-                  aria-label="Order details"
-                >
-                  <TabsTrigger value="items">
-                    Pieces ({totalQuantity(order)})
-                  </TabsTrigger>
-                  <TabsTrigger value="delivery">Delivery</TabsTrigger>
-                </TabsList>
-                <TabsContent value="items">
-                  <Card
-                    className="overflow-hidden p-0 shadow-sm"
-                    aria-labelledby="order-items-heading"
-                  >
-                    <CardHeader className="border-b border-[#F3F1ED] p-5 sm:p-6">
-                      <CardTitle id="order-items-heading" className="text-lg">
-                        Reserved pieces
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        The items currently recorded on this order.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <ul className="divide-y divide-[#F3F1ED]">
-                        {order.items.map((item) => (
-                          <li
-                            key={item.id}
-                            className="flex flex-wrap items-center gap-4 p-4 sm:gap-5 sm:p-5"
-                          >
-                            <OrderItemThumb
-                              item={item}
-                              className="h-20 w-16 shrink-0 rounded-lg border border-[#E8E5DF] shadow-xs sm:h-24 sm:w-20"
-                            />
-                            <div className="min-w-[7.5rem] flex-1">
-                              <h3 className="font-serif text-sm text-[#181716] sm:text-base">
-                                {item.productName}
-                              </h3>
-                              <p className="mt-1 text-xs text-[#63605A]">
-                                {item.variantDetails || "—"}
-                              </p>
-                              <p className="mt-1 text-xs text-[#827E77]">
-                                Qty {item.quantity} ×{" "}
-                                {formatPrice(item.unitPrice)}
-                              </p>
-                            </div>
-                            <div className="shrink-0 font-serif text-sm text-[#181716] sm:text-base">
-                              {formatPrice(item.subtotal)}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                <TabsContent value="delivery">
-                  <Card
-                    className="p-5 shadow-sm sm:p-6"
-                    aria-labelledby="order-delivery-heading"
-                  >
-                    <CardHeader className="p-0">
-                      <div className="flex items-center gap-2">
-                        <MapPin
-                          className="h-4 w-4 text-[#A2574F]"
-                          aria-hidden="true"
-                        />
-                        <CardTitle
-                          id="order-delivery-heading"
-                          className="text-lg"
-                        >
-                          Delivery address
-                        </CardTitle>
+              <section
+                aria-labelledby="order-items-heading"
+                className="border-y border-[#D8D3CB] bg-white"
+              >
+                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#E8E5DF] px-4 py-5 sm:px-6">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">
+                      In this order
+                    </p>
+                    <h2
+                      id="order-items-heading"
+                      className="mt-1 font-serif text-2xl font-normal text-[#181716]"
+                    >
+                      Your pieces
+                    </h2>
+                  </div>
+                  <span className="text-xs text-[#63605A]">
+                    {totalQuantity(order)}{" "}
+                    {totalQuantity(order) === 1 ? "item" : "items"}
+                  </span>
+                </div>
+                <ul className="divide-y divide-[#E8E5DF]">
+                  {order.items.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex flex-wrap items-center gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-5"
+                    >
+                      <OrderItemThumb
+                        item={item}
+                        className="h-24 w-[4.5rem] shrink-0 rounded-md bg-[#F4ECE9] sm:h-28 sm:w-20"
+                      />
+                      <div className="min-w-[8rem] flex-1">
+                        <h3 className="font-serif text-base text-[#181716] sm:text-lg">
+                          {item.productName}
+                        </h3>
+                        <p className="mt-1 text-xs text-[#63605A]">
+                          {item.variantDetails || "—"}
+                        </p>
+                        <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-[#827E77]">
+                          Qty {item.quantity} · {formatPrice(item.unitPrice)}{" "}
+                          each
+                        </p>
                       </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <address className="mt-5 text-sm not-italic leading-6 text-[#63605A]">
-                        <p className="font-medium text-[#181716]">
-                          {order.customer.firstName} {order.customer.lastName}
-                        </p>
-                        <p>
-                          {order.customer.addressLine1}
-                          {order.customer.addressLine2
-                            ? `, ${order.customer.addressLine2}`
-                            : ""}
-                        </p>
-                        <p>
-                          {order.customer.city}
-                          {order.customer.stateOrProvince
-                            ? `, ${order.customer.stateOrProvince}`
-                            : ""}
-                          {order.customer.postalCode
-                            ? ` ${order.customer.postalCode}`
-                            : ""}
-                        </p>
-                        <p>{order.customer.country}</p>
-                      </address>
-                      <p className="mt-5 border-t border-[#F3F1ED] pt-4 text-xs text-[#827E77]">
-                        Courier:{" "}
-                        {order.shippingMethod === "express"
-                          ? "Carbon-neutral priority air"
-                          : "Standard land"}
+                      <p className="shrink-0 font-serif text-base text-[#181716]">
+                        {formatPrice(item.subtotal)}
                       </p>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section
+                aria-labelledby="order-delivery-heading"
+                className="grid gap-5 border-b border-[#D8D3CB] py-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start sm:gap-6"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F4ECE9] text-[#A2574F]">
+                  <MapPin className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">
+                    Delivery
+                  </p>
+                  <h2
+                    id="order-delivery-heading"
+                    className="mt-1 font-serif text-xl font-normal text-[#181716]"
+                  >
+                    Delivering to
+                  </h2>
+                  <address className="mt-3 text-sm not-italic leading-6 text-[#63605A]">
+                    <p className="font-medium text-[#181716]">
+                      {order.customer.firstName} {order.customer.lastName}
+                    </p>
+                    <p>
+                      {order.customer.addressLine1}
+                      {order.customer.addressLine2
+                        ? `, ${order.customer.addressLine2}`
+                        : ""}
+                    </p>
+                    <p>
+                      {order.customer.city}
+                      {order.customer.stateOrProvince
+                        ? `, ${order.customer.stateOrProvince}`
+                        : ""}
+                      {order.customer.postalCode
+                        ? ` ${order.customer.postalCode}`
+                        : ""}
+                    </p>
+                    <p>{order.customer.country}</p>
+                  </address>
+                </div>
+                <div className="sm:text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#827E77]">
+                    Delivery method
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-[#181716]">
+                    {order.shippingMethod === "express"
+                      ? "Priority air"
+                      : "Standard land"}
+                  </p>
+                  <p className="mt-1 text-xs text-[#827E77]">
+                    {order.shippingMethod === "express"
+                      ? "Carbon-neutral express"
+                      : "Courier delivery"}
+                  </p>
+                </div>
+              </section>
             </div>
 
             <aside
