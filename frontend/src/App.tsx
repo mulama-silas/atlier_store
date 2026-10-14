@@ -27,6 +27,7 @@ import { WishlistProvider } from './context/WishlistContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AssistantWidget } from './components/assistant/AssistantWidget';
+import { WhatsAppButton } from './components/WhatsAppButton';
 import { Product } from './types';
 import { Layers } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -101,11 +102,12 @@ function AppContent() {
         onClose={() => setQuickViewProduct(null)}
       />
 
-      {/* Global Boutique Footer */}
-      <Footer />
-
       {/* AI shopping assistant (server-side Gemini via Django) */}
       <AssistantWidget />
+      <WhatsAppButton phoneNumber={process.env.DEFAULT_WHATSAPP_NUMBER || '+254700000000'} />
+
+      {/* Global Boutique Footer */}
+      <Footer />
     </div>
   );
 }
