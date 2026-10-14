@@ -136,6 +136,45 @@ class CustomerAggregateTests(TestCase):
 
 class ExtractorTests(TestCase):
     @override_settings(SUPABASE_DB_URL=REPLICA_DB)
+    def test_audit_log_rows_are_sanitized_and_pii_reduced(self):
+        from django.contrib.auth import get_user_model
+
+        from audit.models import AuditLog
+        from replica.services.sync import audit_log_rows
+
+        profile_id = uuid.uuid4()
+        actor = get_user_model().objects.create_user(
+            username=f'supabase_{profile_id}', password='x')
+        event = AuditLog.objects.create(
+            actor=actor,
+            actor_email='customer@example.com',
+            action='security_event',
+            category='security',
+            object_type='order',
+            object_id='order-1',
+            object_repr='customer@example.com',
+            description='Sensitive free text',
+            metadata={'email': 'customer@example.com', 'reason': 'test'},
+            ip_address='203.0.113.5',
+            user_agent='browser details',
+            request_id='request-1',
+            path='/checkout/',
+            status_code=403,
+        )
+
+        rows = {row['id']: row for row in audit_log_rows()}
+        row = rows[str(event.id)]
+
+        self.assertEqual(row['actor_id'], str(profile_id))
+        self.assertEqual(row['metadata']['email'], '[REDACTED]')
+        self.assertEqual(row['metadata']['reason'], 'test')
+        self.assertNotIn('actor_email', row)
+        self.assertNotIn('ip_address', row)
+        self.assertNotIn('user_agent', row)
+        self.assertNotIn('object_repr', row)
+        self.assertNotIn('description', row)
+
+    @override_settings(SUPABASE_DB_URL=REPLICA_DB)
     def test_order_rows_map_supabase_username_to_profile_uuid(self):
         from django.contrib.auth import get_user_model
 

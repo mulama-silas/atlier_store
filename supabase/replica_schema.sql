@@ -232,6 +232,32 @@ create table if not exists replica.receipts (
 );
 
 -- ---------------------------------------------------------------------------
+-- Sanitized audit events. Direct PII (email, IP, user agent, descriptions)
+-- is intentionally not copied; metadata is sanitized again during sync.
+-- ---------------------------------------------------------------------------
+
+create table if not exists replica.audit_logs (
+  id uuid primary key,
+  actor_id uuid,
+  actor_role text,
+  action text,
+  category text,
+  object_type text,
+  object_id text,
+  metadata jsonb,
+  result text,
+  severity text,
+  request_id text,
+  path text,
+  status_code integer,
+  created_at timestamptz
+);
+create index if not exists audit_logs_actor_created_idx
+  on replica.audit_logs (actor_id, created_at desc);
+create index if not exists audit_logs_action_created_idx
+  on replica.audit_logs (action, created_at desc);
+
+-- ---------------------------------------------------------------------------
 -- Derived customer metrics.
 -- Identity (name / phone) comes from public.profiles via user_id -- it is NOT
 -- duplicated here, which keeps a second copy of customer PII out of the
@@ -324,7 +350,7 @@ begin
   foreach t in array array[
     'categories', 'products', 'product_variants', 'orders', 'order_items',
     'payment_intents', 'inventory_transactions', 'stock_reservations',
-    'promotions', 'promotion_redemptions', 'receipts', 'customers',
+    'promotions', 'promotion_redemptions', 'receipts', 'audit_logs', 'customers',
     'catalogue_snapshots', 'sync_runs'
   ]
   loop

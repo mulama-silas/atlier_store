@@ -30,6 +30,8 @@ from django.conf import settings
 from django.db.models import Count, Max, Min, Q, Sum
 from psycopg2.extras import Json, execute_values
 
+from audit.models import AuditLog
+from audit.sanitizers import sanitize
 from catalog.models import Category, Product, ProductVariant
 from inventory.models import InventoryTransaction, StockReservation
 from orders.models import Order, OrderItem
@@ -275,6 +277,31 @@ def receipt_rows():
     ]
 
 
+def audit_log_rows():
+    """Export useful audit events without duplicating direct PII fields."""
+    return [
+        {
+            'id': str(log.id),
+            'actor_id': (
+                _supabase_profile_id(log.actor.username) if log.actor else None
+            ),
+            'actor_role': log.actor_role,
+            'action': log.action,
+            'category': log.category,
+            'object_type': log.object_type,
+            'object_id': log.object_id,
+            'metadata': sanitize(log.metadata or {}),
+            'result': log.result,
+            'severity': log.severity,
+            'request_id': log.request_id,
+            'path': log.path,
+            'status_code': log.status_code,
+            'created_at': _dt(log.created_at),
+        }
+        for log in AuditLog.objects.select_related('actor').all()
+    ]
+
+
 def customer_rows():
     """Aggregate per-customer spend.
 
@@ -340,6 +367,7 @@ TABLE_SPECS = [
     ('promotions',              promotion_rows,             'id',      True),
     ('promotion_redemptions',   promotion_redemption_rows,  'id',      True),
     ('receipts',                receipt_rows,               'id',      True),
+    ('audit_logs',              audit_log_rows,              'id',      True),
     ('customers',               customer_rows,              'user_id', True),
 ]
 
