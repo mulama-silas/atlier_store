@@ -9,7 +9,7 @@ interface WhatsAppButtonProps {
 }
 
 const defaultPhoneNumber =
-  process.env.DEFAULT_WHATSAPP_NUMBER || "+254700000000";
+  process.env.DEFAULT_WHATSAPP_NUMBER || "+254768873844";
 
 export const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({
   phoneNumber = defaultPhoneNumber,
