@@ -68,7 +68,7 @@ function paymentMethodLabel(method?: string): string {
     case 'card':
       return 'Card';
     case 'cash_on_delivery':
-      return 'Cash on Delivery';
+      return 'Pay on Delivery';
     case 'pay_on_delivery':
       return 'Pay on Delivery';
     case 'mpesa':

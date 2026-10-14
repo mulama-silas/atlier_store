@@ -97,9 +97,11 @@ export function canCancel(status: OrderStatus): boolean {
 
 /** Statuses where a customer can confirm receipt / settle (backend mark-received-paid). */
 export function canMarkReceived(status: OrderStatus, paymentMethod?: string): boolean {
-  if (status === 'confirmed' || status === 'delivered') return true;
-  const isDeliveryPayment = paymentMethod !== 'mpesa' && paymentMethod !== 'card';
-  return status === 'pending' && isDeliveryPayment;
+  const method = paymentMethod?.toLowerCase();
+  const isDeliveryPayment = method === 'pay_on_delivery' || method === 'cash_on_delivery';
+  return isDeliveryPayment && (
+    status === 'pending' || status === 'confirmed' || status === 'delivered'
+  );
 }
 
 /** Statuses where a customer can request a return/refund (backend request_refund). */

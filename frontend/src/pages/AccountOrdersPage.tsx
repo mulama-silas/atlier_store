@@ -5,6 +5,16 @@ import { useStore } from '../context/StoreContext';
 import { useRouter } from '../router/RouterContext';
 import { AccountPageHeader } from '../components/account/AccountPageHeader';
 import { Button } from '../components/modeza/Button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/modeza/AlertDialog';
 import { Badge } from '../components/modeza/Badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/modeza/Card';
 import { Input } from '../components/modeza/Input';
@@ -23,6 +33,7 @@ import {
 import {
   isActiveOrder,
   isTrackable,
+  canMarkReceived,
   ORDER_STATUS_META,
   STATUS_FILTER_GROUPS,
 } from '../utils/orderStatus';
@@ -38,9 +49,11 @@ const getStatusBadgeVariant = (status: Order['status']): StatusBadgeVariant => {
 
 interface OrderCardProps {
   order: Order;
+  onMarkReceived: (order: Order) => void;
+  isMarkingReceived: boolean;
 }
 
-const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
+const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingReceived }) => {
   const { navigate } = useRouter();
   const { getProductById } = useStore();
 
@@ -194,6 +207,18 @@ const OrderCard: React.FC<OrderCardProps> = ({ order }) => {
         </CardContent>
 
         <CardFooter className="flex-col gap-2.5 border-t border-[#F3F1ED] p-5 sm:flex-row sm:items-center sm:justify-end sm:p-6">
+          {canMarkReceived(order.status, order.paymentMethod) && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={isMarkingReceived}
+              onClick={() => onMarkReceived(order)}
+              className="w-full gap-1.5 sm:w-auto"
+            >
+              {isMarkingReceived ? 'Updating…' : 'Mark as received'}
+            </Button>
+          )}
           {isTrackable(order.status) && (
             <Button type="button" variant="modeza-outline" size="sm" onClick={openTrack} className="w-full gap-1.5 sm:w-auto">
               <Truck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -252,12 +277,16 @@ const OrdersLoadingState: React.FC = () => (
 
 export const AccountOrdersPage: React.FC = () => {
   const { navigate } = useRouter();
-  const { orders } = useOrders();
+  const { orders, receiveOrder } = useOrders();
 
   const [hydratedOrders, setHydratedOrders] = useState<Order[] | null>(null);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [filterKey, setFilterKey] = useState<string>('all');
   const [query, setQuery] = useState('');
+  const [pendingReceiptOrder, setPendingReceiptOrder] = useState<Order | null>(null);
+  const [isMarkingReceived, setIsMarkingReceived] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+  const [receiptSuccess, setReceiptSuccess] = useState('');
 
   const loadServerOrders = useCallback(async () => {
     setSyncStatus('loading');
@@ -323,6 +352,36 @@ export const AccountOrdersPage: React.FC = () => {
     setFilterKey('all');
   };
 
+  const handleConfirmReceipt = async () => {
+    if (!pendingReceiptOrder) return;
+
+    setIsMarkingReceived(true);
+    setReceiptError('');
+    setReceiptSuccess('');
+    try {
+      const result = await receiveOrder(pendingReceiptOrder.orderNumber);
+      if (!result.success || !result.order) {
+        setReceiptError(result.message);
+        return;
+      }
+
+      const receivedOrder = result.order;
+      setHydratedOrders((current) =>
+        current?.map((order) =>
+          order.orderNumber.toUpperCase() === receivedOrder.orderNumber.toUpperCase()
+            ? receivedOrder
+            : order
+        ) ?? null
+      );
+      setReceiptSuccess(result.message);
+    } catch {
+      setReceiptError('The order could not be updated right now. Please try again.');
+    } finally {
+      setIsMarkingReceived(false);
+      setPendingReceiptOrder(null);
+    }
+  };
+
   return (
     <section className="w-full space-y-7 sm:space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -336,6 +395,17 @@ export const AccountOrdersPage: React.FC = () => {
           {mergedOrders.length} {mergedOrders.length === 1 ? 'order' : 'orders'}
         </Badge>
       </div>
+
+      {receiptError && (
+        <div role="alert" className="rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-4 py-3 text-sm text-[#9B1C1C]">
+          {receiptError}
+        </div>
+      )}
+      {receiptSuccess && (
+        <div role="status" className="rounded-xl border border-[#C5D9CB] bg-[#F2F8F4] px-4 py-3 text-sm text-[#2E5A44]">
+          {receiptSuccess}
+        </div>
+      )}
 
       <div className="space-y-4">
         <Tabs value={filterKey} onValueChange={setFilterKey} className="w-full">
@@ -432,12 +502,50 @@ export const AccountOrdersPage: React.FC = () => {
             </div>
             <div className="space-y-5">
               {visibleOrders.map((order) => (
-                <OrderCard key={order.id} order={order} />
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onMarkReceived={(selectedOrder) => {
+                    setReceiptError('');
+                    setReceiptSuccess('');
+                    setPendingReceiptOrder(selectedOrder);
+                  }}
+                  isMarkingReceived={
+                    isMarkingReceived &&
+                    pendingReceiptOrder?.orderNumber === order.orderNumber
+                  }
+                />
               ))}
             </div>
           </>
         )}
       </div>
+
+      <AlertDialog
+        open={pendingReceiptOrder !== null}
+        onOpenChange={(open) => {
+          if (!open && !isMarkingReceived) setPendingReceiptOrder(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm order receipt</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirm that you have received {pendingReceiptOrder?.orderNumber}. This will also mark the pay-on-delivery payment as paid.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isMarkingReceived}>Keep order</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isMarkingReceived}
+              aria-busy={isMarkingReceived}
+              onClick={() => void handleConfirmReceipt()}
+            >
+              {isMarkingReceived ? 'Updating…' : 'Confirm receipt'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 };

@@ -167,7 +167,6 @@ const LabeledSelect: React.FC<LabeledSelectProps> = ({
 const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; detail: string }> = [
   { id: 'mpesa', label: 'M-Pesa', detail: 'Prompt on your phone' },
   { id: 'card', label: 'Card', detail: 'Sandbox preview' },
-  { id: 'cash_on_delivery', label: 'Cash on delivery', detail: 'Pay at the door' },
   { id: 'pay_on_delivery', label: 'Pay on delivery', detail: 'Pay on handover' },
 ];
 
@@ -361,7 +360,7 @@ export const CheckoutPage: React.FC = () => {
       });
 
       if (result.success && result.order) {
-        if (paymentMethod === 'cash_on_delivery' || paymentMethod === 'pay_on_delivery') {
+        if (paymentMethod === 'pay_on_delivery') {
           setIsSubmitting(false);
           await clearCart();
           navigate(`/order/success?order=${result.order.orderNumber}`);
@@ -769,7 +768,7 @@ export const CheckoutPage: React.FC = () => {
                 <RadioGroup
                   value={paymentMethod}
                   onValueChange={(value) => {
-                    if (value === 'mpesa' || value === 'card' || value === 'cash_on_delivery' || value === 'pay_on_delivery') {
+                    if (value === 'mpesa' || value === 'card' || value === 'pay_on_delivery') {
                       setPaymentMethod(value);
                     }
                   }}
@@ -813,9 +812,7 @@ export const CheckoutPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3 text-[11px] leading-relaxed text-[#63605A]"
                   >
-                    {paymentMethod === 'cash_on_delivery'
-                      ? 'Cash on delivery selected — the order will be paid when the courier delivers it.'
-                      : paymentMethod === 'pay_on_delivery'
+                    {paymentMethod === 'pay_on_delivery'
                       ? 'Pay on delivery selected — the order will be paid when the package is handed over.'
                       : 'M-Pesa selected — a sandbox gateway settles the payment as soon as the order is placed; no real prompt is sent to your phone.'}
                   </motion.div>

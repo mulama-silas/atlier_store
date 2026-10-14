@@ -58,7 +58,7 @@ const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
         body: 'All prices are in Kenyan Shillings (KES). The final total shown at checkout includes the prevailing value-added tax, delivery, and any Privilege discount applied. An order is confirmed when you receive an order number from MODEZA.',
         bullets: [
           'Prices and availability are correct at the time of display but may change without notice.',
-          'Payment methods available include M-Pesa, card, cash on delivery, and pay on delivery.',
+          'Payment methods available include M-Pesa, card, and pay on delivery.',
           'A confirmed order reserves modeza stock; cancellation is available only for pending or confirmed orders.',
         ],
       },
