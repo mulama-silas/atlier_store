@@ -1,9 +1,22 @@
-import React from 'react';
-import { ArrowLeft, ShieldCheck } from 'lucide-react';
-import { useRouter } from '../router/RouterContext';
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Separator } from '../components/modeza';
+import React from "react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { useRouter } from "../router/RouterContext";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Separator,
+} from "../components/modeza";
 
-export type LegalSlug = 'privacy' | 'terms' | 'shipping' | 'returns' | 'cookies';
+export type LegalSlug =
+  | "privacy"
+  | "terms"
+  | "shipping"
+  | "returns"
+  | "cookies";
 
 interface LegalSection {
   heading: string;
@@ -21,132 +34,132 @@ interface LegalDocument {
 
 const LEGAL_DOCUMENTS: Record<LegalSlug, LegalDocument> = {
   privacy: {
-    title: 'Privacy Policy',
-    eyebrow: 'Client data & transparency',
-    updated: 'Last updated September 2026',
+    title: "Privacy Policy",
+    eyebrow: "Client data & transparency",
+    updated: "Last updated September 2026",
     intro:
-      'MODEZA retains only the information needed to fulfil orders, deliver parcels, issue receipts, and care for its clients. This policy explains what we hold, why, and how you can control it.',
+      "MODEZA retains only the information needed to fulfil orders, deliver parcels, issue receipts, and care for its clients. This policy explains what we hold, why, and how you can control it.",
     sections: [
       {
-        heading: 'Information we collect',
-        body: 'We collect details you provide when placing an order or creating an account — including your name, email address, phone number, and delivery address. We also record browsing history (such as recently viewed pieces) on your device so you can return to items easily.',
+        heading: "Information we collect",
+        body: "We collect details you provide when placing an order or creating an account — including your name, email address, phone number, and delivery address. We also record browsing history (such as recently viewed pieces) on your device so you can return to items easily.",
         bullets: [
-          'Account details kept in your device-local profile (this preview build stores accounts, carts, and address books locally unless a Supabase backend is configured).',
-          'Order information, stored to display order status and tracking.',
-          'Payment method selection. Card and M-Pesa details are handled at the gateway; we never store full card numbers.',
+          "Account details kept in your device-local profile (this preview build stores accounts, carts, and address books locally unless a Supabase backend is configured).",
+          "Order information, stored to display order status and tracking.",
+          "Payment method selection. Card and M-Pesa details are handled at the gateway; we never store full card numbers.",
         ],
       },
       {
-        heading: 'How we use information',
-        body: 'Your information supports order fulfilment, delivery updates, customer service, and, with consent, private salon announcements. We do not sell personal data to third parties.',
+        heading: "How we use information",
+        body: "Your information supports order fulfilment, delivery updates, customer service, and, with consent, private salon announcements. We do not sell personal data to third parties.",
       },
       {
-        heading: 'Your choices',
-        body: 'You can unsubscribe from salon messages at any time, clear your browsing history, and request correction or deletion of stored data by contacting concierge@modeza-boutique.com.',
+        heading: "Your choices",
+        body: "You can unsubscribe from salon messages at any time, clear your browsing history, and request correction or deletion of stored data by contacting concierge@modeza-boutique.com.",
       },
     ],
   },
   terms: {
-    title: 'Terms of Service',
-    eyebrow: 'Boutique shopping agreement',
-    updated: 'Last updated September 2026',
+    title: "Terms of Service",
+    eyebrow: "Boutique shopping agreement",
+    updated: "Last updated September 2026",
     intro:
-      'These terms govern your use of the MODEZA boutique storefront and the purchase of our garments. By placing an order you accept these terms.',
+      "These terms govern your use of the MODEZA boutique storefront and the purchase of our garments. By placing an order you accept these terms.",
     sections: [
       {
-        heading: 'Orders & pricing',
-        body: 'All prices are in Kenyan Shillings (KES). The final total shown at checkout includes the prevailing value-added tax, delivery, and any Privilege discount applied. An order is confirmed when you receive an order number from MODEZA.',
+        heading: "Orders & pricing",
+        body: "All prices are in Kenyan Shillings (KES). The final total shown at checkout includes the prevailing value-added tax, delivery, and any Privilege discount applied. An order is confirmed when you receive an order number from MODEZA.",
         bullets: [
-          'Prices and availability are correct at the time of display but may change without notice.',
-          'Payment methods available include M-Pesa, card, and pay on delivery.',
-          'A confirmed order reserves modeza stock; cancellation is available only for pending or confirmed orders.',
+          "Prices and availability are correct at the time of display but may change without notice.",
+          "Payment methods available include M-Pesa, card, and pay on delivery.",
+          "A confirmed order reserves modeza stock; cancellation is available only for pending or confirmed orders.",
         ],
       },
       {
-        heading: 'Eligibility',
-        body: 'The storefront is available to customers with a valid delivery address in Kenya. Creating an account is required to place an order so that parcels can be tracked securely.',
+        heading: "Eligibility",
+        body: "The storefront is available to customers with a valid delivery address in Kenya. Creating an account is required to place an order so that parcels can be tracked securely.",
       },
       {
-        heading: 'Our responsibility',
-        body: 'We produce garments in small batches and inspect each piece before dispatch. Liability is limited to the value of the goods purchased; nothing in these terms limits rights that cannot be excluded by law.',
+        heading: "Our responsibility",
+        body: "We produce garments in small batches and inspect each piece before dispatch. Liability is limited to the value of the goods purchased; nothing in these terms limits rights that cannot be excluded by law.",
       },
     ],
   },
   shipping: {
-    title: 'Shipping & Delivery',
-    eyebrow: 'Carbon-neutral delivery',
-    updated: 'Last updated September 2026',
+    title: "Shipping & Delivery",
+    eyebrow: "Carbon-neutral delivery",
+    updated: "Last updated September 2026",
     intro:
-      'Every parcel travels carbon-neutral, from artisan cutting to handover. We calculate delivery by the delivery method selected at checkout.',
+      "Every parcel travels carbon-neutral, from artisan cutting to handover. We calculate delivery by the delivery method selected at checkout.",
     sections: [
       {
-        heading: 'Delivery options',
-        body: 'Standard delivery is charged at 20% of the cart subtotal, while express (Priority Air) delivery carries a higher fee. Delivery is complimentary on qualifying orders above the free-shipping threshold shown during checkout.',
+        heading: "Delivery options",
+        body: "Standard delivery is charged at 20% of the cart subtotal, while express (Priority Air) delivery carries a higher fee. Delivery is complimentary on qualifying orders above the free-shipping threshold shown during checkout.",
         bullets: [
-          'Standard — usually 2–4 working days within major Kenyan counties.',
-          'Express Priority Air — usually 1–2 working days.',
-          'Orders are shipped from our Kenyan fulfillment modeza after payment or, for pay-on-delivery, at handover.',
+          "Standard — usually 2–4 working days within major Kenyan counties.",
+          "Express Priority Air — usually 1–2 working days.",
+          "Orders are shipped from our Kenyan fulfillment modeza after payment or, for pay-on-delivery, at handover.",
         ],
       },
       {
-        heading: 'Tracking',
-        body: 'Every order receives a reference code you can track at any time from Track Order. Status milestones are shown as they are confirmed by our fulfillment team — we never invent tracking events.',
+        heading: "Tracking",
+        body: "Every order receives a reference code you can track at any time from Track Order. Status milestones are shown as they are confirmed by our fulfillment team — we never invent tracking events.",
       },
       {
-        heading: 'Delivery area',
-        body: 'We currently deliver across Kenya. If your county is not yet served, we will let you know before dispatch.',
+        heading: "Delivery area",
+        body: "We currently deliver across Kenya. If your county is not yet served, we will let you know before dispatch.",
       },
     ],
   },
   returns: {
-    title: 'Returns & Exchanges',
-    eyebrow: 'Complimentary 30-day returns',
-    updated: 'Last updated September 2026',
+    title: "Returns & Exchanges",
+    eyebrow: "Complimentary 30-day returns",
+    updated: "Last updated September 2026",
     intro:
-      'If a piece is not right for you, return it within 30 days of delivery for a refund or exchange. Garments must be unworn, unwashed, and in their original tissue wrapping.',
+      "If a piece is not right for you, return it within 30 days of delivery for a refund or exchange. Garments must be unworn, unwashed, and in their original tissue wrapping.",
     sections: [
       {
-        heading: 'How to return',
-        body: 'Contact concierge@modeza-boutique.com within 30 days of delivery and we will arrange collection. Refunds to the original payment method are issued once the garment passes inspection.',
+        heading: "How to return",
+        body: "Contact concierge@modeza-boutique.com within 30 days of delivery and we will arrange collection. Refunds to the original payment method are issued once the garment passes inspection.",
         bullets: [
-          'M-Pesa and card returns are processed to the account used for payment.',
-          'Cash-on-delivery returns can be refunded to a chosen M-Pesa number.',
-          'Return shipping is complimentary for standard-sized parcels.',
+          "M-Pesa and card returns are processed to the account used for payment.",
+          "Cash-on-delivery returns can be refunded to a chosen M-Pesa number.",
+          "Return shipping is complimentary for standard-sized parcels.",
         ],
       },
       {
-        heading: 'Exchanges',
-        body: 'Prefer a different size or silhouette? We will prioritise an exchange before refunding, subject to availability.',
+        heading: "Exchanges",
+        body: "Prefer a different size or silhouette? We will prioritise an exchange before refunding, subject to availability.",
       },
       {
-        heading: 'Exclusions',
-        body: 'Altered garments, underwear, and sale pieces marked final are excluded from returns. This does not affect your statutory rights.',
+        heading: "Exclusions",
+        body: "Altered garments, underwear, and sale pieces marked final are excluded from returns. This does not affect your statutory rights.",
       },
     ],
   },
   cookies: {
-    title: 'Cookie Policy',
-    eyebrow: 'How this storefront stores data',
-    updated: 'Last updated September 2026',
+    title: "Cookie Policy",
+    eyebrow: "How this storefront stores data",
+    updated: "Last updated September 2026",
     intro:
-      'This preview storefront keeps the smallest footprint possible. This page explains the storage we use in plain language.',
+      "This preview storefront keeps the smallest footprint possible. This page explains the storage we use in plain language.",
     sections: [
       {
-        heading: 'What we store',
-        body: 'Rather than third-party advertising cookies, MODEZA uses local device storage for a handful of essential conveniences:',
+        heading: "What we store",
+        body: "Rather than third-party advertising cookies, MODEZA uses local device storage for a handful of essential conveniences:",
         bullets: [
-          'Recent activity — recently viewed pieces, saved on your device only.',
-          'Membership — account session, address book, and wishlist stored locally (or via your configured Supabase account).',
-          'Cart persistence — so your bag survives a refresh.',
+          "Recent activity — recently viewed pieces, saved on your device only.",
+          "Membership — account session, address book, and wishlist stored locally (or via your configured Supabase account).",
+          "Cart persistence — so your bag survives a refresh.",
         ],
       },
       {
-        heading: 'No tracking for ads',
-        body: 'We do not install advertising or cross-site tracking cookies. Analytics, if introduced, will be privacy-conscious and declared here.',
+        heading: "No tracking for ads",
+        body: "We do not install advertising or cross-site tracking cookies. Analytics, if introduced, will be privacy-conscious and declared here.",
       },
       {
-        heading: 'Managing storage',
-        body: 'You can clear storage anytime from your browser settings, or use the Clear history action on the Recently Viewed page.',
+        heading: "Managing storage",
+        body: "You can clear storage anytime from your browser settings, or use the Clear history action on the Recently Viewed page.",
       },
     ],
   },
@@ -163,7 +176,7 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/')}
+          onClick={() => navigate("/")}
           className="-ml-3 text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716] focus-visible:ring-offset-[#FAF9F6]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -172,12 +185,18 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
 
         <header className="mt-8">
           <Card className="relative overflow-hidden rounded-[2rem] border-[#181716] bg-[#181716] p-0 text-[#FAF9F6] shadow-xl hover:shadow-xl">
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-              <div className="absolute -right-28 -top-28 h-96 w-96 rounded-full bg-[#A2574F]/20 blur-3xl" />
-              <div className="absolute -bottom-40 left-1/3 h-80 w-80 rounded-full bg-[#E68057]/10 blur-3xl" />
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E68057]/60 to-transparent" />
-            </div>
-            <div className="relative px-6 py-10 sm:px-10 sm:py-12 lg:px-14 lg:py-14">
+            <img
+              src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=2200&auto=format&fit=crop"
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover object-center"
+              referrerPolicy="no-referrer"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 bg-[#181716]/75"
+            />
+            <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-12 lg:px-14 lg:py-14">
               <Badge
                 variant="outline"
                 size="lg"
@@ -191,7 +210,9 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
               </h1>
               <div className="mt-7 border-t border-white/10 pt-5">
                 <p className="text-xs text-white/50">{legalDocument.updated}</p>
-                <p className="mt-4 max-w-3xl text-base leading-8 text-white/70">{legalDocument.intro}</p>
+                <p className="mt-4 max-w-3xl text-base leading-8 text-white/70">
+                  {legalDocument.intro}
+                </p>
               </div>
             </div>
           </Card>
@@ -212,16 +233,25 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
                     aria-labelledby={headingId}
                   >
                     <CardHeader className="flex-row items-start gap-4 p-5 sm:p-7 sm:pb-5">
-                      <Badge variant="outline" size="sm" className="mt-1 shrink-0">
-                        {String(index + 1).padStart(2, '0')}
+                      <Badge
+                        variant="outline"
+                        size="sm"
+                        className="mt-1 shrink-0"
+                      >
+                        {String(index + 1).padStart(2, "0")}
                       </Badge>
-                      <CardTitle id={headingId} className="text-2xl font-normal tracking-tight sm:text-3xl">
+                      <CardTitle
+                        id={headingId}
+                        className="text-2xl font-normal tracking-tight sm:text-3xl"
+                      >
                         {section.heading}
                       </CardTitle>
                     </CardHeader>
                     <Separator />
                     <CardContent className="p-5 pt-6 sm:p-7 sm:pt-6">
-                      <p className="max-w-3xl text-[15px] leading-8 text-[#63605A]">{section.body}</p>
+                      <p className="max-w-3xl text-[15px] leading-8 text-[#63605A]">
+                        {section.body}
+                      </p>
                       {section.bullets && (
                         <ul className="mt-6 space-y-3">
                           {section.bullets.map((bullet) => (
@@ -229,7 +259,10 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
                               key={bullet}
                               className="flex items-start gap-3 rounded-xl bg-[#FAF9F6] p-4 text-sm leading-7 text-[#63605A]"
                             >
-                              <span className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A2574F]" aria-hidden="true" />
+                              <span
+                                className="mt-3 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A2574F]"
+                                aria-hidden="true"
+                              />
                               <span>{bullet}</span>
                             </li>
                           ))}
@@ -244,7 +277,7 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
             <Card className="mt-6 border-[#E8E5DF] bg-[#F4ECE9] p-0 shadow-none">
               <CardContent className="p-5 sm:p-6">
                 <p className="text-sm leading-6 text-[#63605A]">
-                  Questions? Contact{' '}
+                  Questions? Contact{" "}
                   <a
                     href="mailto:concierge@modeza-boutique.com"
                     className="rounded-sm font-medium text-[#A2574F] transition-colors hover:text-[#83443D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F4ECE9]"
@@ -259,7 +292,10 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
           <aside className="order-1 min-w-0 lg:order-2">
             <Card className="p-0 shadow-sm lg:sticky lg:top-8">
               <div className="border-b border-[#E8E5DF] px-5 py-4">
-                <p id="legal-sections-heading" className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">
+                <p
+                  id="legal-sections-heading"
+                  className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]"
+                >
                   In this document
                 </p>
               </div>
@@ -272,7 +308,7 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
                         className="group flex items-start gap-3 rounded-xl px-3 py-3 text-sm font-medium leading-5 text-[#63605A] transition-colors hover:bg-[#F4ECE9] hover:text-[#181716] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2"
                       >
                         <span className="mt-0.5 text-[10px] font-semibold tracking-[0.14em] text-[#C6A77A]">
-                          {String(index + 1).padStart(2, '0')}
+                          {String(index + 1).padStart(2, "0")}
                         </span>
                         <span>{section.heading}</span>
                       </a>

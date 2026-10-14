@@ -45,12 +45,23 @@ export const ContactPage: React.FC = () => {
     <main className="bg-[#FAF9F6] text-[#181716]">
       <section
         aria-labelledby="contact-title"
-        className="border-b border-[#E8E5DF]"
+        className="relative isolate overflow-hidden border-b border-[#E8E5DF] bg-[#181716] text-white"
       >
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-16 lg:px-12 lg:py-20">
-          <div className="max-w-xl">
-            <p className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
-              <span aria-hidden="true" className="h-px w-8 bg-[#A2574F]" />
+        <img
+          src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=2200&auto=format&fit=crop"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-center"
+          referrerPolicy="no-referrer"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 bg-[#181716]/70"
+        />
+        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
+          <div className="max-w-3xl">
+            <p className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#F2C1A7]">
+              <span aria-hidden="true" className="h-px w-8 bg-[#F2C1A7]" />
               The MODEZA concierge
             </p>
             <h1
@@ -59,7 +70,7 @@ export const ContactPage: React.FC = () => {
             >
               We’re here for the details.
             </h1>
-            <p className="mt-5 max-w-lg text-sm leading-7 text-[#63605A] sm:text-base sm:leading-8">
+            <p className="mt-5 max-w-xl text-sm leading-7 text-white/80 sm:text-base sm:leading-8">
               Questions about fit, an order, or finding the right piece? Get in
               touch with our team and we’ll help you find your way.
             </p>
@@ -70,7 +81,12 @@ export const ContactPage: React.FC = () => {
                   Email the concierge
                 </a>
               </Button>
-              <Button asChild variant="outline" size="lg" className="gap-2">
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="gap-2 border-white/70 text-white hover:bg-white hover:text-[#181716]"
+              >
                 <a
                   href={`https://wa.me/${whatsappNumber}?text=${whatsappMessage}`}
                   target="_blank"
@@ -82,26 +98,11 @@ export const ContactPage: React.FC = () => {
                 </a>
               </Button>
             </div>
-            <p className="mt-4 text-xs leading-5 text-[#827E77]">
+            <p className="mt-4 text-xs leading-5 text-white/65">
               For order questions, include your order number so we can direct
               you faster.
             </p>
           </div>
-
-          <figure className="relative min-w-0">
-            <div className="aspect-[5/4] overflow-hidden bg-[#E8E5DF] sm:aspect-[16/10] lg:aspect-[5/4]">
-              <img
-                src="https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=1600&auto=format&fit=crop"
-                alt="Customers browsing a clothing collection together"
-                className="h-full w-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <figcaption className="mt-3 flex items-center justify-between gap-4 text-[10px] font-medium uppercase tracking-[0.16em] text-[#827E77]">
-              <span>Personal help, from first question to delivery</span>
-              <span>MODEZA / CLIENT CARE</span>
-            </figcaption>
-          </figure>
         </div>
       </section>
 

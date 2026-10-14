@@ -251,16 +251,19 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 px-4 pb-20 pt-6 sm:px-6 sm:pt-10 lg:px-8 2xl:max-w-[88rem]">
       <Card className="relative overflow-hidden rounded-[2rem] border-white/10 bg-[#181716] p-0 text-[#FAF9F6] shadow-xl hover:shadow-xl">
+        <img
+          src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=2200&auto=format&fit=crop"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 z-0 h-full w-full object-cover object-center"
+          referrerPolicy="no-referrer"
+        />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 overflow-hidden"
-        >
-          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[#A2574F]/25 blur-3xl" />
-          <div className="absolute -bottom-32 left-1/3 h-72 w-72 rounded-full bg-[#993A8B]/15 blur-3xl" />
-          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E68057]/60 to-transparent" />
-        </div>
+          className="pointer-events-none absolute inset-0 z-0 bg-[#181716]/75"
+        ></div>
 
-        <div className="relative px-5 py-7 sm:px-8 sm:py-9 lg:px-12 lg:py-11">
+        <div className="relative z-10 px-5 py-7 sm:px-8 sm:py-9 lg:px-12 lg:py-11">
           <nav
             aria-label="Breadcrumb"
             className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45"
