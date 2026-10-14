@@ -121,6 +121,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   }, [initialCategory, initialQuery]);
 
   const filteredProducts = useMemo(() => {
+    const hasMarkedNewArrivals = products.some(
+      (product) => product.isNewArrival,
+    );
     let list = products.filter((product) => {
       const matchesCategory =
         selectedCategory === "all" || product.categorySlug === selectedCategory;
@@ -128,7 +131,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         selectedCollection === "best-sellers"
           ? product.isBestSeller
           : selectedCollection === "new-arrivals"
-            ? product.isNewArrival
+            ? !hasMarkedNewArrivals || product.isNewArrival
             : true;
       const matchesOccasion = !selectedOccasion
         ? true
