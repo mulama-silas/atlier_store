@@ -167,8 +167,8 @@ export const AboutPage: React.FC = () => {
           <figure className="relative">
             <div className="aspect-[5/4] overflow-hidden bg-[#E8E5DF]">
               <img
-                src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1500&auto=format&fit=crop"
-                alt="Close-up of natural fabric and textile texture"
+                src="https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&w=1500&auto=format&fit=crop"
+                alt="Close-up of soft knitwear and its texture"
                 className="h-full w-full object-cover"
                 referrerPolicy="no-referrer"
                 loading="lazy"

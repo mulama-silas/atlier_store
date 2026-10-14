@@ -15,6 +15,7 @@ import { ProductCard } from "../components/ProductCard";
 import { Button } from "../components/modeza/Button";
 import { useRouter } from "../router/RouterContext";
 import { Product } from "../types";
+import { CATEGORIES } from "../data/mockData";
 
 export interface HomePageProps {
   onQuickView: (product: Product) => void;
@@ -33,9 +34,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
   const bestSellers = (
     markedBestSellers.length > 0 ? markedBestSellers : products
   ).slice(0, 4);
-  const shopCategories = categories.filter(
+  const liveCategories = categories.filter(
     (category) => category.slug !== "all",
   );
+  const shopCategories =
+    liveCategories.length > 0
+      ? liveCategories
+      : CATEGORIES.filter((category) => category.slug !== "all");
 
   return (
     <div className="bg-[#FAF9F6] pb-16 sm:pb-20">
@@ -54,7 +59,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
           aria-hidden="true"
           className="absolute inset-0 -z-10 bg-[#181716]/45"
         />
-        <div className="mx-auto flex min-h-[78svh] max-w-7xl flex-col justify-between px-5 py-7 sm:px-8 sm:py-9 lg:px-12">
+        <div className="mx-auto flex min-h-[68svh] max-w-7xl flex-col justify-between px-5 py-7 sm:px-8 sm:py-9 lg:px-12">
           <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/80">
             <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/45">
               <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -139,6 +144,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
         className="scroll-mt-24 mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24"
       >
         <SectionHeading
+          id="arrivals-title"
           eyebrow="Just landed"
           title="New arrivals"
           actionLabel="Shop all new arrivals"
@@ -192,8 +198,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
           </div>
           <div className="relative min-h-[320px] overflow-hidden bg-[#D8D3CB] sm:min-h-[420px] lg:min-h-[560px]">
             <img
-              src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1600&auto=format&fit=crop"
-              alt="The texture and drape of natural textiles"
+              src="https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&w=1600&auto=format&fit=crop"
+              alt="Soft knitwear from the MODEZA collection"
               className="absolute inset-0 h-full w-full object-cover"
               referrerPolicy="no-referrer"
               loading="lazy"
@@ -211,6 +217,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
           className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24"
         >
           <SectionHeading
+            id="categories-title"
             eyebrow="Find your form"
             title="Shop by category"
             actionLabel="Explore all pieces"
@@ -248,6 +255,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
       >
         <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
           <SectionHeading
+            id="bestsellers-title"
             eyebrow="Worn on repeat"
             title="Most-loved pieces"
             actionLabel="Browse best sellers"
@@ -293,17 +301,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
 };
 
 const SectionHeading: React.FC<{
+  id: string;
   eyebrow: string;
   title: string;
   actionLabel: string;
   onAction: () => void;
-}> = ({ eyebrow, title, actionLabel, onAction }) => (
+}> = ({ id, eyebrow, title, actionLabel, onAction }) => (
   <div className="mb-8 flex flex-col gap-4 border-b border-[#D8D3CB] pb-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
         {eyebrow}
       </p>
-      <h2 className="mt-3 font-serif text-3xl font-normal leading-tight sm:text-4xl">
+      <h2
+        id={id}
+        className="mt-3 font-serif text-3xl font-normal leading-tight sm:text-4xl"
+      >
         {title}
       </h2>
     </div>
