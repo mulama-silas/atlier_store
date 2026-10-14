@@ -104,7 +104,7 @@ function AppContent() {
 
       {/* AI shopping assistant (server-side Gemini via Django) */}
       <AssistantWidget />
-      <WhatsAppButton phoneNumber={process.env.DEFAULT_WHATSAPP_NUMBER || '+254700000000'} />
+      <WhatsAppButton />
 
       {/* Global Boutique Footer */}
       <Footer />

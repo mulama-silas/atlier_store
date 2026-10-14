@@ -21,7 +21,13 @@ Copy `.env.example` to `.env.local` and configure the browser Supabase values wh
 VITE_SUPABASE_URL="https://your-project.supabase.co"
 VITE_SUPABASE_ANON_KEY="your-anon-key"
 VITE_API_BASE_URL="http://127.0.0.1:8000"
+VITE_DEFAULT_WHATSAPP_NUMBER="+254768873844"
 ```
+
+Set `VITE_DEFAULT_WHATSAPP_NUMBER` in Vercel's environment variables for the
+frontend deployment. Vite embeds `VITE_` variables at build time, so redeploy
+after changing it. Use the international number format, for example
+`+2547XXXXXXXX`.
 
 Server-side Supabase and M-Pesa variables are retained for the current local API prototype. The future Django backend should own those integrations in the separate `backend` project.
 
