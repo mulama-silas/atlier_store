@@ -7,7 +7,6 @@ import {
   Mail,
   MapPin,
   PackageCheck,
-  Printer,
 } from 'lucide-react';
 import {
   Badge,
@@ -107,7 +106,6 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
   });
   const [receipt, setReceipt] = useState<ReceiptDTO | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
-  const [receiptUnavailable, setReceiptUnavailable] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [receiptError, setReceiptError] = useState('');
   const [orderLoading, setOrderLoading] = useState(Boolean(orderNumber));
@@ -159,32 +157,9 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
     }
   }, [receipt]);
 
-  const handleOpenReceipt = useCallback(async () => {
-    if (!receipt) return;
-    const receiptWindow = window.open('', '_blank');
-    if (!receiptWindow) {
-      setReceiptError('Please allow pop-ups to open the receipt.');
-      return;
-    }
-    setDownloading(true);
-    setReceiptError('');
-    try {
-      const blob = await api.downloadReceipt(receipt.receiptNumber);
-      const url = URL.createObjectURL(blob);
-      receiptWindow.location.href = url;
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      receiptWindow.close();
-      setReceiptError(err instanceof Error ? err.message : 'The receipt could not be opened.');
-    } finally {
-      setDownloading(false);
-    }
-  }, [receipt]);
-
   useEffect(() => {
     if (!order || order.paymentStatus !== 'paid') {
       setReceipt(null);
-      setReceiptUnavailable(false);
       setReceiptError('');
       setReceiptLoading(false);
       return;
@@ -192,7 +167,6 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
 
     let cancelled = false;
     setReceipt(null);
-    setReceiptUnavailable(false);
     setReceiptError('');
     setReceiptLoading(true);
     api
@@ -209,7 +183,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
         if (cancelled) return;
         const error = err as Error & { code?: string; status?: number };
         if (error.status === 404 && error.code === 'RECEIPT_NOT_FOUND') {
-          setReceiptUnavailable(true);
+          setReceiptError('The official receipt is not available yet.');
           return;
         }
         setReceiptError(error.message || 'The official receipt could not be checked.');
@@ -412,23 +386,6 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
               </Button>
             )}
 
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => {
-                if (receipt) {
-                  void handleOpenReceipt();
-                } else if (receiptUnavailable) {
-                  window.print();
-                }
-              }}
-              disabled={downloading || receiptLoading || (!receipt && !receiptUnavailable)}
-              className="w-full gap-2"
-            >
-              <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-              Print receipt
-            </Button>
           </div>
         </Card>
       </section>

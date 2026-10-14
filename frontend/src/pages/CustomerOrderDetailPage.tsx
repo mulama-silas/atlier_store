@@ -5,7 +5,6 @@ import {
   CreditCard,
   Download,
   MapPin,
-  Printer,
   RotateCcw,
   Truck,
   X,
@@ -234,28 +233,6 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
       URL.revokeObjectURL(url);
     } catch (err) {
       setReceiptError(err instanceof Error ? err.message : 'The receipt could not be downloaded.');
-    } finally {
-      setDownloading(false);
-    }
-  }, [receipt]);
-
-  const handleOpenReceipt = useCallback(async () => {
-    if (!receipt) return;
-    const receiptWindow = window.open('', '_blank');
-    if (!receiptWindow) {
-      setReceiptError('Please allow pop-ups to open the receipt.');
-      return;
-    }
-    setDownloading(true);
-    setReceiptError('');
-    try {
-      const blob = await api.downloadReceipt(receipt.receiptNumber);
-      const url = URL.createObjectURL(blob);
-      receiptWindow.location.href = url;
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      receiptWindow.close();
-      setReceiptError(err instanceof Error ? err.message : 'The receipt could not be opened.');
     } finally {
       setDownloading(false);
     }
@@ -680,17 +657,6 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                       Receipt unavailable
                     </Button>
                   )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => void handleOpenReceipt()}
-                    disabled={downloading || receiptLoading || !receipt}
-                    className="w-full gap-2"
-                  >
-                    <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-                    Print receipt
-                  </Button>
                 </CardContent>
               </Card>
 
