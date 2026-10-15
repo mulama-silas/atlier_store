@@ -32,6 +32,9 @@ const helpLinks = [
   },
 ];
 
+const emailAddress = "boutique.modeza.support@gmail.com";
+const emailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailAddress)}&su=${encodeURIComponent("MODEZA enquiry")}`;
+
 export const ContactPage: React.FC = () => {
   const { navigate } = useRouter();
   const whatsappNumber = (
@@ -76,7 +79,11 @@ export const ContactPage: React.FC = () => {
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Button asChild variant="primary" size="lg" className="gap-2">
-                <a href="mailto:boutique.modeza.support@gmail.com?subject=MODEZA%20enquiry">
+                <a
+                  href={emailComposeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <Mail className="h-4 w-4" aria-hidden="true" />
                   Email the concierge
                 </a>
@@ -121,10 +128,12 @@ export const ContactPage: React.FC = () => {
               </h2>
             </div>
             <a
-              href="mailto:boutique.modeza.support@gmail.com?subject=MODEZA%20enquiry"
+              href={emailComposeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-sm font-medium text-[#181716] underline decoration-[#C6A77A] underline-offset-4 transition-colors hover:text-[#A2574F]"
             >
-              boutique.modeza.support@gmail.com
+              {emailAddress}
             </a>
           </div>
 
@@ -139,7 +148,9 @@ export const ContactPage: React.FC = () => {
                 else you need help with.
               </p>
               <a
-                href="mailto:boutique.modeza.support@gmail.com?subject=MODEZA%20enquiry"
+                href={emailComposeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#A2574F] hover:text-[#83443D]"
               >
                 Start an email{" "}
