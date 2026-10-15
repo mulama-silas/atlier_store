@@ -10,6 +10,7 @@ import {
   CardTitle,
   Separator,
 } from "../components/modeza";
+import { createGmailComposeUrl } from "../utils/email";
 
 export type LegalSlug =
   | "privacy"
@@ -279,7 +280,9 @@ export const LegalPage: React.FC<{ slug: LegalSlug }> = ({ slug }) => {
                 <p className="text-sm leading-6 text-[#63605A]">
                   Questions? Contact{" "}
                   <a
-                    href="mailto:concierge@modeza-boutique.com"
+                    href={createGmailComposeUrl("concierge@modeza-boutique.com")}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="rounded-sm font-medium text-[#A2574F] transition-colors hover:text-[#83443D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F4ECE9]"
                   >
                     concierge@modeza-boutique.com

@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowRight, Mail, MessageCircle } from "lucide-react";
 import { useRouter } from "../router/RouterContext";
+import { createGmailComposeUrl } from "../utils/email";
 
 const footerGroups = [
   {
@@ -55,7 +56,9 @@ export const Footer: React.FC = () => {
             </p>
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-3">
               <a
-                href="mailto:concierge@modeza-boutique.com"
+                href={createGmailComposeUrl("concierge@modeza-boutique.com")}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-xs font-medium text-[#63605A] transition-colors hover:text-[#A2574F]"
               >
                 <Mail

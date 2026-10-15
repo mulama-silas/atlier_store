@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "../router/RouterContext";
 import { Badge, Button, Separator } from "../components/modeza";
+import { createGmailComposeUrl } from "../utils/email";
 
 const commitments = [
   {
@@ -341,7 +342,9 @@ export const AboutPage: React.FC = () => {
                 Returns &amp; exchanges
               </Button>
               <a
-                href="mailto:concierge@modeza-boutique.com"
+                href={createGmailComposeUrl("concierge@modeza-boutique.com")}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-xs font-semibold text-white/75 transition-colors hover:text-white"
               >
                 <Mail className="h-4 w-4" aria-hidden="true" />

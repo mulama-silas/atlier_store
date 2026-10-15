@@ -51,6 +51,7 @@ from .services import (
     classify_failure,
     deliver_email_log,
     delivery_mode,
+    email_enabled,
     queue_email,
     requeue_email_log,
     retry_email_log,
@@ -763,6 +764,10 @@ class EmailKillSwitchTests(TestCase):
     def age_due_rows(self, seconds=60):
         EmailLog.objects.filter(status=EmailLog.Status.QUEUED).update(
             queued_at=timezone.now() - timedelta(seconds=seconds))
+
+    def test_missing_email_setting_defaults_to_disabled(self):
+        with patch('emails.services.settings', new=Mock(spec=[])):
+            self.assertFalse(email_enabled())
 
     @override_settings(EMAIL_ENABLED=False)
     def test_queueing_still_records_the_message(self):

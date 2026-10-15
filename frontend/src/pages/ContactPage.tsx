@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "../components/modeza/Button";
 import { useRouter } from "../router/RouterContext";
+import { createGmailComposeUrl } from "../utils/email";
 
 const helpLinks = [
   {
@@ -33,7 +34,7 @@ const helpLinks = [
 ];
 
 const emailAddress = "boutique.modeza.support@gmail.com";
-const emailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailAddress)}&su=${encodeURIComponent("MODEZA enquiry")}`;
+const emailComposeUrl = createGmailComposeUrl(emailAddress);
 
 export const ContactPage: React.FC = () => {
   const { navigate } = useRouter();

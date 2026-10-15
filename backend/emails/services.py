@@ -150,7 +150,7 @@ def email_enabled():
     open a transport, and nothing may be recorded as SENT for mail that was
     never attempted.
     """
-    return bool(getattr(settings, 'EMAIL_ENABLED', True))
+    return bool(getattr(settings, 'EMAIL_ENABLED', False))
 
 
 def _dispatch(pk, *, force_inline=False):
