@@ -2178,6 +2178,95 @@ class AdminDashboardTests(TestCase):
         self.assertEqual(product.images, [])
 
 
+class PromotionDashboardCRUDTests(TestCase):
+    def setUp(self):
+        from promotions.models import Promotion
+
+        self.staff = get_user_model().objects.create_superuser(
+            username='promotion-crud-staff',
+            password='test-password',
+            email='promotion-crud@example.com',
+        )
+        enroll_staff(self.staff)
+        self.client.force_login(self.staff)
+        self.promotion = Promotion.objects.create(
+            name='Weekend offer',
+            promotion_type=Promotion.Type.PERCENTAGE,
+            discount_percent=15,
+            status=Promotion.Status.DRAFT,
+        )
+
+    def test_promotion_list_exposes_view_edit_and_delete_actions(self):
+        response = self.client.get('/admin/dashboard/promotions/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response, f'href="/admin/dashboard/promotions/{self.promotion.pk}/"')
+        self.assertContains(
+            response,
+            f'href="/admin/dashboard/promotions/{self.promotion.pk}/edit/"')
+        self.assertContains(
+            response,
+            f'href="/admin/dashboard/promotions/{self.promotion.pk}/delete/"')
+
+    def test_promotion_detail_is_read_only_and_links_to_edit(self):
+        response = self.client.get(
+            f'/admin/dashboard/promotions/{self.promotion.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.promotion.name)
+        self.assertContains(response, 'Offer')
+        self.assertContains(
+            response,
+            f'href="/admin/dashboard/promotions/{self.promotion.pk}/edit/"')
+
+    def test_promotion_delete_requires_post(self):
+        delete_url = (
+            f'/admin/dashboard/promotions/{self.promotion.pk}/delete/')
+        confirmation = self.client.get(delete_url)
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertContains(confirmation, 'Delete promotion')
+
+        response = self.client.post(delete_url)
+
+        self.assertRedirects(response, '/admin/dashboard/promotions/')
+        self.assertFalse(
+            type(self.promotion).objects.filter(pk=self.promotion.pk).exists())
+
+    def test_promotion_with_redemptions_cannot_be_deleted(self):
+        from cart.models import Cart
+        from promotions.models import PromotionRedemption
+
+        cart = Cart.objects.create(cart_key='promotion-redemption-cart')
+        order = Order.objects.create(
+            order_number='AT-PROMOTION-REDEMPTION-001',
+            cart=cart,
+            customer={'fullName': 'Promotion Buyer',
+                      'email': 'promotion-buyer@example.com'},
+            subtotal_minor=1000,
+            total_minor=1000,
+            shipping_cost_minor=0,
+            payment_method='mpesa',
+            payment_status=Order.PaymentStatus.PAID,
+            status=Order.Status.PROCESSING,
+        )
+        PromotionRedemption.objects.create(
+            promotion=self.promotion,
+            order=order,
+            discount_minor=100,
+        )
+
+        response = self.client.post(
+            f'/admin/dashboard/promotions/{self.promotion.pk}/delete/',
+            follow=True,
+        )
+
+        self.assertRedirects(response, '/admin/dashboard/promotions/')
+        self.assertTrue(
+            type(self.promotion).objects.filter(pk=self.promotion.pk).exists())
+        self.assertContains(response, 'cannot be deleted')
+
+
 class AdminAuthTests(TestCase):
     def setUp(self):
         User = get_user_model()

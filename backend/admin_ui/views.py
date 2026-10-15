@@ -26,6 +26,7 @@ from django.http import HttpResponseNotFound
 from django.http import FileResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
+from django.utils.html import format_html
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
@@ -1070,10 +1071,12 @@ class AdminPageView(View):
             promo_id = row.get('id') or ''
             name = row.get('name') or 'Unnamed promotion'
             if promo_id:
-                return mark_safe(
-                    f'<a href="/admin/dashboard/promotions/{promo_id}/edit/" class="admin-product-name-link">{name}</a>'
+                return format_html(
+                    '<a href="/admin/dashboard/promotions/{}/" class="admin-product-name-link">{}</a>',
+                    promo_id,
+                    name,
                 )
-            return mark_safe(name)
+            return name
         if safe_column == 'status':
             value = row.get('status', '')
             css = str(value).lower().replace(' ', '-')
@@ -1082,19 +1085,22 @@ class AdminPageView(View):
             promo_id = row.get('id') or ''
             actions = row.get('actions') or []
             route_map = {
+                'View': f'/admin/dashboard/promotions/{promo_id}/',
                 'Edit': f'/admin/dashboard/promotions/{promo_id}/edit/',
                 'Activate': f'/admin/dashboard/promotions/{promo_id}/activate/',
                 'Deactivate': f'/admin/dashboard/promotions/{promo_id}/deactivate/',
                 'Duplicate': f'/admin/dashboard/promotions/{promo_id}/duplicate/',
+                'Delete': f'/admin/dashboard/promotions/{promo_id}/delete/',
             }
-            options = ['<option selected disabled>Actions</option>']
+            options = [mark_safe('<option selected disabled>Actions</option>')]
             for action in actions:
                 route = route_map.get(action)
                 if route:
-                    options.append(f'<option value="{route}">{action}</option>')
-            return mark_safe(
-                '<select class="admin-action-select" onchange="if (this.value) window.location.href=this.value" aria-label="Actions">'
-                + ''.join(options) + '</select>'
+                    options.append(format_html(
+                        '<option value="{}">{}</option>', route, action))
+            return format_html(
+                '<select class="admin-action-select" onchange="if (this.value) window.location.href=this.value" aria-label="Actions">{}</select>',
+                mark_safe(''.join(str(option) for option in options)),
             )
         key = self.COLUMN_KEY_ALIASES.get(safe_column, safe_column)
         return row.get(key, '')
@@ -1322,6 +1328,16 @@ class AdminPageView(View):
                     value = f'Buy {promo.qualifying_quantity} Get {promo.reward_quantity}'
                 else:
                     value = f'Buy {promo.qualifying_quantity} Get {promo.reward_discount_percent:g}% off'
+                actions = []
+                if user_has_permission(request.user, 'promotions.view'):
+                    actions.append('View')
+                if user_has_permission(request.user, 'promotions.update'):
+                    actions.append('Edit')
+                    actions.append('Duplicate')
+                    actions.append(
+                        'Activate' if promo.status != 'active' else 'Deactivate')
+                if user_has_permission(request.user, 'promotions.delete'):
+                    actions.append('Delete')
                 promo_rows.append({
                     'id': str(promo.pk),
                     'name': promo.name,
@@ -1332,11 +1348,18 @@ class AdminPageView(View):
                     'end': promo.ends_at.strftime('%d %b') if promo.ends_at else '-',
                     'usage': usage,
                     'value': value,
-                    'actions': (['Edit', 'Duplicate']
-                                + (['Activate'] if promo.status != 'active' else ['Deactivate'])),
+                    'actions': actions,
                 })
             page_data = dict(page_data)
             page_data['rows'] = promo_rows
+            page_data['can_create'] = user_has_permission(
+                request.user, 'promotions.create')
+            page_data['can_update'] = user_has_permission(
+                request.user, 'promotions.update')
+            page_data['can_delete'] = user_has_permission(
+                request.user, 'promotions.delete')
+            if not page_data['can_create']:
+                page_data['primary_action'] = ''
             page_data['promo_counts'] = {
                 'active': Promotion.objects.filter(status='active').count(),
                 'scheduled': Promotion.objects.filter(status='scheduled').count(),
@@ -2114,6 +2137,48 @@ def _audit_promotion(action, promo, metadata=None, status_code=None):
     )
 
 
+@permission_required('promotions.view')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class PromotionDetailPageView(View):
+    template_name = 'admin_ui/promotion_detail_page.html'
+
+    def get(self, request, promo_id):
+        from promotions.models import Promotion
+
+        promo = Promotion.objects.filter(pk=promo_id).first()
+        if not promo:
+            messages.error(request, 'Promotion not found.')
+            return redirect('admin-promotions')
+        value = {
+            'percentage': f'{promo.discount_percent:g}% off',
+            'fixed': f'KES {(promo.discount_amount_minor or 0) / 100:,.2f} off',
+            'free_shipping': 'Free shipping',
+            'buy_x_get_y': (
+                f'Buy {promo.qualifying_quantity}, get {promo.reward_quantity} free'),
+            'buy_x_get_pct': (
+                f'Buy {promo.qualifying_quantity}, get '
+                f'{promo.reward_discount_percent:g}% off {promo.reward_quantity}'),
+        }.get(promo.promotion_type, promo.get_promotion_type_display())
+        details = [
+            ('Status', promo.get_status_display()),
+            ('Offer', value),
+            ('Coupon', promo.coupon_code or (
+                'Automatic' if promo.is_automatic else 'None')),
+            ('Starts', timezone.localtime(promo.starts_at).strftime('%b %d, %Y %H:%M')
+             if promo.starts_at else 'Immediately'),
+            ('Ends', timezone.localtime(promo.ends_at).strftime('%b %d, %Y %H:%M')
+             if promo.ends_at else 'No expiry'),
+            ('Minimum order', f'KES {(promo.minimum_order_value_minor or 0) / 100:,.2f}'),
+            ('Usage', str(promo.redemptions.filter(voided=False).count())),
+        ]
+        return render(request, self.template_name, {
+            'promo': promo,
+            'details': details,
+            'can_update': user_has_permission(request.user, 'promotions.update'),
+            'can_delete': user_has_permission(request.user, 'promotions.delete'),
+        })
+
+
 @permission_required('promotions.create')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class PromotionCreatePageView(View):
@@ -2266,6 +2331,41 @@ class PromotionActionPageView(View):
             messages.success(request, f'Promotion duplicated as "{clone.name}".')
         else:
             messages.error(request, 'Unknown promotion action.')
+        return redirect('admin-promotions')
+
+
+@permission_required('promotions.delete')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class PromotionDeletePageView(View):
+    template_name = 'admin_ui/promotion_delete_page.html'
+
+    def get_promo(self, promo_id):
+        from promotions.models import Promotion
+        return Promotion.objects.filter(pk=promo_id).first()
+
+    def get(self, request, promo_id):
+        promo = self.get_promo(promo_id)
+        if not promo:
+            messages.error(request, 'Promotion not found.')
+            return redirect('admin-promotions')
+        return render(request, self.template_name, {'promo': promo})
+
+    def post(self, request, promo_id):
+        promo = self.get_promo(promo_id)
+        if not promo:
+            messages.error(request, 'Promotion not found.')
+            return redirect('admin-promotions')
+        name = promo.name
+        try:
+            promo.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                'This promotion has redemptions and cannot be deleted. Deactivate it instead.',
+            )
+        else:
+            _audit_promotion('promotion_deleted', promo)
+            messages.success(request, f'Promotion "{name}" deleted.')
         return redirect('admin-promotions')
 
 

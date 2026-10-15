@@ -190,6 +190,25 @@
                       <button type="submit"><i class="ph ph-check-circle"></i> Confirm order</button>
                     </form>
                     {% endif %}
+                  {% elif page_data.page == 'promotions' %}
+                    {% if 'View' in row.actions %}
+                    <a href="/admin/dashboard/promotions/{{ row.id }}/"><i class="ph ph-eye"></i> View</a>
+                    {% endif %}
+                    {% if 'Edit' in row.actions %}
+                    <a href="/admin/dashboard/promotions/{{ row.id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit</a>
+                    {% endif %}
+                    {% if 'Duplicate' in row.actions %}
+                    <a href="/admin/dashboard/promotions/{{ row.id }}/duplicate/"><i class="ph ph-copy"></i> Duplicate</a>
+                    {% endif %}
+                    {% if 'Activate' in row.actions %}
+                    <a href="/admin/dashboard/promotions/{{ row.id }}/activate/"><i class="ph ph-rocket"></i> Activate</a>
+                    {% endif %}
+                    {% if 'Deactivate' in row.actions %}
+                    <a href="/admin/dashboard/promotions/{{ row.id }}/deactivate/"><i class="ph ph-pause"></i> Deactivate</a>
+                    {% endif %}
+                    {% if 'Delete' in row.actions %}
+                    <a class="danger" href="/admin/dashboard/promotions/{{ row.id }}/delete/"><i class="ph ph-trash"></i> Delete</a>
+                    {% endif %}
                   {% elif page_data.page == 'customers' %}
                     <a href="/admin/dashboard/customers/{{ row.id }}/"><i class="ph ph-user"></i> View customer</a>
                   {% elif page_data.page == 'variants' %}
@@ -234,6 +253,8 @@
               <td><a href="/admin/dashboard/products/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'order' and page_data.page == 'orders' %}
               <td><a href="/admin/dashboard/orders/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
+            {% elif key == 'name' and page_data.page == 'promotions' %}
+              <td><a href="/admin/dashboard/promotions/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'name' and page_data.page == 'variants' %}
               <td><a href="/admin/dashboard/products/{{ row.product_id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'customer' and page_data.page == 'customers' %}
