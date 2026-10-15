@@ -119,24 +119,24 @@ export const PromotionShowcase: React.FC = () => {
         }}
       >
         {popupPromotion && (
-          <DialogContent className="max-w-md border-[#E8D2C6] bg-[#FAF9F6] p-0">
+          <DialogContent className="w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto border-[#E8D2C6] bg-[#FAF9F6] p-0">
             <div className="overflow-hidden rounded-2xl">
-              <div className="bg-[#181716] px-7 py-8 text-center text-white">
+              <div className="bg-[#181716] px-5 py-7 text-center text-white sm:px-7 sm:py-8">
                 <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-[#F2C1A7]">
                   <Sparkles className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#F2C1A7]">
                   A MODEZA offer
                 </p>
-                <DialogTitle className="mt-2 text-3xl text-white">
+                <DialogTitle className="mt-2 break-words text-2xl text-white sm:text-3xl">
                   {popupPromotion.name}
                 </DialogTitle>
-                <p className="mt-3 inline-flex items-center rounded-full bg-[#F2C1A7] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#181716]">
+                <p className="mx-auto mt-3 inline-flex max-w-full items-center justify-center break-words rounded-full bg-[#F2C1A7] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#181716]">
                   {popupPromotion.badge}
                 </p>
               </div>
-              <div className="px-7 py-6 text-center">
-                <DialogDescription className="leading-6">
+              <div className="px-5 py-5 text-center sm:px-7 sm:py-6">
+                <DialogDescription className="break-words leading-6">
                   {popupPromotion.description ||
                     "Explore this limited-time offer across our collection."}
                   {popupPromotion.code
@@ -144,7 +144,7 @@ export const PromotionShowcase: React.FC = () => {
                     : ""}
                 </DialogDescription>
                 {popupPromotion.endsAt && (
-                  <p className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#A2574F]">
+                  <p className="mt-5 flex flex-wrap items-center justify-center gap-2 break-words text-xs font-semibold text-[#A2574F] sm:text-sm">
                     <Clock3 className="h-4 w-4" aria-hidden="true" />
                     Ends in{" "}
                     {formatCountdown(popupPromotion.endsAt, now)}
@@ -156,7 +156,7 @@ export const PromotionShowcase: React.FC = () => {
                     closePopup();
                     navigate("/shop");
                   }}
-                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#181716] px-5 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors hover:bg-[#A2574F]"
+                  className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#181716] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#A2574F] sm:px-5 sm:text-xs sm:tracking-[0.15em]"
                 >
                   Shop the offer
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />

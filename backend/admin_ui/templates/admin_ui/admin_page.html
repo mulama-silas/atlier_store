@@ -293,5 +293,22 @@
       </tbody>
     </table>
   </div>
+  {% if page_data.show_products_pagination %}
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 16px 24px; border-top: 1px solid var(--border);">
+    <span style="color: var(--text-secondary); font-size: 13px;">
+      Showing {{ page_data.products_page.start_index }} to {{ page_data.products_page.end_index }}
+      of {{ page_data.products_page.paginator.count }} products
+      · Page {{ page_data.products_page.number }} of {{ page_data.products_page.paginator.num_pages }}
+    </span>
+    <div style="display: flex; gap: 8px;">
+      {% if page_data.products_page.has_previous %}
+      <a class="btn btn-secondary" href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&amp;{% endif %}page={{ page_data.products_page.previous_page_number }}">Previous</a>
+      {% endif %}
+      {% if page_data.products_page.has_next %}
+      <a class="btn btn-secondary" href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&amp;{% endif %}page={{ page_data.products_page.next_page_number }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

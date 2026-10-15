@@ -6,6 +6,7 @@ import { AvailablePromotionDTO, PromotionAnnouncementDTO } from '../types/api';
 import { mapProductDtoToDomain } from '../utils/productMapper';
 
 const INVENTORY_LOGS_KEY = 'modeza_inventory_logs_v1';
+const CATALOG_PAGE_SIZE = 24;
 const ALL_CATEGORY: Category = {
   id: 'all',
   name: 'All Pieces',
@@ -118,6 +119,10 @@ export interface PromoValidationResult {
 
 export interface StoreContextType {
   products: Product[];
+  catalogHasMore: boolean;
+  isLoadingMoreCatalog: boolean;
+  catalogTotal: number;
+  loadMoreCatalog: () => Promise<boolean>;
   categories: Category[];
   promotions: DiscountCode[];
   availablePromotions: AvailablePromotionDTO[];
@@ -148,10 +153,16 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [catalogHasMore, setCatalogHasMore] = useState(false);
+  const [isLoadingMoreCatalog, setIsLoadingMoreCatalog] = useState(false);
+  const [catalogTotal, setCatalogTotal] = useState(0);
   const [categories, setCategories] = useState<Category[]>([ALL_CATEGORY]);
   const [availablePromotions, setAvailablePromotions] = useState<AvailablePromotionDTO[]>([]);
   const [promotionAnnouncements, setPromotionAnnouncements] = useState<PromotionAnnouncementDTO[]>([]);
   const refreshInFlight = useRef(false);
+  const catalogPage = useRef(1);
+  const catalogLoaded = useRef(false);
+  const loadingMoreCatalog = useRef(false);
 
   // Server-driven promotion discovery (badges/banners). Best-effort: the
   // shop works without it; Django remains the authority at checkout.
@@ -173,17 +184,36 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (DUMMYJSON_ENABLED) {
         const dummyCatalog = await loadCatalogFromDummyJson();
         setProducts(dummyCatalog.products);
+        setCatalogTotal(dummyCatalog.products.length);
+        setCatalogHasMore(false);
+        catalogPage.current = 1;
+        catalogLoaded.current = true;
         setCategories(dummyCatalog.categories);
         refreshInFlight.current = false;
         return;
       }
 
       const [productsResponse, categoriesResponse] = await Promise.all([
-        api.getProducts({ limit: 100 }),
+        api.getProducts({ page: 1, limit: CATALOG_PAGE_SIZE }),
         api.getCategories(),
       ]);
 
       const mappedProducts = productsResponse.data.map(mapProductDtoToDomain);
+      setProducts((currentProducts) => {
+        if (!catalogLoaded.current) {
+          return mappedProducts;
+        }
+        const firstPageIds = new Set(mappedProducts.map((product) => product.id));
+        return [
+          ...mappedProducts,
+          ...currentProducts.filter((product) => !firstPageIds.has(product.id)),
+        ];
+      });
+      catalogLoaded.current = true;
+      setCatalogTotal(productsResponse.pagination.total);
+      setCatalogHasMore(
+        catalogPage.current < productsResponse.pagination.totalPages
+      );
       const mappedCategories = categoriesResponse.length > 0
         ? [ALL_CATEGORY, ...categoriesResponse.map((cat) => ({
             id: cat.id,
@@ -193,7 +223,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }))]
         : [ALL_CATEGORY];
 
-      setProducts(mappedProducts);
       setCategories(mappedCategories);
     } catch (error) {
       console.warn('[StoreContext] Failed to load catalog from Django API.', error);
@@ -205,6 +234,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       refreshInFlight.current = false;
     }
   }, []);
+
+  const loadMoreCatalog = useCallback(async (): Promise<boolean> => {
+    if (loadingMoreCatalog.current || !catalogHasMore || DUMMYJSON_ENABLED) {
+      return false;
+    }
+
+    loadingMoreCatalog.current = true;
+    setIsLoadingMoreCatalog(true);
+    const nextPage = catalogPage.current + 1;
+    try {
+      const response = await api.getProducts({
+        page: nextPage,
+        limit: CATALOG_PAGE_SIZE,
+      });
+      const mappedProducts = response.data.map(mapProductDtoToDomain);
+      setProducts((currentProducts) => {
+        const knownIds = new Set(currentProducts.map((product) => product.id));
+        return [
+          ...currentProducts,
+          ...mappedProducts.filter((product) => !knownIds.has(product.id)),
+        ];
+      });
+      catalogPage.current = nextPage;
+      setCatalogTotal(response.pagination.total);
+      setCatalogHasMore(nextPage < response.pagination.totalPages);
+      return true;
+    } catch (error) {
+      console.error('[StoreContext] Failed to load the next product page.', error);
+      throw error;
+    } finally {
+      loadingMoreCatalog.current = false;
+      setIsLoadingMoreCatalog(false);
+    }
+  }, [catalogHasMore]);
 
   useEffect(() => {
     void loadCatalogFromApi();
@@ -503,6 +566,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const resetCatalogToDefault = useCallback(() => {
     setProducts([]);
+    setCatalogTotal(0);
+    setCatalogHasMore(false);
+    catalogPage.current = 1;
+    catalogLoaded.current = false;
     setCategories([ALL_CATEGORY]);
     setInventoryLogs([]);
     try {
@@ -517,6 +584,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <StoreContext.Provider
       value={{
         products,
+        catalogHasMore,
+        isLoadingMoreCatalog,
+        catalogTotal,
+        loadMoreCatalog,
         categories,
         refreshCatalog: loadCatalogFromApi,
         promotions: PROMOTIONAL_CODES,

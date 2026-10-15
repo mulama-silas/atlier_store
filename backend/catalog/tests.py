@@ -32,6 +32,29 @@ class CatalogApiTests(TestCase):
         self.assertEqual(response.json()['data']
                          [0]['variants'][0]['price'], 245)
 
+    def test_product_list_paginates_results(self):
+        for index in range(22):
+            Product.objects.create(
+                category=self.category,
+                name=f'Paged dress {index}',
+                slug=f'paged-dress-{index}',
+                description='Created for storefront pagination coverage.',
+                price_minor=12000,
+                status=Product.Status.ACTIVE,
+            )
+
+        first_page = self.client.get('/api/products/?page=1&limit=10')
+        second_page = self.client.get('/api/products/?page=2&limit=10')
+
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(len(first_page.json()['data']), 10)
+        self.assertEqual(first_page.json()['pagination'], {
+            'page': 1, 'limit': 10, 'total': 23, 'totalPages': 3,
+        })
+        self.assertEqual(second_page.status_code, 200)
+        self.assertEqual(len(second_page.json()['data']), 10)
+        self.assertEqual(second_page.json()['pagination']['page'], 2)
+
     @patch('botique_backend.storage.SupabaseStorage._get_bucket_proxy')
     def test_supabase_storage_upload_uses_string_file_options(self, get_bucket):
         bucket = Mock()

@@ -639,6 +639,40 @@ class AdminDashboardTests(TestCase):
         self.assertContains(response, product_two.name)
         self.assertContains(response, 'admin-product-thumb')
 
+    def test_admin_products_page_paginates_and_preserves_search(self):
+        for index in range(26):
+            Product.objects.create(
+                category=self.category,
+                name=f'Pagination product {index}',
+                slug=f'pagination-product-{index}',
+                description='Created for admin pagination coverage.',
+                price_minor=10000,
+                status=Product.Status.ACTIVE,
+            )
+        self.client.force_login(self.staff)
+
+        first_page = self.client.get(
+            '/admin/dashboard/products/', {'q': 'Pagination'})
+
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(
+            first_page.context['page_data']['products_page'].paginator.count,
+            26,
+        )
+        self.assertContains(first_page, 'Showing 1 to 25')
+        self.assertContains(first_page, 'of 26 products')
+        self.assertContains(first_page, 'Page 1 of 2')
+        self.assertContains(first_page, '?q=Pagination&amp;page=2')
+
+        second_page = self.client.get(
+            '/admin/dashboard/products/', {'q': 'Pagination', 'page': '2'})
+
+        self.assertEqual(second_page.status_code, 200)
+        self.assertContains(second_page, 'Showing 26 to 26')
+        self.assertContains(second_page, 'of 26 products')
+        self.assertContains(second_page, 'Page 2 of 2')
+        self.assertContains(second_page, '?q=Pagination&amp;page=1')
+
     def test_products_page_renders_real_database_records(self):
         self.client.force_login(self.staff)
         product = Product.objects.create(

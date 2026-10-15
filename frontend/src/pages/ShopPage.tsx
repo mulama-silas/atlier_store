@@ -64,6 +64,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const { navigate } = useRouter();
   const {
     products,
+    catalogHasMore,
+    catalogTotal,
+    isLoadingMoreCatalog,
+    loadMoreCatalog,
     categories: storeCategories,
     availablePromotions,
   } = useStore();
@@ -81,6 +85,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("featured");
   const [itemsToShow, setItemsToShow] = useState(6);
+  const [loadMoreError, setLoadMoreError] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const isNewArrivalsView = selectedCollection === "new-arrivals";
 
@@ -185,17 +190,14 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     onlyInStock,
   ]);
 
-  const isAllProductsView =
-    selectedCategory === "all" &&
-    !selectedCollection &&
-    !selectedOccasion &&
-    !selectedSale &&
-    !searchQuery &&
-    !onlyInStock;
-  const displayedProducts = isAllProductsView
-    ? filteredProducts
-    : filteredProducts.slice(0, itemsToShow);
-  const hasMore = !isAllProductsView && itemsToShow < filteredProducts.length;
+  const displayedProducts = filteredProducts.slice(0, itemsToShow);
+  const remainingLoadedProducts = Math.max(
+    0,
+    filteredProducts.length - displayedProducts.length,
+  );
+  const hasMore =
+    remainingLoadedProducts > 0 ||
+    (catalogHasMore && !isNewArrivalsView);
   const activeFilterCount = [
     Boolean(searchQuery),
     onlyInStock,
@@ -246,6 +248,20 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     setSelectedSale(false);
     setSortBy("featured");
     setItemsToShow(6);
+  };
+
+  const loadAdditionalProducts = async () => {
+    setLoadMoreError("");
+    if (remainingLoadedProducts > 0) {
+      setItemsToShow((previous) => previous + 6);
+      return;
+    }
+    try {
+      const loaded = await loadMoreCatalog();
+      if (loaded) setItemsToShow((previous) => previous + 6);
+    } catch {
+      setLoadMoreError("We couldn't load more pieces. Please try again.");
+    }
   };
 
   return (
@@ -653,6 +669,18 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               Try resetting your active search or removing the in-stock filter
               to reveal more of the collection.
             </p>
+            {catalogHasMore && !isNewArrivalsView && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => void loadAdditionalProducts()}
+                disabled={isLoadingMoreCatalog}
+                className="mt-5"
+              >
+                {isLoadingMoreCatalog ? "Loading pieces..." : "Load more pieces"}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -696,7 +724,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           <div className="mx-auto max-w-2xl rounded-2xl border border-[#E8E5DF] bg-white px-5 py-6 text-center shadow-sm sm:px-8">
             <div className="flex items-center justify-between gap-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
               <span>
-                Viewing {displayedProducts.length} of {filteredProducts.length}
+                Viewing {displayedProducts.length} of {filteredProducts.length} loaded pieces
               </span>
               <span className="text-[#A2574F]">{visibleProgress}%</span>
             </div>
@@ -710,12 +738,21 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               type="button"
               variant="outline"
               size="lg"
-              onClick={() => setItemsToShow((prev) => prev + 6)}
+              onClick={() => void loadAdditionalProducts()}
+              disabled={isLoadingMoreCatalog}
               className="mt-5 w-full px-8 hover-lift-sm sm:w-auto"
             >
-              Load Additional Pieces ({filteredProducts.length - itemsToShow}{" "}
-              remaining)
+              {isLoadingMoreCatalog
+                ? "Loading pieces..."
+                : remainingLoadedProducts > 0
+                  ? `Load Additional Pieces (${remainingLoadedProducts} loaded)`
+                  : `Load More Pieces (${Math.max(0, catalogTotal - products.length)} in collection)`}
             </Button>
+            {loadMoreError && (
+              <p className="mt-3 text-sm text-[#9E332B]" role="alert">
+                {loadMoreError}
+              </p>
+            )}
           </div>
         </div>
       )}

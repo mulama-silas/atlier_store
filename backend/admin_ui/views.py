@@ -1148,7 +1148,9 @@ class AdminPageView(View):
                     | Q(category__name__icontains=query)
                     | Q(variants__sku__icontains=query)
                 ).distinct()
-            for product in products:
+            products_page = Paginator(products, 25).get_page(
+                request.GET.get('page'))
+            for product in products_page.object_list:
                 image = Product.normalize_images(product.images)[
                     0] if Product.normalize_images(product.images) else ''
                 stock_total = sum(
@@ -1508,6 +1510,9 @@ class AdminPageView(View):
             'empty_title': page_data.get('empty_title', 'No items found.'),
             'empty_description': page_data.get('empty_description', 'Create the first item to start managing this section.'),
             'can_assign_roles': page_data.get('can_assign_roles', False),
+            'products_page': products_page if page == 'products' else None,
+            'show_products_pagination': (
+                page == 'products' and products_page.paginator.num_pages > 1),
         }
 
         return render(request, self.template_name, {
