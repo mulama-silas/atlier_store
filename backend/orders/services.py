@@ -270,7 +270,11 @@ def create_order(cart_key, payload, user=None):
 
     breakdown = price_cart(cart, user=user, shipping_method=shipping_method,
                            coupon_code=requested_code)
-    if requested_code and not breakdown.get('applied'):
+    coupon_applied = any(
+        normalize_coupon_code(entry.get('code') or '') == requested_code
+        for entry in breakdown.get('applied') or []
+    )
+    if requested_code and not coupon_applied:
         err = breakdown.get('coupon_error') or 'INVALID_CODE'
         from audit.services import AuditLogService as _ALS
         _ALS.log('promotion_redemption_failed', category='orders', result='failure',

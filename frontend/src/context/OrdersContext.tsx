@@ -191,6 +191,8 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const details = errorObj.details as Record<string, unknown>;
             if (typeof details.stock === 'string') {
               message = details.stock;
+            } else if (typeof details.couponCode === 'string') {
+              message = details.couponCode;
             }
           }
           return { success: false, error: message };

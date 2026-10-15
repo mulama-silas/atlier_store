@@ -476,6 +476,53 @@ class PromotionCheckoutTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.promotion_snapshot['discount'], 100000)
 
+    def test_checkout_applies_coupon_alongside_stackable_automatic_promotion(self):
+        _, _, variant = make_catalog(slug='stacked-co-prod', category_slug='stacked-co-cat')
+        make_promo(code='STACKCODE', discount_percent=Decimal('10'))
+        make_promo(
+            ptype='percentage', code='', automatic=True,
+            discount_percent=Decimal('5'), name='Automatic five',
+        )
+        client = APIClient()
+        client.post('/api/cart/items', {'variantId': str(variant.id), 'quantity': 1},
+                    format='json', HTTP_X_CART_ID='stacked-co-cart')
+
+        applied = client.post(
+            '/api/promotions/apply', {'code': 'STACKCODE'},
+            format='json', HTTP_X_CART_ID='stacked-co-cart')
+        self.assertEqual(applied.status_code, 200, applied.content[:500])
+
+        response = client.post(
+            '/api/orders', {'customer': CUSTOMER, 'couponCode': 'STACKCODE'},
+            format='json', HTTP_X_CART_ID='stacked-co-cart')
+
+        self.assertEqual(response.status_code, 201, response.content[:800])
+        order = Order.objects.get(order_number=response.json()['orderNumber'])
+        self.assertEqual(order.discount_minor, 150000)
+        self.assertEqual(order.coupon_code, 'STACKCODE')
+        self.assertEqual(
+            {entry['code'] for entry in order.promotion_snapshot['applied']},
+            {'', 'STACKCODE'},
+        )
+
+    def test_checkout_rejects_coupon_not_applied_when_automatic_promotion_is_active(self):
+        _, _, variant = make_catalog(slug='invalid-co-prod', category_slug='invalid-co-cat')
+        make_promo(
+            ptype='percentage', code='', automatic=True,
+            discount_percent=Decimal('5'), name='Automatic five',
+        )
+        client = APIClient()
+        client.post('/api/cart/items', {'variantId': str(variant.id), 'quantity': 1},
+                    format='json', HTTP_X_CART_ID='invalid-co-cart')
+
+        response = client.post(
+            '/api/orders', {'customer': CUSTOMER, 'couponCode': 'MISSINGCODE'},
+            format='json', HTTP_X_CART_ID='invalid-co-cart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('couponCode', response.json()['error']['details'])
+        self.assertFalse(Order.objects.filter(cart__cart_key='invalid-co-cart').exists())
+
     def test_failed_payment_does_not_double_consume(self):
         _, _, variant = make_catalog(slug='fp-prod', category_slug='fp-cat')
         make_promo(code='ONCE2', usage_limit=10, usage_limit_per_customer=10)
