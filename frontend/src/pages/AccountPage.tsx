@@ -506,7 +506,7 @@ export const AccountPage: React.FC = () => {
           <p className="truncate font-serif text-lg leading-tight text-[#181716]">{displayName}</p>
           <p className="truncate text-xs text-[#827E77]">{userEmail}</p>
         </div>
-        <Badge variant="success" size="sm">Member</Badge>
+        <Badge variant="success" size="sm">Customer</Badge>
       </div>
 
       <div className="grid items-start gap-8 lg:grid-cols-[17rem_minmax(0,1fr)]">
