@@ -13,6 +13,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from admin_ui.models import CustomerNotification
 from cart.models import Cart, CartItem
 from catalog.models import Category, Product, ProductVariant
 from orders.models import Order
@@ -71,6 +72,7 @@ class PromotionEngineTests(TestCase):
         out = price_cart(cart, coupon_code='modeza10')  # case-insensitive
         self.assertEqual(out['discount'], 100000)  # 10% of 1,000,000
         self.assertEqual(out['total'], out['subtotal'] - 100000 + out['shipping'] + out['tax'])
+
 
     def test_percentage_max_cap(self):
         _, _, variant = make_catalog()
@@ -266,10 +268,63 @@ class PromotionEngineTests(TestCase):
         self.assertEqual(out['discount'], 100000)
 
 
+class PromotionAnnouncementTests(TestCase):
+    def test_publishing_notifies_customers_once_without_email(self):
+        from promotions.notifications import notify_promotion_customers
+
+        customer = User.objects.create_user(
+            username='promo-customer', email='promo@example.com', password='pw')
+        staff = User.objects.create_user(
+            username='promo-staff', email='staff@example.com', password='pw',
+            is_staff=True)
+        promo = make_promo(
+            code='LIVE15',
+            ends_at=timezone.now() + timezone.timedelta(days=2),
+            description='A limited-time offer.',
+        )
+
+        created = notify_promotion_customers(promo)
+        repeated = notify_promotion_customers(promo)
+
+        self.assertEqual(created, 1)
+        self.assertEqual(repeated, 0)
+        notification = CustomerNotification.objects.get(user=customer)
+        self.assertEqual(notification.category, 'promotion')
+        self.assertIn('LIVE15', notification.message)
+        self.assertEqual(
+            CustomerNotification.objects.filter(user=staff).count(), 0)
+
+    def test_active_promotion_api_requires_an_end_date(self):
+        staff = User.objects.create_user(
+            username='promo-api-staff', password='pw', is_staff=True)
+        from access_control.models import Permission, StaffProfile
+        profile, _ = StaffProfile.objects.get_or_create(user=staff)
+        profile.status = 'ACTIVE'
+        profile.save()
+        for code in ('promotions.view', 'promotions.create'):
+            perm, _ = Permission.objects.get_or_create(
+                code=code, defaults={'label': code, 'group': 'promotions'})
+            profile.direct_permissions.add(perm)
+        client = APIClient()
+        client.force_authenticate(user=staff)
+
+        response = client.post('/api/admin/promotions', {
+            'name': 'No expiry', 'promotion_type': 'percentage',
+            'status': 'active', 'discount_percent': '15',
+            'coupon_code': 'NOEXPIRY',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('ends_at', response.json()['error']['details'])
+
+
 class PromotionApiTests(TestCase):
     def setUp(self):
         _, _, self.variant = make_catalog(slug='api-prod', category_slug='api-cat')
-        make_promo(code='MODEZA10')
+        make_promo(
+            code='MODEZA10',
+            ends_at=timezone.now() + timezone.timedelta(days=1),
+        )
         self.client = APIClient()
 
     def _cart(self, key='api-cart'):
@@ -313,6 +368,31 @@ class PromotionApiTests(TestCase):
         resp = self.client.get('/api/promotions/available', HTTP_X_CART_ID=key)
         self.assertEqual(resp.status_code, 200)
         self.assertIn('pricing', resp.json())
+        self.assertEqual(resp.json()['announcements'][0]['code'], 'MODEZA10')
+        self.assertIn('endsAt', resp.json()['announcements'][0])
+
+    def test_announcement_endpoint_honors_customer_scope(self):
+        customer = User.objects.create_user(
+            username='vip-customer', email='vip@example.com', password='pw')
+        promo = make_promo(
+            code='VIP15',
+            customer_scope=Promotion.CustomerScope.SPECIFIC,
+            ends_at=timezone.now() + timezone.timedelta(days=1),
+        )
+        PromotionCustomer.objects.create(promotion=promo, user=customer)
+
+        guest_response = self.client.get('/api/promotions/available')
+        self.assertNotIn(
+            'VIP15',
+            [item['code'] for item in guest_response.json()['announcements']],
+        )
+
+        self.client.force_authenticate(user=customer)
+        customer_response = self.client.get('/api/promotions/available')
+        self.assertIn(
+            'VIP15',
+            [item['code'] for item in customer_response.json()['announcements']],
+        )
 
     def test_admin_requires_staff(self):
         resp = self.client.get('/api/admin/promotions')
@@ -320,6 +400,9 @@ class PromotionApiTests(TestCase):
 
     def test_admin_crud_and_activate(self):
         staff = User.objects.create_user(username='staffer', password='pw', is_staff=True)
+        customer = User.objects.create_user(
+            username='promo-api-customer', email='promo-api@example.com',
+            password='pw')
         from access_control.models import StaffProfile
         profile, _ = StaffProfile.objects.get_or_create(user=staff)
         profile.status = 'ACTIVE'
@@ -332,14 +415,20 @@ class PromotionApiTests(TestCase):
         self.client.force_authenticate(user=staff)
         created = self.client.post('/api/admin/promotions', {
             'name': 'Admin Promo', 'promotion_type': 'percentage', 'status': 'active',
-            'discount_percent': '20', 'coupon_code': 'ADMIN20', 'priority': 50}, format='json')
+            'discount_percent': '20', 'coupon_code': 'ADMIN20', 'priority': 50,
+            'ends_at': (timezone.now() + timezone.timedelta(days=1)).isoformat()}, format='json')
         self.assertEqual(created.status_code, 201, created.content[:500])
+        self.assertTrue(CustomerNotification.objects.filter(
+            user=customer,
+            event_type='promotion_published',
+        ).exists())
         pid = created.json()['id']
         got = self.client.get(f'/api/admin/promotions/{pid}')
         self.assertEqual(got.status_code, 200)
         patched = self.client.patch(f'/api/admin/promotions/{pid}', {'name': 'Admin Promo',
             'promotion_type': 'percentage', 'status': 'active', 'discount_percent': '25',
-            'coupon_code': 'ADMIN20', 'priority': 50}, format='json')
+            'coupon_code': 'ADMIN20', 'priority': 50,
+            'ends_at': (timezone.now() + timezone.timedelta(days=1)).isoformat()}, format='json')
         self.assertEqual(patched.status_code, 200)
         deact = self.client.post(f'/api/admin/promotions/{pid}/deactivate')
         self.assertEqual(deact.status_code, 200)
@@ -470,6 +559,7 @@ class PromotionAdminPageTests(TestCase):
             'reward_discount_percent': '100',
             'coupon_code': 'WINTER15', 'minimum_quantity': '0',
             'priority': '10', 'customer_scope': 'all',
+            'ends_at': (timezone.now() + timezone.timedelta(days=1)).strftime('%Y-%m-%dT%H:%M'),
         })
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(Promotion.objects.filter(coupon_code='WINTER15').exists())

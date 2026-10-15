@@ -14,6 +14,7 @@ from orders.models import Order
 
 from .models import Promotion, PromotionRedemption, normalize_coupon_code
 from .serializers import PromotionWriteSerializer, apply_write_data, promotion_to_dict
+from .notifications import notify_promotion_customers
 
 logger = logging.getLogger('promotions.admin_views')
 
@@ -68,6 +69,8 @@ class AdminPromotionListCreateView(AdminAPIView):
         with transaction.atomic():
             promo = Promotion()
             apply_write_data(promo, serializer.validated_data, user=request.user)
+            if promo.status == Promotion.Status.ACTIVE:
+                notify_promotion_customers(promo)
         _audit('promotion_created', promo, status_code=201)
         return Response(promotion_to_dict(promo), status=201)
 
@@ -98,7 +101,13 @@ class AdminPromotionDetailView(AdminAPIView):
                                        'message': 'An active promotion already uses this code.',
                                        'details': {}}}, status=400)
         with transaction.atomic():
+            previous_status = promo.status
             apply_write_data(promo, serializer.validated_data, user=request.user)
+            if (
+                previous_status != Promotion.Status.ACTIVE
+                and promo.status == Promotion.Status.ACTIVE
+            ):
+                notify_promotion_customers(promo)
         if old_code != promo.coupon_code_normalized:
             _audit('promotion_code_changed', promo, metadata={'from': old_code, 'to': promo.coupon_code_normalized})
         _audit('promotion_updated', promo)
@@ -124,8 +133,20 @@ class AdminPromotionActionView(AdminAPIView):
     def post(self, request, promo_id, action):
         promo = get_object_or_404(Promotion, pk=promo_id)
         if action == 'activate':
-            promo.status = Promotion.Status.ACTIVE
-            promo.save(update_fields=['status', 'updated_at'])
+            if not promo.ends_at:
+                return Response({
+                    'error': {
+                        'code': 'END_DATE_REQUIRED',
+                        'message': 'Set an end date before publishing this promotion.',
+                        'details': {},
+                    },
+                }, status=400)
+            was_active = promo.status == Promotion.Status.ACTIVE
+            with transaction.atomic():
+                promo.status = Promotion.Status.ACTIVE
+                promo.save(update_fields=['status', 'updated_at'])
+                if not was_active:
+                    notify_promotion_customers(promo)
             _audit('promotion_activated', promo)
         elif action == 'deactivate':
             promo.status = Promotion.Status.DISABLED

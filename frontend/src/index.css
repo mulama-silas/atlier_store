@@ -266,6 +266,31 @@ label {
   100% { background-position: 200% 0; }
 }
 
+@keyframes promotion-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.promotion-marquee {
+  overflow: hidden;
+}
+
+.promotion-marquee__track {
+  display: flex;
+  width: max-content;
+  animation: promotion-marquee 32s linear infinite;
+}
+
+.promotion-marquee:hover .promotion-marquee__track,
+.promotion-marquee:focus-within .promotion-marquee__track {
+  animation-play-state: paused;
+}
+
+.promotion-marquee__content {
+  display: flex;
+  flex-shrink: 0;
+}
+
 .animate-fade-in {
   animation: fade-in var(--transition-base) ease-out forwards;
 }

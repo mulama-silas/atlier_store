@@ -23,6 +23,7 @@ import { useStore } from "../context/StoreContext";
 import { useWishlist } from "../context/WishlistContext";
 import { useRouter, AppRoute } from "../router/RouterContext";
 import { CollapsibleGroup } from "./CollapsibleGroup";
+import { PromotionShowcase } from "./PromotionShowcase";
 import {
   Badge,
   Dialog,
@@ -92,6 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch }) => {
 
   return (
     <header className="sticky top-0 z-40">
+      <PromotionShowcase />
       <AnnouncementBar />
 
       <motion.div

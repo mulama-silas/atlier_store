@@ -90,6 +90,7 @@ class CustomerNotification(models.Model):
         PAYMENT = 'payment', 'Payment'
         DELIVERY = 'delivery', 'Delivery'
         ACCOUNT = 'account', 'Account'
+        PROMOTION = 'promotion', 'Promotion'
         SYSTEM = 'system', 'System'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

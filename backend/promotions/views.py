@@ -2,15 +2,23 @@
 import logging
 
 from django.db import transaction
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.authentication import SupabaseJWTAuthentication
 from audit.services import AuditLogService
 from cart.models import Cart
 
 from .models import Promotion, normalize_coupon_code
 from .serializers import promotion_to_dict
-from .services import FRIENDLY, candidate_promotions, price_cart, validate_coupon
+from .services import (
+    FRIENDLY,
+    candidate_promotions,
+    check_customer_scope,
+    price_cart,
+    validate_coupon,
+)
 
 logger = logging.getLogger('promotions.views')
 
@@ -110,10 +118,13 @@ class PromotionRemoveView(APIView):
 
 
 class PromotionAvailableView(APIView):
-    authentication_classes = []
+    authentication_classes = [SupabaseJWTAuthentication, SessionAuthentication]
     permission_classes = []
 
     def get(self, request):
+        from django.db.models import Q
+        from django.utils import timezone
+
         from cart.views import cart_key_from_request, get_or_create_cart
         key = request.headers.get('x-cart-id')
         user = request.user if getattr(request.user, 'is_authenticated', False) else None
@@ -130,11 +141,36 @@ class PromotionAvailableView(APIView):
         promos = candidate_promotions(coupon_normalized='')
         discovery = []
         for promo in promos:
+            eligible, _ = check_customer_scope(promo, user)
+            if not eligible:
+                continue
             badge = _badge(promo)
             discovery.append({'name': promo.name, 'type': promo.promotion_type,
                               'code': '' if promo.is_automatic else 'AVAILABLE_AT_CHECKOUT',
                               'badge': badge, 'automatic': True})
-        return Response({'pricing': pricing, 'available': discovery})
+        now = timezone.now()
+        announcements = Promotion.objects.filter(
+            status=Promotion.Status.ACTIVE,
+            ends_at__gt=now,
+        ).filter(
+            Q(starts_at__isnull=True) | Q(starts_at__lte=now),
+        ).prefetch_related('promo_customers').order_by('-priority', '-created_at')
+        return Response({
+            'pricing': pricing,
+            'available': discovery,
+            'announcements': [
+                {
+                    'id': str(promo.pk),
+                    'name': promo.name,
+                    'description': promo.description,
+                    'badge': _badge(promo),
+                    'code': promo.coupon_code if not promo.is_automatic else '',
+                    'endsAt': promo.ends_at.isoformat() if promo.ends_at else None,
+                }
+                for promo in announcements
+                if check_customer_scope(promo, user)[0]
+            ],
+        })
 
     def post(self, request):
         return self.get(request)

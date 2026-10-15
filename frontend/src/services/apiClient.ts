@@ -7,6 +7,7 @@ import {
   PaymentIntentDTO,
   PromotionPricingDTO,
   AvailablePromotionDTO,
+  PromotionAnnouncementDTO,
   ReceiptDTO,
   PaginatedProductsResponse,
 } from '../types/api';
@@ -234,8 +235,16 @@ export const api = {
     });
   },
 
-  async getAvailablePromotions(): Promise<{ pricing: PromotionPricingDTO | null; available: AvailablePromotionDTO[] }> {
-    return request<{ pricing: PromotionPricingDTO | null; available: AvailablePromotionDTO[] }>('/api/promotions/available');
+  async getAvailablePromotions(): Promise<{
+    pricing: PromotionPricingDTO | null;
+    available: AvailablePromotionDTO[];
+    announcements: PromotionAnnouncementDTO[];
+  }> {
+    return request<{
+      pricing: PromotionPricingDTO | null;
+      available: AvailablePromotionDTO[];
+      announcements: PromotionAnnouncementDTO[];
+    }>('/api/promotions/available');
   },
 
   async cancelOrder(orderNumber: string): Promise<OrderDTO> {

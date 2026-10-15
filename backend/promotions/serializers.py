@@ -46,6 +46,9 @@ class PromotionWriteSerializer(serializers.Serializer):
         starts, ends = data.get('starts_at'), data.get('ends_at')
         if starts and ends and ends <= starts:
             raise serializers.ValidationError({'ends_at': 'End must be after start.'})
+        if data.get('status') == Promotion.Status.ACTIVE and not ends:
+            raise serializers.ValidationError(
+                {'ends_at': 'Set an end date before publishing this promotion.'})
         ptype = data.get('promotion_type')
         if ptype in ('buy_x_get_y', 'buy_x_get_pct') and (
                 (data.get('qualifying_quantity') or 0) <= 0 or (data.get('reward_quantity') or 0) <= 0):

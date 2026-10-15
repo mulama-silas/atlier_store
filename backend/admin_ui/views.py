@@ -2135,6 +2135,9 @@ class PromotionCreatePageView(View):
             form.instance.created_by = request.user
             form.instance.updated_by = request.user
             promo = form.save()
+            if promo.status == 'active':
+                from promotions.notifications import notify_promotion_customers
+                notify_promotion_customers(promo)
             _audit_promotion('promotion_created', promo, status_code=201)
             messages.success(request, 'Promotion created.')
             return redirect('admin-promotions')
@@ -2174,6 +2177,7 @@ class PromotionEditPageView(View):
             messages.error(request, 'Promotion not found.')
             return redirect('admin-promotions')
         old_code = promo.coupon_code_normalized
+        old_status = promo.status
         form = PromotionForm(request.POST, instance=promo)
         if form.is_valid():
             normalized = normalize_coupon_code(form.cleaned_data.get('coupon_code') or '')
@@ -2184,6 +2188,9 @@ class PromotionEditPageView(View):
             updated.updated_by = request.user
             updated.save()
             form.save()
+            if old_status != 'active' and updated.status == 'active':
+                from promotions.notifications import notify_promotion_customers
+                notify_promotion_customers(updated)
             if old_code != updated.coupon_code_normalized:
                 _audit_promotion('promotion_code_changed', updated,
                                  metadata={'from': old_code, 'to': updated.coupon_code_normalized})
@@ -2221,8 +2228,18 @@ class PromotionActionPageView(View):
             messages.error(request, 'Promotion not found.')
             return redirect('admin-promotions')
         if action == 'activate':
+            if not promo.ends_at:
+                messages.error(
+                    request,
+                    'Set an end date before publishing this promotion.',
+                )
+                return redirect('admin-promotions')
+            was_active = promo.status == Promotion.Status.ACTIVE
             promo.status = Promotion.Status.ACTIVE
             promo.save(update_fields=['status', 'updated_at'])
+            if not was_active:
+                from promotions.notifications import notify_promotion_customers
+                notify_promotion_customers(promo)
             _audit_promotion('promotion_activated', promo)
             messages.success(request, f'Promotion "{promo.name}" activated.')
         elif action == 'deactivate':

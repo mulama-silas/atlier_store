@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Product, ProductVariant, Category, CategorySlug, DiscountCode, InventoryLog, CartItem } from '../types';
 import { PROMOTIONAL_CODES } from '../data/promotions';
 import { api } from '../services/apiClient';
-import { AvailablePromotionDTO } from '../types/api';
+import { AvailablePromotionDTO, PromotionAnnouncementDTO } from '../types/api';
 import { mapProductDtoToDomain } from '../utils/productMapper';
 
 const INVENTORY_LOGS_KEY = 'modeza_inventory_logs_v1';
@@ -121,6 +121,7 @@ export interface StoreContextType {
   categories: Category[];
   promotions: DiscountCode[];
   availablePromotions: AvailablePromotionDTO[];
+  promotionAnnouncements: PromotionAnnouncementDTO[];
   refreshPromotions: () => Promise<void>;
   inventoryLogs: InventoryLog[];
   totalCatalogStock: number;
@@ -149,6 +150,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([ALL_CATEGORY]);
   const [availablePromotions, setAvailablePromotions] = useState<AvailablePromotionDTO[]>([]);
+  const [promotionAnnouncements, setPromotionAnnouncements] = useState<PromotionAnnouncementDTO[]>([]);
   const refreshInFlight = useRef(false);
 
   // Server-driven promotion discovery (badges/banners). Best-effort: the
@@ -157,6 +159,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const result = await api.getAvailablePromotions();
       setAvailablePromotions(result.available ?? []);
+      setPromotionAnnouncements(result.announcements ?? []);
     } catch {
       // offline / backend unreachable — keep the previous list
     }
@@ -206,6 +209,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     void loadCatalogFromApi();
     void refreshPromotions();
+    const promotionsInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refreshPromotions();
+      }
+    }, 30000);
 
     const refreshOnFocus = () => {
       if (document.visibilityState === 'visible') {
@@ -222,6 +230,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     window.addEventListener('focus', refreshOnFocus);
 
     return () => {
+      window.clearInterval(promotionsInterval);
       window.clearInterval(refreshInterval);
       document.removeEventListener('visibilitychange', refreshOnFocus);
       window.removeEventListener('focus', refreshOnFocus);
@@ -512,6 +521,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         refreshCatalog: loadCatalogFromApi,
         promotions: PROMOTIONAL_CODES,
         availablePromotions,
+        promotionAnnouncements,
         refreshPromotions,
         inventoryLogs,
         totalCatalogStock,

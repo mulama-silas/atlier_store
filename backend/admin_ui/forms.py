@@ -376,6 +376,8 @@ class PromotionForm(forms.ModelForm):
         starts, ends = cleaned.get('starts_at'), cleaned.get('ends_at')
         if starts and ends and ends <= starts:
             raise forms.ValidationError('End date must be after start date.')
+        if cleaned.get('status') == 'active' and not ends:
+            self.add_error('ends_at', 'Set an end date before publishing this promotion.')
         if float(cleaned.get('discount_percent') or 0) > 100:
             raise forms.ValidationError('Discount percentage cannot exceed 100.')
         ptype = cleaned.get('promotion_type')
@@ -406,4 +408,3 @@ class PromotionForm(forms.ModelForm):
             if promo.eligible_all is False and not ((self.cleaned_data.get('target_products') or []) or (self.cleaned_data.get('target_categories') or []) or (self.cleaned_data.get('target_variants') or [])):
                 pass
         return promo
-

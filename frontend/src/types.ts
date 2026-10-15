@@ -171,7 +171,7 @@ export interface ToastMessage {
 
 export interface CustomerNotification {
   id: string;
-  category: 'order' | 'payment' | 'delivery' | 'account' | 'system';
+  category: 'order' | 'payment' | 'delivery' | 'account' | 'promotion' | 'system';
   title: string;
   message: string;
   link?: string;

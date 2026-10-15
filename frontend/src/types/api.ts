@@ -127,6 +127,15 @@ export interface AvailablePromotionDTO {
   automatic: boolean;
 }
 
+export interface PromotionAnnouncementDTO {
+  id: string;
+  name: string;
+  description: string;
+  badge: string;
+  code: string;
+  endsAt: string | null;
+}
+
 export interface CartMergeSummaryItem {
   variantId: string;
   productName?: string;
