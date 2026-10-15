@@ -172,7 +172,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         return totalStock > 0;
       });
     }
-    if (isNewArrivalsView) list = list.slice(0, 5);
+    if (isNewArrivalsView) list = list.slice(0, 8);
     return list;
   }, [
     products,
