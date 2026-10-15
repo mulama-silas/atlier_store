@@ -13,11 +13,11 @@ _NOT_FOUND = {'error': {'code': 'not_found', 'message': 'Order not found.'}}
 
 
 def _may_view(order, context):
-    if context.user_id is not None and order.user_id == context.user_id:
-        return True
-    if context.cart_key and order.cart_id and order.cart.cart_key == context.cart_key:
-        return True
-    return False
+    if context.user_id is not None:
+        return order.user_id == context.user_id
+    return bool(context.cart_key and order.user_id is None and order.cart_id
+                and order.cart.user_id is None
+                and order.cart.cart_key == context.cart_key)
 
 
 def _serialize(order):
@@ -71,7 +71,8 @@ def get_customer_orders(*, context=None):
     if context.user_id is not None:
         orders = base.filter(user_id=context.user_id)
     else:
-        orders = base.filter(cart__cart_key=context.cart_key)
+        orders = base.filter(user__isnull=True, cart__user__isnull=True,
+                             cart__cart_key=context.cart_key)
     orders = orders.order_by('-created_at')[:10]
     results = [_serialize(o) for o in orders]
     if not results:

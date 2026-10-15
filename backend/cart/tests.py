@@ -57,6 +57,30 @@ class CartApiTests(TestCase):
             HTTP_X_CART_ID=cart_key,
         )
 
+    def test_account_cart_key_cannot_be_claimed_by_guest_or_another_user(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.exceptions import PermissionDenied
+        from cart.services import get_or_create_cart
+
+        owner = get_user_model().objects.create_user(username='cart-owner')
+        other = get_user_model().objects.create_user(username='cart-other')
+        key = f'u:{owner.pk}'
+        get_or_create_cart(key, owner)
+
+        with self.assertRaises(PermissionDenied):
+            get_or_create_cart(key)
+        with self.assertRaises(PermissionDenied):
+            get_or_create_cart(key, other)
+
+        guest_response = self.client.get('/api/cart', HTTP_X_CART_ID=key)
+        self.assertEqual(guest_response.status_code, 403)
+        self.client.force_authenticate(user=owner)
+        owner_response = self.client.get('/api/cart', HTTP_X_CART_ID=key)
+        self.assertEqual(owner_response.status_code, 200)
+        self.client.force_authenticate(user=other)
+        other_response = self.client.get('/api/cart', HTTP_X_CART_ID=key)
+        self.assertEqual(other_response.status_code, 403)
+
     def test_guest_cart_persists_by_header_and_returns_totals(self):
         headers = {'HTTP_X_CART_ID': 'cart_test_123'}
         response = self.client.post(

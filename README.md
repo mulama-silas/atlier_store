@@ -125,9 +125,9 @@ authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
 - [ ] `https://<backend>/admin/dashboard/audit-logs/` lists orders, payments,
       logins and security events; `POST https://<backend>/api/audit/events`
       returns 202 for storefront events.
-- [ ] M-Pesa callbacks can reach `https://<backend>/api/payments/mpesa/callback`
-      (sandbox first via `MPESA_ENV=sandbox`). `PAYMENT_SANDBOX=true` completes
-      the intent in-process so orders can reach PAID and be approved.
+- [ ] Prepaid checkout remains pending until a verified M-Pesa provider flow is
+      integrated. `PAYMENT_SANDBOX=true` is for local development only;
+      production (`DEBUG=false`) rejects that setting. Render sets it to false.
 - [ ] CORS: frontend origin is in `FRONTEND_ORIGIN`; cookie-flags work over HTTPS.
 - [ ] `https://<backend>/admin/dashboard/emails/` loads and a test order produces a
       row there. Delivery is off (`EMAIL_ENABLED=false`), so rows stay `QUEUED`

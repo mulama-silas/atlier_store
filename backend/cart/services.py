@@ -1,5 +1,5 @@
 from django.db import transaction
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from audit.services import AuditLogService
 from catalog.models import Product, ProductVariant
@@ -18,8 +18,13 @@ def user_cart_key(user):
 
 
 def get_or_create_cart(cart_key, user=None):
+    if cart_key.startswith(USER_CART_KEY_PREFIX):
+        if user is None or cart_key != user_cart_key(user):
+            raise PermissionDenied('You cannot access this cart.')
     cart, _ = Cart.objects.get_or_create(
         cart_key=cart_key, defaults={'user': user})
+    if cart.user_id is not None and (user is None or cart.user_id != user.pk):
+        raise PermissionDenied('You cannot access this cart.')
     if user and cart.user_id is None:
         cart.user = user
         cart.save(update_fields=['user', 'updated_at'])

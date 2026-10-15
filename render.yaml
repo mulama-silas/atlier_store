@@ -78,11 +78,11 @@ services:
         value: "deferred"
       - key: EMAIL_TIMEOUT
         value: "10"
-      # Mock payment gateway — completes an M-Pesa intent inside
-      # create_intent so an order can reach PAID and be approved. Set to
-      # "false" only once a real Daraja STK push is wired up.
+      # Mock payment gateway can settle intents in local development.
+      # The mock is for local development only. Production keeps prepaid
+      # orders pending until a verified provider can settle the payment.
       - key: PAYMENT_SANDBOX
-        value: "true"
+        value: "false"
 
       # ---- AI shopping assistant (server-side Gemini, see PROJECT.md) ------
       # Model used by backend/assistant; must support the Interactions API.

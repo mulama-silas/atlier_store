@@ -58,6 +58,18 @@ class AdminDashboardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Good morning.')
 
+    def test_staff_without_product_permission_cannot_post_dashboard_mutation(self):
+        staff = get_user_model().objects.create_user(
+            username='limited-dashboard-staff', password='pw', is_staff=True)
+        self.client.force_login(staff)
+
+        response = self.client.post('/admin/dashboard/', {
+            'action': 'create-product', 'name': 'Injected product',
+        })
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Product.objects.filter(name='Injected product').exists())
+
     def test_dashboard_recent_orders_show_total_amount(self):
         from cart.models import Cart
 
@@ -2433,22 +2445,24 @@ class AdminAuthTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, '/admin/dashboard/')
 
-    def test_register_page_accessible_to_anonymous_and_staff(self):
+    def test_register_page_requires_superuser(self):
         response = self.client.get('/admin/dashboard/register/')
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Create administrator account')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/dashboard/login/', response.url)
 
         self.client.force_login(self.staff)
         response = self.client.get('/admin/dashboard/register/')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/admin/dashboard/login/', response.url)
 
-    def test_login_page_links_to_register(self):
+    def test_login_page_does_not_offer_public_admin_registration(self):
         response = self.client.get('/admin/dashboard/login/')
 
-        self.assertContains(response, '/admin/dashboard/register/')
+        self.assertNotContains(response, '/admin/dashboard/register/')
+        self.assertContains(response, 'created by a superuser')
 
-    def test_anonymous_signup_creates_staff_account_without_superuser(self):
+    def test_anonymous_signup_is_rejected_without_creating_account(self):
         response = self.client.post('/admin/dashboard/register/', {
             'username': 'public-admin',
             'email': 'public@example.com',
@@ -2460,13 +2474,11 @@ class AdminAuthTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, '/admin/dashboard/login/')
-        user = get_user_model().objects.get(username='public-admin')
-        self.assertTrue(user.is_staff)
-        self.assertFalse(user.is_superuser)
-        self.assertTrue(user.is_active)
+        self.assertIn('/admin/dashboard/login/', response.url)
+        self.assertFalse(get_user_model().objects.filter(
+            username='public-admin').exists())
 
-    def test_anonymous_cannot_grant_superuser(self):
+    def test_anonymous_superuser_signup_is_rejected(self):
         response = self.client.post('/admin/dashboard/register/', {
             'username': 'public-super',
             'email': 'public-super@example.com',
@@ -2477,9 +2489,8 @@ class AdminAuthTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 302)
-        user = get_user_model().objects.get(username='public-super')
-        self.assertTrue(user.is_staff)
-        self.assertFalse(user.is_superuser)
+        self.assertFalse(get_user_model().objects.filter(
+            username='public-super').exists())
 
     def test_invite_page_requires_superuser(self):
         self.client.force_login(self.staff)

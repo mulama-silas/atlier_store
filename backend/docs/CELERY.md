@@ -187,7 +187,7 @@ celery -A botique_backend call botique_backend.ping
 - key: EMAIL_TIMEOUT
   value: "10"
 - key: PAYMENT_SANDBOX
-  value: "true"
+  value: "false"
 ```
 
 There is no worker, so bulk imports run in the request that confirms them
@@ -271,7 +271,7 @@ service queues work nobody consumes.
 | `EMAIL_SWEEP_TOKEN` | web service | **Required for mail when `EMAIL_DELIVERY_MODE=deferred`.** `sync: false`; unset disables the sweeper endpoint (404). |
 | `EMAIL_DELIVERY_MODE` | web service | `"deferred"` in the shipped blueprint. |
 | `EMAIL_TIMEOUT` | web service | `"10"` — bounds every transport attempt. |
-| `PAYMENT_SANDBOX` | web service | `"true"` — the mock gateway; see PROJECT.md → Payments. |
+| `PAYMENT_SANDBOX` | web service | `"false"` in production; mock settlement is local-development only. |
 | `SERVER_EMAIL` | web service | Where admin alerts (failed imports, critical errors) land. Defaults to `DEFAULT_FROM_EMAIL`. |
 | `STORE_EMAIL` | web service | `hello@modeza.co.ke` — the single ops inbox every admin email type is addressed to. |
 

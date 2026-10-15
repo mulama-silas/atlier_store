@@ -16,13 +16,19 @@ from receipts.services import generate_receipt
 from .models import PaymentEvent, PaymentIntent
 
 
-def get_order_for_cart(order_number, cart_key):
+def get_order_for_cart(order_number, cart_key, user=None):
     try:
         order = Order.objects.select_related(
             'cart').get(order_number=order_number)
     except Order.DoesNotExist as exc:
         raise NotFound('Order was not found.') from exc
-    if not cart_key or not order.cart or order.cart.cart_key != cart_key:
+    if user is not None and user.is_authenticated:
+        allowed = order.user_id == user.pk
+    else:
+        allowed = bool(
+            order.user_id is None and order.cart and order.cart.user_id is None
+            and cart_key and order.cart.cart_key == cart_key)
+    if not allowed:
         raise PermissionDenied('You cannot access this order.')
     return order
 
@@ -78,8 +84,8 @@ def _queue_payment_email(email_type, order, subject, body_text, notification):
 
 
 @transaction.atomic
-def create_intent(order_number, method, phone_number, cart_key):
-    order = get_order_for_cart(order_number, cart_key)
+def create_intent(order_number, method, phone_number, cart_key, user=None):
+    order = get_order_for_cart(order_number, cart_key, user)
     # Serialize against concurrent checkout retries so a double submit cannot
     # mint two intents (or exceed one pending intent per order).
     order = Order.objects.select_for_update().get(pk=order.pk)
@@ -192,8 +198,8 @@ def _mark_intent_succeeded(intent, gateway_reference):
 
 
 @transaction.atomic
-def confirm_payment(order_number, payment_intent_id, gateway_reference, cart_key):
-    order = get_order_for_cart(order_number, cart_key)
+def confirm_payment(order_number, payment_intent_id, gateway_reference, cart_key, user=None):
+    order = get_order_for_cart(order_number, cart_key, user)
     if order.status == Order.Status.CANCELLED:
         raise ValidationError(
             {'order': 'Order was cancelled and cannot be paid.'})
@@ -209,7 +215,8 @@ def confirm_payment(order_number, payment_intent_id, gateway_reference, cart_key
     if intent.status == PaymentIntent.Status.FAILED:
         raise ValidationError(
             {'paymentIntentId': 'Payment intent has failed.'})
-    return _mark_intent_succeeded(intent, gateway_reference)
+    raise ValidationError(
+        {'paymentIntentId': 'Payment is still pending provider confirmation.'})
 
 
 @transaction.atomic

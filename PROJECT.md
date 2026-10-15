@@ -411,16 +411,12 @@ GET    /api/health/                    # health check
 ## Payments (M-Pesa)
 
 - **Provider:** Safaricom **Daraja API** (sandbox supported via `MPESA_ENV`)
-- **Flow:** Checkout → `/api/payments/create-intent` → STK Push → user authorizes → `/api/payments/mpesa/callback` → order confirmed
+- **Flow:** Checkout creates an intent; a verified provider callback settles payment and unlocks order approval.
 - Card payment scaffolding exists but M-Pesa is the primary method
 - Callback secured with `MPESA_CALLBACK_SECRET` / `PAYMENT_WEBHOOK_SECRET`
-- **No STK push exists yet.** With `PAYMENT_SANDBOX=true` (the default, and the
-  value `render.yaml` ships) `create_intent` completes the intent in-process
-  with an `SBX-…` reference, so the order reaches `PAID` and the admin
-  Approve button — which is gated on `payment_status == PAID` — appears. The
-  storefront polls the intent as before and reports the outcome. Set it to
-  `false` only once a real STK push is wired up, otherwise orders would sit at
-  `pending` forever and could never be approved.
+- **No STK push exists yet.** `PAYMENT_SANDBOX=true` can simulate settlement in
+  local development. Production keeps it false, so prepaid orders stay pending
+  until a verified provider callback or verification flow is integrated.
 
 ---
 

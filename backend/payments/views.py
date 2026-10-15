@@ -21,6 +21,7 @@ class CreatePaymentIntentView(APIView):
             request.data.get('method', 'mpesa'),
             request.data.get('phoneNumber'),
             request.headers.get('x-cart-id'),
+            request.user,
         )
         return Response(PaymentIntentSerializer(intent).data, status=201)
 
@@ -34,6 +35,7 @@ class ConfirmPaymentView(APIView):
             request.data.get('paymentIntentId', ''),
             request.data.get('gatewayReference'),
             request.headers.get('x-cart-id'),
+            request.user,
         )
         return Response(OrderSerializer(order).data)
 

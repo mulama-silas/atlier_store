@@ -732,6 +732,18 @@ class OrderToolTests(TestCase):
             'get_order_status', {'order_number': 'MDZ-2026-000042'}, context)
         self.assertEqual(result.payload['error']['code'], 'not_authorized')
 
+    def test_other_customer_cannot_use_owner_cart_key_as_fallback(self):
+        from cart.models import Cart
+        cart = Cart.objects.create(cart_key='alice-private-cart', user=self.alice)
+        self.order.cart = cart
+        self.order.save(update_fields=['cart'])
+
+        result = tools_module.execute(
+            'get_order_status', {'order_number': self.order.order_number},
+            ToolContext(user=self.bob, cart_key='alice-private-cart'))
+
+        self.assertEqual(result.payload['error']['code'], 'not_authorized')
+
     def test_guest_without_cart_key_is_denied(self):
         result = tools_module.execute(
             'get_order_status', {'order_number': 'MDZ-2026-000042'},

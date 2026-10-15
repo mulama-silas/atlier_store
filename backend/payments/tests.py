@@ -41,6 +41,29 @@ class PaymentApiTests(TestCase):
         self.assertEqual(PaymentIntent.objects.get(
             id=intent_id).status, PaymentIntent.Status.SUCCEEDED)
 
+    @override_settings(PAYMENT_SANDBOX=False)
+    def test_customer_confirmation_cannot_settle_pending_intent(self):
+        headers = {'HTTP_X_CART_ID': 'payment-cart'}
+        created = self.client.post('/api/payments/create-intent', {
+            'orderNumber': self.order.order_number, 'method': 'mpesa',
+        }, format='json', **headers)
+        intent_id = created.json()['id']
+
+        confirmed = self.client.post('/api/payments/confirm', {
+            'orderNumber': self.order.order_number,
+            'paymentIntentId': intent_id,
+            'gatewayReference': 'CUSTOMER-SAYS-PAID',
+        }, format='json', **headers)
+
+        self.assertEqual(confirmed.status_code, 400)
+        self.assertIn('pending provider confirmation',
+                      str(confirmed.json()))
+        self.assertEqual(PaymentIntent.objects.get(
+            id=intent_id).status, PaymentIntent.Status.PENDING)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status,
+                         Order.PaymentStatus.PENDING)
+
     def test_payment_intent_cannot_be_accessed_from_another_cart(self):
         response = self.client.post('/api/payments/create-intent', {
                                     'orderNumber': self.order.order_number}, format='json', HTTP_X_CART_ID='other-cart')

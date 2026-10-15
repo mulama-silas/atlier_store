@@ -24,7 +24,9 @@ export function getOrCreateCartId(): string {
   if (typeof window === 'undefined') return 'cart_ssr';
   let cartId = localStorage.getItem(CART_STORAGE_KEY);
   if (!cartId) {
-    cartId = `cart_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const token = new Uint8Array(24);
+    window.crypto.getRandomValues(token);
+    cartId = `cart_${Array.from(token, byte => byte.toString(16).padStart(2, '0')).join('')}`;
     localStorage.setItem(CART_STORAGE_KEY, cartId);
   } 
   return cartId;

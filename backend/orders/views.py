@@ -13,6 +13,14 @@ def cart_key(request):
     return request.headers.get('x-cart-id')
 
 
+def can_access_order(request, order):
+    if request.user.is_authenticated:
+        return order.user_id == request.user.id
+    return bool(
+        order.user_id is None and order.cart and order.cart.user_id is None
+        and cart_key(request) and order.cart.cart_key == cart_key(request))
+
+
 class OrdersView(APIView):
     throttle_scope = 'orders'
 
@@ -21,7 +29,8 @@ class OrdersView(APIView):
         if request.user.is_authenticated:
             orders = base.filter(user_id=request.user.id)
         elif cart_key(request):
-            orders = base.filter(cart__cart_key=cart_key(request))
+            orders = base.filter(user__isnull=True, cart__user__isnull=True,
+                                 cart__cart_key=cart_key(request))
         else:
             orders = base.none()
         orders = orders.order_by('-created_at')
@@ -48,12 +57,7 @@ class OrderDetailView(APIView):
             'cart').filter(order_number=order_number).first()
         if not order:
             return Response({'error': {'code': 'NOT_FOUND', 'message': 'Order was not found.', 'details': {}}}, status=404)
-        if request.user.is_authenticated:
-            allowed = order.user_id == request.user.id
-        else:
-            allowed = bool(
-                cart_key(request) and order.cart and order.cart.cart_key == cart_key(request))
-        if not allowed:
+        if not can_access_order(request, order):
             return Response({'error': {'code': 'FORBIDDEN', 'message': 'You cannot access this order.', 'details': {}}}, status=403)
         AuditLogService.log(
             'order_details_viewed',
@@ -83,13 +87,7 @@ class OrderDetailView(APIView):
         if not order:
             return Response({'error': {'code': 'NOT_FOUND', 'message': 'Order was not found.', 'details': {}}}, status=404)
 
-        if request.user.is_authenticated:
-            allowed = order.user_id == request.user.id
-        else:
-            allowed = bool(
-                cart_key(request) and order.cart and order.cart.cart_key == cart_key(request))
-
-        if not allowed:
+        if not can_access_order(request, order):
             return Response({'error': {'code': 'FORBIDDEN', 'message': 'You cannot cancel this order.', 'details': {}}}, status=403)
 
         order = cancel_order(order)
@@ -101,13 +99,7 @@ class OrderDetailView(APIView):
         if not order:
             return Response({'error': {'code': 'NOT_FOUND', 'message': 'Order was not found.', 'details': {}}}, status=404)
 
-        if request.user.is_authenticated:
-            allowed = order.user_id == request.user.id
-        else:
-            allowed = bool(
-                cart_key(request) and order.cart and order.cart.cart_key == cart_key(request))
-
-        if not allowed:
+        if not can_access_order(request, order):
             return Response({'error': {'code': 'FORBIDDEN', 'message': 'You cannot mark this order as received.', 'details': {}}}, status=403)
 
         order = receive_order(order)
@@ -119,13 +111,7 @@ class OrderDetailView(APIView):
         if not order:
             return Response({'error': {'code': 'NOT_FOUND', 'message': 'Order was not found.', 'details': {}}}, status=404)
 
-        if request.user.is_authenticated:
-            allowed = order.user_id == request.user.id
-        else:
-            allowed = bool(
-                cart_key(request) and order.cart and order.cart.cart_key == cart_key(request))
-
-        if not allowed:
+        if not can_access_order(request, order):
             return Response({'error': {'code': 'FORBIDDEN', 'message': 'You cannot mark this order as received and paid.', 'details': {}}}, status=403)
 
         order = mark_received_paid(order)

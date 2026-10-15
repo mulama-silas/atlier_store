@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsStaffOrAdmin
 from audit.services import AuditLogService
 from orders.models import Order
+from orders.views import can_access_order
 
 from .models import Receipt
 from .serializers import ReceiptSerializer
@@ -20,11 +21,8 @@ def _cart_key(request):
 
 
 def _can_access_order(request, order):
-    """Mirror orders.views authz: owned account or matching guest cart."""
-    if request.user.is_authenticated:
-        return order.user_id == request.user.id
-    return bool(_cart_key(request) and order.cart
-                and order.cart.cart_key == _cart_key(request))
+    """Use the same strict account or guest ownership rule as order APIs."""
+    return can_access_order(request, order)
 
 
 # Order states in which the customer may see, print or download the

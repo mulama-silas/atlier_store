@@ -1,5 +1,6 @@
 import re
 import tempfile
+import uuid
 from datetime import datetime, timedelta, timezone
 from unittest import mock
 
@@ -64,8 +65,8 @@ class ReceiptNumberTests(TestCase):
     DEFAULT_FROM_EMAIL='receipts@modeza.test',
     SUPABASE_JWT_SECRET=TEST_SECRET,
     SUPABASE_JWT_ISSUER='',
-    MPESA_CALLBACK_SECRET='local-development-mpesa-secret',
     PAYMENT_WEBHOOK_SECRET='local-development-payment-secret',
+    MPESA_CALLBACK_SECRET='local-development-mpesa-secret',
     # These tests exercise the *confirm* path — an intent that stays pending
     # until /api/payments/confirm or a Daraja callback settles it. The
     # sandbox gateway would complete the intent inside create_intent and turn
@@ -101,17 +102,21 @@ class ReceiptApiTests(TestCase):
             format='json', **self.headers).json()
 
     def _confirm_payment(self, intent_id):
-        return self.client.post('/api/payments/confirm', {
-            'orderNumber': self.order.order_number,
-            'paymentIntentId': intent_id,
-            'gatewayReference': 'TXN-ABCDE12345'},
-            format='json', **self.headers)
+        return self.client.post(
+            '/api/payments/webhook', {
+                'event': 'payment_intent.succeeded',
+                'data': {'paymentIntentId': intent_id,
+                         'transactionId': 'TXN-ABCDE12345'},
+            }, format='json',
+            HTTP_X_WEBHOOK_SIGNATURE='local-development-payment-secret',
+            HTTP_X_EVENT_ID=f'receipt-test-{uuid.uuid4().hex}')
 
-    def test_confirm_payment_generates_receipt(self):
+    def test_provider_callback_generates_receipt(self):
         intent = self._create_intent()
         confirmed = self._confirm_payment(intent['id'])
         self.assertEqual(confirmed.status_code, 200)
-        self.assertEqual(confirmed.json()['paymentStatus'], 'paid')
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
 
         receipt = Receipt.objects.get(order=self.order)
         self.assertEqual(receipt.status, Receipt.Status.GENERATED)
@@ -271,14 +276,18 @@ class ReceiptApiTests(TestCase):
         self.order.user = user
         self.order.status = Order.Status.CONFIRMED
         self.order.save(update_fields=['user', 'status'])
+        self.client.force_login(user)
         self._create_intent()
         intent = PaymentIntent.objects.get(order=self.order)
-        self.client.post('/api/payments/confirm', {
-            'orderNumber': self.order.order_number,
-            'paymentIntentId': str(intent.id)}, format='json',
-            HTTP_X_CART_ID='receipt-cart')
+        self._confirm_payment(str(intent.id))
         self.order.refresh_from_db()
         receipt = Receipt.objects.get(order=self.order)
+
+        self.client.logout()
+        guest = self.client.get(
+            f'/api/receipts/{receipt.receipt_number}/download',
+            HTTP_X_CART_ID='receipt-cart')
+        self.assertEqual(guest.status_code, 403)
 
         self.client.force_login(user)
         session = self.client.get(
@@ -293,8 +302,8 @@ class ReceiptApiTests(TestCase):
                         side_effect=OSError('disk full')):
             confirmed = self._confirm_payment(intent['id'])
         self.assertEqual(confirmed.status_code, 200)
-        self.assertEqual(confirmed.json()['paymentStatus'], 'paid')
         self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
         receipt = Receipt.objects.get(order=self.order)
         self.assertEqual(receipt.status, Receipt.Status.FAILED)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
@@ -390,6 +399,7 @@ class ReceiptApiTests(TestCase):
     },
     SUPABASE_JWT_SECRET=TEST_SECRET,
     SUPABASE_JWT_ISSUER='',
+    PAYMENT_WEBHOOK_SECRET='local-development-payment-secret',
     # Same reason as ReceiptApiTests: the assertions below are about what
     # /api/payments/confirm does, so the intent must still be pending there.
     PAYMENT_SANDBOX=False,
@@ -422,10 +432,14 @@ class ReceiptAuditTests(TestCase):
             'orderNumber': self.order.order_number, 'method': 'mpesa'},
             format='json', **self.headers).json()
         with self.captureOnCommitCallbacks(execute=True):
-            self.client.post('/api/payments/confirm', {
-                'orderNumber': self.order.order_number,
-                'paymentIntentId': intent['id']},
-                format='json', **self.headers)
+            self.client.post(
+                '/api/payments/webhook', {
+                    'event': 'payment_intent.succeeded',
+                    'data': {'paymentIntentId': intent['id'],
+                             'transactionId': 'TXN-ABCDE12345'},
+                }, format='json',
+                HTTP_X_WEBHOOK_SIGNATURE='local-development-payment-secret',
+                HTTP_X_EVENT_ID=f'receipt-audit-{uuid.uuid4().hex}')
         receipt = Receipt.objects.get(order=self.order)
         self.assertTrue(
             AuditLog.objects.filter(

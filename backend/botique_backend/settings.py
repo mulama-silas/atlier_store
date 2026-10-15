@@ -74,18 +74,15 @@ MPESA_CALLBACK_SECRET = os.getenv(
 # ---------------------------------------------------------------------------
 # Payment mode.
 #
-# The backend has no Daraja STK push yet: nothing ever calls
-# /api/payments/mpesa/callback, so a real intent would sit at `pending`
-# forever and no order could be approved (approve_order requires PAID).
-#
-# PAYMENT_SANDBOX therefore completes the intent inside create_intent, the
-# way a mock gateway would — order paid, receipt minted, approval unlocked.
-# It defaults to on whenever MPESA_ENV is not "production", so the day a real
-# STK push lands it is a single env var (MPESA_ENV=production) that turns the
-# simulation off.
+# The backend has no live Daraja STK push. Local development may opt into
+# mock settlement; production must keep it disabled until provider callbacks
+# or verification can authoritatively settle payments.
 # ---------------------------------------------------------------------------
 MPESA_ENV = (os.getenv('MPESA_ENV', 'sandbox') or 'sandbox').strip().lower()
 PAYMENT_SANDBOX = _env_flag('PAYMENT_SANDBOX', MPESA_ENV != 'production')
+if not DEBUG and PAYMENT_SANDBOX:
+    raise ImproperlyConfigured(
+        'PAYMENT_SANDBOX must be disabled when DEBUG is false.')
 FRONTEND_ORIGIN = os.getenv(
     'FRONTEND_ORIGIN',
     'http://localhost:3000'
@@ -99,6 +96,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ['X-Cart-ID']
 CORS_ALLOW_HEADERS = [
     'accept', 'authorization', 'content-type', 'origin', 'x-csrftoken',
     'x-requested-with', 'x-cart-id',

@@ -14,6 +14,31 @@ from admin_ui.models import AdminNotification
 
 
 class OrderApiTests(TestCase):
+    def test_guest_cart_key_cannot_read_account_order(self):
+        user_model = get_user_model()
+        owner = user_model.objects.create_user(username='order-owner')
+        cart = Cart.objects.create(cart_key=f'u:{owner.pk}', user=owner)
+        order = Order.objects.create(
+            order_number='AT-ACCOUNT-PRIVATE-001', cart=cart, user=owner,
+            customer={'fullName': 'Private Buyer',
+                      'email': 'private@example.com', 'phone': '0712345678'},
+            subtotal_minor=1000, total_minor=1000,
+            payment_method='mpesa')
+        client = APIClient()
+
+        listed = client.get('/api/orders', HTTP_X_CART_ID=cart.cart_key)
+        detail = client.get(f'/api/orders/{order.order_number}',
+                            HTTP_X_CART_ID=cart.cart_key)
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()['count'], 0)
+        self.assertEqual(detail.status_code, 403)
+
+        client.force_authenticate(user=owner)
+        owned = client.get(f'/api/orders/{order.order_number}',
+                           HTTP_X_CART_ID=cart.cart_key)
+        self.assertEqual(owned.status_code, 200)
+
     def test_checkout_rejects_variant_deactivated_after_add_to_cart(self):
         from rest_framework.exceptions import ValidationError
 

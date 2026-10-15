@@ -2,10 +2,12 @@ import uuid
 
 from django.http import HttpResponse
 from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.authentication import SupabaseJWTAuthentication
 from audit.services import AuditLogService
 
 from .models import CartItem
@@ -16,6 +18,16 @@ from .services import (
     merge_carts,
     update_item,
 )
+
+
+class OptionalSupabaseJWTAuthentication(SupabaseJWTAuthentication):
+    """Authenticate valid customer tokens while keeping guest cart calls public."""
+
+    def authenticate(self, request):
+        try:
+            return super().authenticate(request)
+        except AuthenticationFailed:
+            return None
 
 
 def cart_key_from_request(request):
@@ -34,7 +46,7 @@ def response_with_cart(request, cart, response_status=status.HTTP_200_OK):
 
 
 class CartView(APIView):
-    authentication_classes = []
+    authentication_classes = [OptionalSupabaseJWTAuthentication]
     permission_classes = []
 
     def get(self, request):
@@ -60,7 +72,7 @@ class CartView(APIView):
 
 
 class CartItemCreateView(APIView):
-    authentication_classes = []
+    authentication_classes = [OptionalSupabaseJWTAuthentication]
     permission_classes = []
 
     def post(self, request):
@@ -74,7 +86,7 @@ class CartItemCreateView(APIView):
 
 
 class CartItemView(APIView):
-    authentication_classes = []
+    authentication_classes = [OptionalSupabaseJWTAuthentication]
     permission_classes = []
 
     def patch(self, request, item_id):

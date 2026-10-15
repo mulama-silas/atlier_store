@@ -151,6 +151,7 @@ class AdminLogoutView(LogoutView):
         return self.post(request, *args, **kwargs)
 
 
+@method_decorator(user_passes_test(is_superuser, login_url='admin-login'), name='dispatch')
 class AdminRegisterView(View):
     template_name = 'admin_ui/admin_register.html'
 
@@ -1633,6 +1634,20 @@ class DashboardView(View):
 
     def post(self, request):
         action = request.POST.get('action')
+        required_permissions = {
+            'create-product': 'products.create',
+            'update-product': 'products.update',
+            'archive-product': 'products.update',
+            'publish-product': 'products.update',
+            'publish-selected-products': 'products.update',
+            'delete-product': 'products.delete',
+            'delete-selected-products': 'products.delete',
+            'adjust-stock': 'inventory.adjust',
+            'delete-category': 'categories.delete',
+        }
+        required = required_permissions.get(action)
+        if required and not user_has_permission(request.user, required):
+            return access_denied_response(request)
         if action == 'create-product':
             form = ProductCreateForm(request.POST, request.FILES)
             if form.is_valid():
