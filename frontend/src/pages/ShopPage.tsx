@@ -506,7 +506,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
       <div className="grid items-start gap-7 lg:grid-cols-[14rem_minmax(0,1fr)] xl:gap-9">
         <aside className="hidden lg:block" aria-label="Product filters">
-          <Card className="sticky top-24 space-y-6 rounded-xl border-[#E8E5DF] bg-white p-4 shadow-sm">
+          <Card
+            className="sticky top-24 h-[calc(100dvh-7rem)] space-y-6 overflow-y-auto overscroll-contain rounded-xl border-[#E8E5DF] bg-white p-4 shadow-sm"
+            role="region"
+            tabIndex={0}
+            aria-label="Scrollable product filters"
+          >
             <section aria-labelledby="desktop-categories-heading">
               <h2 id="desktop-categories-heading" className="mb-2 text-sm font-semibold text-[#181716]">Categories</h2>
               <div className="space-y-1">
