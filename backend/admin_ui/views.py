@@ -60,6 +60,7 @@ from replica.services.sync import (
     ReplicaAlreadyRunning,
     ReplicaNotConfigured,
     ReplicaStatusUnavailable,
+    current_row_counts,
     latest_run,
     pending_request,
     queue_replica_sync,
@@ -3735,11 +3736,19 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
     def get(self, request):
         configured = replica_configured()
         run_error = None
+        counts_error = None
         try:
             run = latest_run() if configured else None
         except ReplicaStatusUnavailable as exc:
             run = None
             run_error = str(exc)
+
+        live_counts = {}
+        if configured:
+            try:
+                live_counts = current_row_counts()
+            except ReplicaStatusUnavailable as exc:
+                counts_error = str(exc)
 
         stale = False
         age_hours = None
@@ -3750,14 +3759,16 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
             stale = age_hours > REPLICA_STALE_AFTER.total_seconds() / 3600
 
         counts = []
-        for table, values in ((run or {}).get('table_counts') or {}).items():
-            if isinstance(values, dict) and 'source' in values:
-                counts.append({
-                    'table': table.replace('_', ' ').title(),
-                    'source': values['source'],
-                    'replica': values['replica'],
-                    'matched': values['source'] == values['replica'],
-                })
+        for table, values in live_counts.items():
+            difference = values['source'] - values['replica']
+            counts.append({
+                'table': table.replace('_', ' ').title(),
+                'source': values['source'],
+                'replica': values['replica'],
+                'difference': difference,
+                'difference_abs': abs(difference),
+                'matched': difference == 0,
+            })
 
         return render(request, self.template_name, {
             'page_title': 'Backup to Supabase',
@@ -3771,6 +3782,8 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
             'run': run,
             'run_error': run_error,
             'counts': counts,
+            'counts_error': counts_error,
+            'counts_checked_at': timezone.now() if counts else None,
             'stale': stale,
             'age_hours': age_hours,
             'stale_after_hours': int(

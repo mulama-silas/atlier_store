@@ -216,7 +216,18 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
 
 <div class="card" style="margin-bottom: 20px">
   <div class="card-body">
-    <h3 style="margin-bottom: 12px; font-size: 15px">Row counts</h3>
+    <div class="replica-card-head" style="margin-bottom: 8px">
+      <h3 style="margin: 0; font-size: 15px">Live row counts</h3>
+      <a href="{% url 'admin-replica' %}" class="btn btn-secondary">
+        <i class="ph ph-arrows-clockwise"></i> Refresh counts
+      </a>
+    </div>
+    <p class="replica-detail" style="margin-bottom: 12px">
+      Counts are read from Django and Supabase when this page loads. Difference
+      is Django minus Supabase; a positive value means those rows have not
+      reached the replica yet.
+      {% if counts_checked_at %}<br />Checked {{ counts_checked_at|date:"j M Y, H:i:s" }} T.{% endif %}
+    </p>
     {% if counts %}
     <table class="replica-table">
       <thead>
@@ -224,7 +235,8 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
           <th>Table</th>
           <th style="text-align: right">Django</th>
           <th style="text-align: right">Supabase</th>
-          <th style="text-align: right">Match</th>
+          <th style="text-align: right">Difference</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
@@ -234,18 +246,27 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
           <td class="num">{{ row.source }}</td>
           <td class="num">{{ row.replica }}</td>
           <td class="num">
+            {% if row.difference > 0 %}+{% endif %}{{ row.difference }}
+          </td>
+          <td>
             {% if row.matched %}
-            <span class="status-badge status-success">OK</span>
+            <span class="status-badge status-success">In sync</span>
+            {% elif row.difference > 0 %}
+            <span class="status-badge status-warning">{{ row.difference_abs }} missing in Supabase</span>
             {% else %}
-            <span class="status-badge status-danger">Mismatch</span>
+            <span class="status-badge status-danger">{{ row.difference_abs }} extra in Supabase</span>
             {% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% elif counts_error %}
+    <p class="replica-detail" role="status">Live row counts are unavailable: {{ counts_error }}</p>
+    {% elif not configured %}
+    <p class="replica-detail">Configure the Supabase connection to compare Django and Supabase row counts.</p>
     {% else %}
-    <p class="replica-detail">No counts recorded yet.</p>
+    <p class="replica-detail">No live row counts are available yet.</p>
     {% endif %}
   </div>
 </div>

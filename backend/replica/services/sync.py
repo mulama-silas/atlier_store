@@ -371,6 +371,61 @@ TABLE_SPECS = [
 ]
 
 
+def current_row_counts():
+    """Compare current Django rows with the replica without modifying either.
+
+    Unlike the counts stored on the last sync run, these values are calculated
+    on every status-page request so new or removed Django records appear as a
+    drift before the next backup is run.
+    """
+    from django.contrib.auth import get_user_model
+
+    conn = None
+    try:
+        source_counts = {
+            'categories': Category.objects.count(),
+            'products': Product.objects.count(),
+            'product_variants': ProductVariant.objects.count(),
+            'orders': Order.objects.count(),
+            'order_items': OrderItem.objects.count(),
+            'payment_intents': PaymentIntent.objects.count(),
+            'inventory_transactions': InventoryTransaction.objects.count(),
+            'stock_reservations': StockReservation.objects.count(),
+            'promotions': Promotion.objects.count(),
+            'promotion_redemptions': PromotionRedemption.objects.count(),
+            'receipts': Receipt.objects.count(),
+            'audit_logs': AuditLog.objects.count(),
+        }
+        linked_usernames = get_user_model().objects.filter(
+            pk__in=Order.objects.filter(user_id__isnull=False)
+            .values_list('user_id', flat=True)
+        ).values_list('username', flat=True)
+        source_counts['customers'] = sum(
+            _supabase_profile_id(username) is not None
+            for username in linked_usernames
+        )
+
+        conn = get_connection()
+        counts = {}
+        with conn.cursor() as cur:
+            for table, _extractor, _key_col, _key_is_uuid in TABLE_SPECS:
+                cur.execute(f'SELECT count(*) FROM replica.{table}')
+                replica_count = cur.fetchone()[0]
+                counts[table] = {
+                    'source': source_counts[table],
+                    'replica': replica_count,
+                }
+        return counts
+    except Exception as exc:  # noqa: BLE001 - status page renders degraded state
+        logger.warning('Live replica row-count comparison failed.', exc_info=True)
+        raise ReplicaStatusUnavailable(
+            'Could not compare current Django and Supabase row counts.'
+        ) from exc
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 # ---------------------------------------------------------------------------
 # SQL helpers
 # ---------------------------------------------------------------------------
