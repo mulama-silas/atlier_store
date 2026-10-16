@@ -17,6 +17,7 @@ from .services import (
     confirm_payment,
     create_intent,
     get_order_for_cart,
+    mark_intent_simulated,
     process_webhook,
 )
 
@@ -62,6 +63,10 @@ class PaymentStatusView(APIView):
         ).first()
         if not intent:
             return Response({'detail': 'Payment attempt was not found.'}, status=404)
+        if (intent.status == PaymentIntent.Status.PENDING and
+                settings.MPESA_PAYMENT_MODE == 'simulation' and
+                settings.MPESA_ENVIRONMENT == 'sandbox'):
+            intent = mark_intent_simulated(intent)
         return Response({
             'status': intent.status,
             'simulated': intent.status == PaymentIntent.Status.SIMULATED,
