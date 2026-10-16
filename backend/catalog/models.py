@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
@@ -49,6 +49,11 @@ class Product(models.Model):
     tagline = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
     details = models.JSONField(default=list, blank=True)
+    material = models.CharField(max_length=160, blank=True)
+    care_instructions = models.TextField(blank=True)
+    fit_notes = models.TextField(blank=True)
+    model_size = models.CharField(max_length=40, blank=True)
+    garment_measurements = models.JSONField(default=dict, blank=True)
     price_minor = models.PositiveIntegerField(
         validators=[MinValueValidator(0)], default=0)
     compare_at_price_minor = models.PositiveIntegerField(null=True, blank=True)
@@ -243,3 +248,32 @@ class ProductVariant(models.Model):
         if self.size or self.color:
             return f"{self.sku} ({self.size or self.color})"
         return self.sku
+
+
+class ProductReview(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='product_reviews')
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)])
+    title = models.CharField(max_length=120)
+    body = models.TextField(max_length=2000)
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+        constraints = [
+            models.UniqueConstraint(
+                fields=('product', 'user'), name='unique_product_review_per_user'),
+            models.CheckConstraint(
+                condition=models.Q(rating__gte=1, rating__lte=5),
+                name='product_review_rating_1_to_5'),
+        ]
+
+    def __str__(self):
+        return f'{self.product.name} review ({self.rating}/5)'

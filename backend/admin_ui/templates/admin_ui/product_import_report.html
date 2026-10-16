@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 1180px; margin: 0 auto;">
+<div class="import-report-page">
   <div class="page-header">
     <div><h2 class="page-title">{{ page_title }}</h2><p class="page-subtitle">{{ page_subtitle }}</p></div>
     <a class="btn btn-secondary" href="{% url 'admin-product-import-history' %}"><i class="ph ph-arrow-left"></i> History</a>
@@ -47,4 +47,17 @@
   <div class="card" style="margin-top: 24px;"><div class="card-header"><h3 class="card-title">Import Failures</h3></div><div class="table-container"><table class="table"><thead><tr><th>Product code</th><th>Message</th></tr></thead><tbody>{% for item in report.import_results.errors %}<tr><td>{{ item.product_code }}</td><td>{{ item.message }}</td></tr>{% endfor %}</tbody></table></div></div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  .import-report-page { max-width:1200px; margin:0 auto; }
+  .import-report-page>.card { overflow:hidden; border:1px solid #e9e3df; border-radius:16px; background:white; box-shadow:0 10px 32px rgba(36,32,30,.05); }
+  .import-report-page .summary-item { border:1px solid #ece7e3; border-radius:12px; padding:15px; background:linear-gradient(145deg,#fff,#fdfbf9); }
+  .import-report-page .summary-item span { display:block; color:#827b75; font-size:10px; }
+  .import-report-page .summary-item strong { display:block; margin-top:5px; color:#302b28; font-size:20px; }
+  .import-report-page .table thead th { background:#faf7f5; color:#716963; font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+  .import-report-page .table td { vertical-align:top; }
+  @media(max-width:650px) { .import-report-page .page-header { align-items:flex-start; flex-direction:column; gap:12px; } }
+</style>
 {% endblock %}

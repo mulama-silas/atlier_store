@@ -12,7 +12,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 960px; margin: 0 auto;">
+<div class="import-progress-page">
   <div class="page-header">
     <div>
       <h2 class="page-title">{{ page_title }}</h2>
@@ -42,7 +42,7 @@
           <span id="progressText">{{ job.processed_rows }} / {{ job.total_rows }} rows</span>
           <strong id="progressPercent">{{ job.progress }}%</strong>
         </div>
-        <div class="progress-track"><div id="progressBar" class="progress-bar" style="width: {{ job.progress }}%;"></div></div>
+        <div class="progress-track" role="progressbar" aria-label="Products processed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ job.progress }}"><div id="progressBar" class="progress-bar" style="width: {{ job.progress }}%;"></div></div>
         <div id="progressNote" class="form-text" style="margin-top: 8px;">
           <span id="liveDot" class="live-dot" aria-hidden="true"></span><span id="progressNoteText">Waiting…</span>
         </div>
@@ -87,13 +87,25 @@
 
 {% block extra_js %}
 <style>
-  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
-  .summary-item { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; }
-  .summary-item span { display: block; color: var(--text-secondary); font-size: 12px; }
-  .summary-item strong { display: block; font-size: 22px; margin-top: 4px; }
-  .progress-track { height: 10px; background: var(--border-light); border-radius: 999px; overflow: hidden; }
-  .progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .2s ease; }
-  .alert-warning { background: var(--status-warning-bg); color: var(--status-warning); border: 1px solid #F5D9A8; }
+  .import-progress-page { max-width: 1000px; margin: 0 auto; }
+  .import-progress-page>.card { overflow:hidden; border:1px solid #e9e3df; border-radius:17px; background:#fff; box-shadow:0 12px 38px rgba(36,32,30,.06); }
+  .import-progress-page .card-header { padding:22px 24px; background:linear-gradient(110deg,#fbf4f1,#fff 70%); border-bottom:1px solid #eee8e4; }
+  .import-progress-page .card-title { font-family:Georgia,serif; font-size:21px; font-weight:500; }
+  #jobName { margin-top:5px; overflow-wrap:anywhere; }
+  #progressWrap { padding:20px; border:1px solid #eee8e4; border-radius:13px; background:#fcfaf9; }
+  #progressWrap>div:first-child { color:#5e5752; }
+  #progressPercent { color:#9b554b; font-size:16px; }
+  .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .summary-item { border:1px solid #ece7e3; border-radius:12px; padding:14px; background:linear-gradient(145deg,#fff,#fdfbf9); }
+  .summary-item span { display:block; color:#827b75; font-size:10px; letter-spacing:.02em; }
+  .summary-item strong { display:block; color:#302b28; font-size:23px; margin-top:5px; }
+  .progress-track { height:12px; background:#eee8e4; border-radius:999px; overflow:hidden; }
+  .progress-bar { height:100%; width:0; border-radius:inherit; background:linear-gradient(90deg,#9b554b,#d08b79); box-shadow:0 0 12px rgba(155,85,75,.2); transition:width .35s ease; }
+  .alert-warning { background:var(--status-warning-bg); color:var(--status-warning); border:1px solid #F5D9A8; }
+  #errorList:empty { display:none; }
+  #errorList .table-container { border-radius:10px; }
+  #errorList .table th { background:#faf7f5; }
+  @media(max-width:620px) { .import-progress-page .card-header { padding:18px; } #progressWrap { padding:14px; } }
   .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 7px; animation: livePulse 1.2s ease-in-out infinite; vertical-align: middle; }
   .live-dot.is-done { animation: none; background: var(--status-success); }
   .live-dot.is-error { animation: none; background: var(--status-danger); }
@@ -225,8 +237,10 @@
     jobName.textContent = data.filename || '';
     jobStatus.textContent = data.status || '';
     jobStatus.className = 'status-badge ' + statusClass(data.status);
-    const percent = Number(data.progress || 0);
+    const rawPercent = Number(data.progress || 0);
+    const percent = Number.isFinite(rawPercent) ? Math.max(0, Math.min(100, rawPercent)) : 0;
     progressBar.style.width = percent + '%';
+    progressBar.parentElement.setAttribute('aria-valuenow', String(Math.round(percent)));
     progressPercent.textContent = percent + '%';
     progressText.textContent = (data.processed_rows || 0) + ' / ' + (data.total_rows || 0) + ' rows';
     renderCounters(data);

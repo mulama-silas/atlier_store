@@ -30,22 +30,6 @@ export const EMPTY_ADDRESS: Omit<SavedAddress, 'id' | 'isDefault'> = {
   country: 'Kenya',
 };
 
-const DEMO_ADDRESS: SavedAddress = {
-  id: 'addr-demo',
-  label: 'Home',
-  firstName: 'Elena',
-  lastName: 'Wambui',
-  phone: '+254 (0) 712 345 678',
-  addressLine1: '14 Riverside Drive, Westlands',
-  addressLine2: '',
-  county: 'Nairobi',
-  subcounty: 'Westlands',
-  city: 'Westlands',
-  postalCode: '00100',
-  country: 'Kenya',
-  isDefault: true,
-};
-
 function storageKey(userId: string): string {
   return `${STORAGE_PREFIX}:${userId}`;
 }
@@ -57,18 +41,17 @@ function generateId(): string {
   return `addr-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function getSavedAddresses(userId: string, options: { seed?: boolean } = {}): SavedAddress[] {
+export function getSavedAddresses(userId: string): SavedAddress[] {
   try {
     const raw = localStorage.getItem(storageKey(userId));
-    if (raw === null) {
-      if (options.seed) {
-        localStorage.setItem(storageKey(userId), JSON.stringify([DEMO_ADDRESS]));
-        return [DEMO_ADDRESS];
-      }
-      return [];
-    }
+    if (raw === null) return [];
     const parsed = JSON.parse(raw) as SavedAddress[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const addresses = parsed.filter((address) => address?.id !== 'addr-demo');
+    if (addresses.length !== parsed.length) {
+      localStorage.setItem(storageKey(userId), JSON.stringify(addresses));
+    }
+    return addresses;
   } catch {
     return [];
   }
@@ -88,7 +71,7 @@ function persist(userId: string, addresses: SavedAddress[]): SavedAddress[] {
 }
 
 export function upsertAddress(userId: string, address: Omit<SavedAddress, 'id' | 'isDefault'> & { id?: string }): SavedAddress[] {
-  const addresses = getSavedAddresses(userId, { seed: true });
+  const addresses = getSavedAddresses(userId);
   const isEditing = Boolean(address.id) && addresses.some((a) => a.id === address.id);
   const makeDefault = !isEditing && addresses.length === 0;
   const next: SavedAddress = {
@@ -107,7 +90,7 @@ export function upsertAddress(userId: string, address: Omit<SavedAddress, 'id' |
 }
 
 export function removeAddress(userId: string, id: string): SavedAddress[] {
-  let addresses = getSavedAddresses(userId, { seed: true }).filter((a) => a.id !== id);
+  let addresses = getSavedAddresses(userId).filter((a) => a.id !== id);
   if (!addresses.some((a) => a.isDefault) && addresses.length > 0) {
     addresses = addresses.map((a, index) => ({ ...a, isDefault: index === 0 }));
   }
@@ -117,6 +100,14 @@ export function removeAddress(userId: string, id: string): SavedAddress[] {
 export function setDefaultAddress(userId: string, id: string): SavedAddress[] {
   return persist(
     userId,
-    getSavedAddresses(userId, { seed: true }).map((a) => ({ ...a, isDefault: a.id === id }))
+    getSavedAddresses(userId).map((a) => ({ ...a, isDefault: a.id === id }))
   );
+}
+
+export function clearSavedAddresses(userId: string): void {
+  try {
+    localStorage.removeItem(storageKey(userId));
+  } catch {
+    // The remote address book remains authoritative if local storage is unavailable.
+  }
 }

@@ -3,10 +3,8 @@ import { useCart } from '../context/CartContext';
 import { useOrders } from '../context/OrdersContext';
 import { useRouter } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/apiClient';
 import { audit } from '../lib/logger';
-import { setPostAuthDestination } from '../utils/postAuthRedirect';
-import { getSavedAddresses } from '../utils/addressBook';
+import { listCustomerAddresses } from '../services/addressService';
 import type { SavedAddress } from '../utils/addressBook';
 import type { PaymentMethod } from '../types';
 import { Price } from '../components/ui/Price';
@@ -22,7 +20,6 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
-  CheckCircle2,
   CreditCard,
   Lock,
   MapPin,
@@ -164,10 +161,10 @@ const LabeledSelect: React.FC<LabeledSelectProps> = ({
   />
 );
 
-const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; detail: string }> = [
-  { id: 'mpesa', label: 'M-Pesa', detail: 'Prompt on your phone' },
-  { id: 'card', label: 'Card', detail: 'Sandbox preview' },
-  { id: 'pay_on_delivery', label: 'Pay on delivery', detail: 'Pay on handover' },
+const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; detail: string; unavailable?: boolean }> = [
+  { id: 'mpesa', label: 'M-Pesa', detail: 'Online payments are being prepared', unavailable: true },
+  { id: 'card', label: 'Card', detail: 'Online payments are being prepared', unavailable: true },
+  { id: 'pay_on_delivery', label: 'Pay on delivery', detail: 'Pay when your order arrives' },
 ];
 
 export const CheckoutPage: React.FC = () => {
@@ -177,7 +174,7 @@ export const CheckoutPage: React.FC = () => {
   const { user, isLoading: isAuthLoading } = useAuth();
 
   const [deliveryMethod, setDeliveryMethod] = useState<'standard' | 'express'>('standard');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mpesa');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pay_on_delivery');
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
@@ -196,12 +193,9 @@ export const CheckoutPage: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
-  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
-  const [pendingOrderNumber, setPendingOrderNumber] = useState<string | null>(null);
-  const [paymentPending, setPaymentPending] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const addressPrefillApplied = useRef(false);
+  const addressPrefillUserId = useRef<string | null>(null);
 
   const applySavedAddress = useCallback((address: SavedAddress) => {
     setFormData((prev) => ({
@@ -219,14 +213,28 @@ export const CheckoutPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!user || addressPrefillApplied.current) return;
-    const loaded = getSavedAddresses(user.id);
-    setSavedAddresses(loaded);
-    const defaultAddress = loaded.find((address) => address.isDefault) ?? loaded[0];
-    if (defaultAddress) {
-      applySavedAddress(defaultAddress);
+    if (!user) {
+      addressPrefillUserId.current = null;
+      setSavedAddresses([]);
+      setSelectedAddressId('');
+      return;
     }
-    addressPrefillApplied.current = true;
+    if (addressPrefillUserId.current === user.id) return;
+    addressPrefillUserId.current = user.id;
+    setSavedAddresses([]);
+    let active = true;
+    void listCustomerAddresses(user.id).then((loaded) => {
+      if (!active) return;
+      setSavedAddresses(loaded);
+      const defaultAddress = loaded.find((address) => address.isDefault) ?? loaded[0];
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress.id);
+        applySavedAddress(defaultAddress);
+      }
+    }).catch(() => {
+      if (active) setSavedAddresses([]);
+    });
+    return () => { active = false; };
   }, [user, applySavedAddress]);
 
   useEffect(() => {
@@ -279,24 +287,24 @@ export const CheckoutPage: React.FC = () => {
   const taxableSubtotal = Math.max(0, subtotal - discountAmount);
   const tax = Math.round(taxableSubtotal * VAT_RATE);
   const grandTotal = taxableSubtotal + deliveryCost + tax;
-  const checkoutBusy = isSubmitting || paymentPending;
-  const checkoutProgress = paymentPending ? 100 : isSubmitting ? 70 : 35;
-  const currentCheckoutStep = paymentPending ? 3 : isSubmitting ? 2 : 1;
+  const checkoutBusy = isSubmitting;
+  const checkoutProgress = isSubmitting ? 70 : 35;
+  const currentCheckoutStep = isSubmitting ? 2 : 1;
 
   const deliveryOptions = [
     {
       id: 'standard' as const,
-      title: 'Standard carbon-neutral courier',
-      description: '2–4 business days',
+      title: 'Standard courier',
+      description: 'Delivery timing varies by destination.',
       cost: standardDeliveryCost,
       label: 'Standard',
     },
     {
       id: 'express' as const,
-      title: 'Priority dedicated air courier',
-      description: 'Guaranteed next-day dispatch',
+      title: 'Priority courier',
+      description: 'Delivery timing depends on your location.',
       cost: EXPRESS_SHIPPING_COST,
-      label: 'Priority air',
+      label: 'Priority',
     },
   ];
 
@@ -320,10 +328,9 @@ export const CheckoutPage: React.FC = () => {
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting || paymentPending) return;
-    if (!user) {
-      setPostAuthDestination('/checkout');
-      navigate('/account');
+    if (isSubmitting) return;
+    if (paymentMethod !== 'pay_on_delivery') {
+      setCheckoutError('Online payment is not available yet. Please choose pay on delivery.');
       return;
     }
     setCheckoutError('');
@@ -332,7 +339,7 @@ export const CheckoutPage: React.FC = () => {
     try {
       void audit(
         'checkout_started',
-        'Authorizing modeza order.',
+        'Submitting MODEZA order.',
         { payment_method: paymentMethod },
         {
           item_count: cart.length,
@@ -367,24 +374,7 @@ export const CheckoutPage: React.FC = () => {
           return;
         }
 
-        const intent = paymentMethod === 'card'
-          ? await api.createPaymentIntent(result.order.orderNumber, 'card')
-          : await api.createPaymentIntent(result.order.orderNumber, 'mpesa', formData.phone);
-        setPaymentIntentId(intent.id);
-        setPendingOrderNumber(result.order.orderNumber);
 
-        if (intent.status === 'succeeded') {
-          // The sandbox gateway settles the intent synchronously, so there is
-          // nothing to poll for — go straight to the confirmation page rather
-          // than parking the customer behind a "Payment pending" button.
-          setIsSubmitting(false);
-          await clearCart();
-          navigate(`/order/success?order=${result.order.orderNumber}`);
-          return;
-        }
-
-        setPaymentPending(true);
-        setIsSubmitting(false);
       } else {
         setIsSubmitting(false);
         setCheckoutError(result.error || 'Failed to place order. Please check inventory levels.');
@@ -398,61 +388,6 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  const handleConfirmPayment = async () => {
-    if (!paymentIntentId || !pendingOrderNumber || isSubmitting) return;
-
-    setCheckoutError('');
-    setIsSubmitting(true);
-    try {
-      const order = await api.confirmPayment(pendingOrderNumber, paymentIntentId);
-      await clearCart();
-      navigate(`/order/success?order=${order.orderNumber}`);
-    } catch (err: unknown) {
-      const errorObj = err as Error;
-      setCheckoutError(errorObj.message || 'Payment could not be confirmed. Please retry.');
-      setIsSubmitting(false);
-      void audit('payment_failed', 'Payment confirmation failed.', {}, { message: errorObj.message });
-    }
-  };
-
-  useEffect(() => {
-    if (!paymentPending || !pendingOrderNumber) return;
-    let stopped = false;
-    let pollCount = 0;
-    const MAX_POLLS = 30;
-    const timer = window.setInterval(async () => {
-      pollCount += 1;
-      try {
-        const order = await api.getOrder(pendingOrderNumber);
-        if (order.paymentStatus === 'paid') {
-          stopped = true;
-          window.clearInterval(timer);
-          await clearCart();
-          navigate(`/order/success?order=${order.orderNumber}`);
-          return;
-        }
-      } catch {
-      }
-      if (stopped) {
-        window.clearInterval(timer);
-        return;
-      }
-      if (pollCount >= MAX_POLLS) {
-        // Give up loudly. Silently stopping here left customers staring at a
-        // permanently disabled "Payment pending" button with no explanation.
-        window.clearInterval(timer);
-        setCheckoutError(
-          paymentMethod === 'card'
-            ? 'Payment was not confirmed automatically. Your order has been placed — use "Confirm sandbox payment" below, or find it under My Orders.'
-            : 'Payment was not confirmed automatically. Your order has been placed — use "I have completed payment" below, or find it under My Orders.'
-        );
-      }
-    }, 4000);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, [paymentPending, pendingOrderNumber, paymentMethod]);
 
   if (cart.length === 0) {
     return (
@@ -501,7 +436,7 @@ export const CheckoutPage: React.FC = () => {
                 {[
                   { label: 'Details', number: 1 },
                   { label: 'Delivery', number: 2 },
-                  { label: 'Payment', number: 3 },
+                  { label: 'Review', number: 3 },
                 ].map((step, index) => {
                   const done = step.number < currentCheckoutStep;
                   const active = step.number === currentCheckoutStep;
@@ -525,7 +460,7 @@ export const CheckoutPage: React.FC = () => {
                         </span>
                         <span className="hidden sm:inline">{step.label}</span>
                       </span>
-                      {index < 2 && <span className="text-[#A29E96]" aria-hidden="true">→</span>}
+                      {index < 2 && <span className="text-[#A29E96]" aria-hidden="true">{'->'}</span>}
                     </React.Fragment>
                   );
                 })}
@@ -550,8 +485,8 @@ export const CheckoutPage: React.FC = () => {
                 <User className="h-4.5 w-4.5" strokeWidth={1.5} aria-hidden="true" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#181716]">Sign in to place your order</p>
-                <p className="mt-1 text-xs leading-relaxed text-[#63605A]">Your cart is saved. You will sign in before confirming your order and following delivery.</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#181716]">Guest checkout</p>
+                <p className="mt-1 text-xs leading-relaxed text-[#63605A]">You can place your order without an account. Add your email and phone so we can send your confirmation.</p>
               </div>
             </div>
             <Button
@@ -561,7 +496,6 @@ export const CheckoutPage: React.FC = () => {
               disabled={isAuthLoading}
               isLoading={isAuthLoading}
               onClick={() => {
-                setPostAuthDestination('/checkout');
                 navigate('/account');
               }}
               className="shrink-0"
@@ -632,7 +566,7 @@ export const CheckoutPage: React.FC = () => {
                       onChange={(event) => setSelectedAddressId(event.target.value)}
                       options={savedAddresses.map((address) => ({
                         value: address.id,
-                        label: `${address.label || 'Saved address'} — ${address.addressLine1}, ${address.city}`,
+                        label: `${address.label || 'Saved address'} - ${address.addressLine1}, ${address.city}`,
                       }))}
                       placeholder="Choose a saved address"
                       className="text-sm"
@@ -760,9 +694,9 @@ export const CheckoutPage: React.FC = () => {
 
             <SectionCard
               step={4}
-              title="Payment protocol"
+              title="Payment method"
               icon={<CreditCard className="h-4 w-4" aria-hidden="true" />}
-              badge={<Badge variant="success" size="sm" className="gap-1"><ShieldCheck className="h-3 w-3" aria-hidden="true" /> Sandbox</Badge>}
+              badge={<Badge variant="outline" size="sm">Pay on delivery</Badge>}
             >
               <div className="space-y-4">
                 <RadioGroup
@@ -782,13 +716,13 @@ export const CheckoutPage: React.FC = () => {
                       <label
                         key={option.id}
                         htmlFor={`payment-${option.id}`}
-                        className={`flex items-center gap-3 rounded-xl border p-3.5 transition-all ${
+                        className={`flex items-center gap-3 rounded-xl border p-3.5 transition-all ${option.unavailable ? 'cursor-not-allowed opacity-55' : ''} ${
                           selected
                             ? 'border-[#A2574F] bg-[#F7ECEA] shadow-sm'
                             : 'border-[#E8E5DF] bg-[#FAF9F6] hover:border-[#A2574F] hover:bg-white'
                         } ${checkoutBusy ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                       >
-                        <RadioGroupItem id={`payment-${option.id}`} value={option.id} className="shrink-0" />
+                        <RadioGroupItem id={`payment-${option.id}`} value={option.id} disabled={option.unavailable} className="shrink-0" />
                         <span className="min-w-0">
                           <span className="block text-xs font-semibold text-[#181716]">{option.label}</span>
                           <span className="mt-0.5 block text-[11px] text-[#827E77]">{option.detail}</span>
@@ -798,25 +732,9 @@ export const CheckoutPage: React.FC = () => {
                   })}
                 </RadioGroup>
 
-                {paymentMethod === 'card' ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3.5 text-[11px] leading-relaxed text-[#63605A]"
-                  >
-                    Card payments run in <span className="font-semibold text-[#A2574F]">sandbox preview</span>: this storefront does not yet connect a live card gateway, so no card details are collected. Confirming the order completes it and marks it paid <span className="font-semibold">without charging a real card</span>.
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3 text-[11px] leading-relaxed text-[#63605A]"
-                  >
-                    {paymentMethod === 'pay_on_delivery'
-                      ? 'Pay on delivery selected — the order will be paid when the package is handed over.'
-                      : 'M-Pesa selected — a sandbox gateway settles the payment as soon as the order is placed; no real prompt is sent to your phone.'}
-                  </motion.div>
-                )}
+                <div className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3 text-[11px] leading-relaxed text-[#63605A]">
+                  Online payment is temporarily unavailable. Choose pay on delivery; no payment is collected at checkout.
+                </div>
 
                 <div className="flex items-start gap-3 rounded-xl border border-[#E8E5DF] bg-white p-3.5">
                   <Checkbox
@@ -865,7 +783,7 @@ export const CheckoutPage: React.FC = () => {
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate font-serif text-xs font-medium text-[#181716]">{item.name}</h3>
-                          <p className="mt-1 text-[11px] text-[#827E77]">Size: {item.size} <span aria-hidden="true">•</span> Qty: {item.quantity}</p>
+                          <p className="mt-1 text-[11px] text-[#827E77]">Size: {item.size} <span aria-hidden="true">|</span> Qty: {item.quantity}</p>
                         </div>
                         <Price amount={item.price * item.quantity} size="sm" />
                       </div>
@@ -888,7 +806,7 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   )}
                   <div className="flex items-center justify-between gap-4">
-                    <dt>Delivery ({deliveryMethod === 'express' ? 'Priority air' : 'Standard'})</dt>
+                    <dt>Delivery ({deliveryMethod === 'express' ? 'Priority' : 'Standard'})</dt>
                     <dd className="font-medium text-[#181716]">{deliveryCost === 0 ? 'Complimentary' : formatPrice(deliveryCost)}</dd>
                   </div>
                   <div className="flex items-center justify-between gap-4">
@@ -908,38 +826,7 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 )}
 
-                {paymentPending && (
-                  <Card className="rounded-2xl border-[#C8D8CA] bg-[#F5F8F4] p-4 shadow-none" role="status" aria-live="polite">
-                    <div className="flex items-start gap-2 text-xs text-[#2E5A44]">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold">
-                            {paymentMethod === 'card' ? 'Card payment intent created' : 'M-Pesa payment request created'}
-                          </p>
-                          <Badge variant="warning" size="sm">Awaiting confirmation</Badge>
-                        </div>
-                        <p className="mt-1 leading-relaxed text-[#4B6B57]">
-                          {paymentMethod === 'card'
-                            ? 'No card will be charged — confirm below to complete the order in sandbox and mark it paid.'
-                            : 'No real STK prompt is sent in sandbox mode. If payment does not confirm on its own, use the button below to mark it received.'}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="md"
-                      fullWidth
-                      disabled={isSubmitting}
-                      isLoading={isSubmitting}
-                      onClick={() => void handleConfirmPayment()}
-                      className="mt-4 text-xs"
-                    >
-                      {!isSubmitting && (paymentMethod === 'card' ? 'Confirm sandbox payment' : 'I have completed payment')}
-                    </Button>
-                  </Card>
-                )}
+
               </CardContent>
               <CardFooter className="block space-y-3 border-t border-[#F3F1ED] p-5 pt-5 sm:p-7 sm:pt-5">
                 <Button
@@ -952,7 +839,7 @@ export const CheckoutPage: React.FC = () => {
                   className="gap-2"
                   aria-describedby="checkout-terms"
                 >
-                  {!isSubmitting && (paymentPending ? 'Payment pending' : `Place order • ${formatPrice(grandTotal)}`)}
+                  {!isSubmitting && `Place order - ${formatPrice(grandTotal)}`}
                 </Button>
                 <p id="checkout-terms" className="text-center text-[11px] leading-relaxed text-[#827E77]">
                   By placing your order, you confirm acceptance of our Conditions of Sale and cancellation rights.

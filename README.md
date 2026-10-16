@@ -113,6 +113,7 @@ authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
    - `VITE_API_BASE_URL=https://<backend>.onrender.com`
    - `VITE_ADMIN_URL=https://<backend>.onrender.com/admin/dashboard/`
    - `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (public keys only).
+   - `VITE_SUPPORT_EMAIL` for the customer support email link.
 4. Add the Vercel URL to the backend's `FRONTEND_ORIGIN` (CORS) and `DJANGO_ALLOWED_HOSTS`.
 
 ## Post-deploy checklist

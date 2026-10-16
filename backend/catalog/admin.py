@@ -7,7 +7,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.urls import path
 
-from .models import Category, Product, ProductImportLog, ProductVariant
+from .models import Category, Product, ProductImportLog, ProductReview, ProductVariant
 from .services import import_products_from_file
 
 
@@ -24,6 +24,14 @@ class ProductVariantInline(admin.TabularInline):
     extra = 1
     fields = ('sku', 'size', 'color', 'color_hex',
               'price_minor', 'stock_quantity', 'is_active')
+
+
+@admin.register(ProductReview)
+class ProductReviewAdmin(admin.ModelAdmin):
+    list_display = ('product', 'user', 'rating', 'is_approved', 'created_at')
+    list_filter = ('is_approved', 'rating', 'created_at')
+    search_fields = ('product__name', 'user__email', 'title', 'body')
+    readonly_fields = ('product', 'user', 'rating', 'title', 'body', 'created_at', 'updated_at')
 
 
 @admin.register(Product)

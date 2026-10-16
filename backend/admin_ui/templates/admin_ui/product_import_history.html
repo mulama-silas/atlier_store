@@ -9,7 +9,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 1180px; margin: 0 auto;">
+<div class="import-history-page">
   <div class="page-header">
     <div><h2 class="page-title">{{ page_title }}</h2><p class="page-subtitle">{{ page_subtitle }}</p></div>
     <a class="btn btn-primary" href="{% url 'admin-product-import' %}"><i class="ph ph-upload-simple"></i> New Import</a>
@@ -53,4 +53,17 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  .import-history-page { max-width:1200px; margin:0 auto; }
+  .import-history-page>.card { overflow:hidden; border:1px solid #e9e3df; border-radius:16px; background:white; box-shadow:0 10px 32px rgba(36,32,30,.05); }
+  .import-history-page .table thead th { background:#faf7f5; color:#716963; font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+  .import-history-page .table tbody tr:hover { background:#fdfaf8; }
+  .import-history-page .table td { vertical-align:middle; }
+  .import-history-page .table td small { color:#878078; font-size:10px; }
+  .import-history-page .btn { white-space:nowrap; }
+  @media(max-width:700px) { .import-history-page .page-header { align-items:flex-start; flex-direction:column; gap:12px; } }
+</style>
 {% endblock %}

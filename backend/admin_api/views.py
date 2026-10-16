@@ -257,6 +257,9 @@ def product_to_input(product):
     return {
         'name': product.name, 'slug': product.slug, 'description': product.description,
         'tagline': product.tagline, 'details': product.details, 'price': product.price_minor / 100,
+        'material': product.material, 'careInstructions': product.care_instructions,
+        'fitNotes': product.fit_notes, 'modelSize': product.model_size,
+        'garmentMeasurements': product.garment_measurements,
         'compareAtPrice': product.compare_at_price_minor / 100 if product.compare_at_price_minor is not None else None,
         'categoryId': product.category_id, 'images': product.images,
         'status': product.status, 'isFeatured': product.is_featured, 'isNewArrival': product.is_new_arrival,

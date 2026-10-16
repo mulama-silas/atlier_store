@@ -27,11 +27,13 @@ import {
 import {
   EMPTY_ADDRESS,
   SavedAddress,
-  getSavedAddresses,
-  removeAddress,
-  setDefaultAddress,
-  upsertAddress,
 } from '../utils/addressBook';
+import {
+  listCustomerAddresses,
+  removeCustomerAddress,
+  saveCustomerAddress,
+  setCustomerDefaultAddress,
+} from '../services/addressService';
 import { KENYA_COUNTIES, KENYA_COUNTY_SUBCOUNTIES, KENYA_SUBCOUNTY_CITIES } from '../data/kenyaLocations';
 
 export const AccountAddressesPage: React.FC = () => {
@@ -42,6 +44,8 @@ export const AccountAddressesPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ ...EMPTY_ADDRESS });
   const [deleteTarget, setDeleteTarget] = useState<SavedAddress | null>(null);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const [addressError, setAddressError] = useState('');
 
   const userId = user?.id ?? '';
 
@@ -50,7 +54,17 @@ export const AccountAddressesPage: React.FC = () => {
       setAddresses([]);
       return;
     }
-    setAddresses(getSavedAddresses(userId, { seed: true }));
+    let active = true;
+    setIsLoadingAddresses(true);
+    setAddressError('');
+    void listCustomerAddresses(userId).then((loaded) => {
+      if (active) setAddresses(loaded);
+    }).catch((error: unknown) => {
+      if (active) setAddressError(error instanceof Error ? error.message : 'Saved addresses could not be loaded.');
+    }).finally(() => {
+      if (active) setIsLoadingAddresses(false);
+    });
+    return () => { active = false; };
   }, [userId]);
 
   const openAdd = useCallback(() => {
@@ -65,27 +79,39 @@ export const AccountAddressesPage: React.FC = () => {
     setIsFormOpen(true);
   }, []);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) return;
-    setAddresses(
-      upsertAddress(userId, {
+    setAddressError('');
+    try {
+      setAddresses(await saveCustomerAddress({
         ...draft,
         id: editingId ?? undefined,
-      })
-    );
-    setIsFormOpen(false);
+        isDefault: addresses.find((address) => address.id === editingId)?.isDefault ?? addresses.length === 0,
+      }));
+      setIsFormOpen(false);
+    } catch (error: unknown) {
+      setAddressError(error instanceof Error ? error.message : 'Address could not be saved.');
+    }
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     if (!userId || !deleteTarget) return;
-    setAddresses(removeAddress(userId, deleteTarget.id));
-    setDeleteTarget(null);
+    try {
+      setAddresses(await removeCustomerAddress(deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (error: unknown) {
+      setAddressError(error instanceof Error ? error.message : 'Address could not be removed.');
+    }
   };
 
-  const handleSetDefault = (id: string) => {
+  const handleSetDefault = async (id: string) => {
     if (!userId) return;
-    setAddresses(setDefaultAddress(userId, id));
+    try {
+      setAddresses(await setCustomerDefaultAddress(id));
+    } catch (error: unknown) {
+      setAddressError(error instanceof Error ? error.message : 'Default address could not be updated.');
+    }
   };
 
   const handleDraftChange = (name: keyof typeof EMPTY_ADDRESS, value: string) => {
@@ -139,6 +165,8 @@ export const AccountAddressesPage: React.FC = () => {
       </div>
 
       <div className="space-y-4">
+        {addressError && <p role="alert" className="rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-4 py-3 text-sm text-[#9B1C1C]">{addressError}</p>}
+        {isLoadingAddresses && <p role="status" className="text-sm text-[#827E77]">Loading saved addresses...</p>}
         {addresses.length === 0 ? (
           <Card className="border-[#E8E5DF] p-8 text-center sm:p-12">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#E8E5DF] bg-[#F4ECE9] text-[#A2574F]">
@@ -416,7 +444,7 @@ export const AccountAddressesPage: React.FC = () => {
 
       <div className="flex items-start gap-2 rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3 text-xs leading-relaxed text-[#827E77]">
         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#A2574F]" aria-hidden="true" />
-        <p>Addresses are stored privately on this device for the signed-in profile and are used to prefill checkout.</p>
+        <p>Addresses are stored securely with your account and are available on your signed-in devices.</p>
       </div>
     </section>
   );

@@ -11,7 +11,9 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils.text import slugify
 from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.comments import Comment
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter
 
 from .models import Category, Product, ProductImage, ProductImportLog
@@ -107,6 +109,11 @@ class BulkImportTemplateService:
     """Generate multi-sheet XLSX template for bulk product import."""
 
     DATA_COLUMNS = BULK_IMPORT_COLUMNS
+    BRAND_DARK = '332A28'
+    BRAND_ACCENT = '9B554B'
+    BRAND_BLUSH = 'F6ECE8'
+    BRAND_PALE = 'FBF8F6'
+    GRID = 'E8E1DD'
 
     INSTRUCTIONS = [
         ('FIELD', 'REQUIRED', 'DESCRIPTION', 'ACCEPTED VALUES / NOTES'),
@@ -231,6 +238,9 @@ class BulkImportTemplateService:
     def generate_workbook(cls) -> Workbook:
         """Generate the complete multi-sheet XLSX template."""
         wb = Workbook()
+        wb.properties.title = 'MODEZA Boutique - Product Import Template'
+        wb.properties.subject = 'Validated product and variant import workbook'
+        wb.properties.creator = 'MODEZA Boutique'
 
         ws_data = wb.active
         ws_data.title = 'Products'
@@ -250,54 +260,124 @@ class BulkImportTemplateService:
     @classmethod
     def _write_data_sheet(cls, ws):
         """Write the main data entry sheet with headers and formatting."""
-        header_font = Font(bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+        header_font = Font(name='Aptos', bold=True, color='FFFFFF', size=10)
+        header_fill = PatternFill(start_color=cls.BRAND_DARK, end_color=cls.BRAND_DARK, fill_type='solid')
+        header_border = Border(bottom=Side(style='medium', color=cls.BRAND_ACCENT))
+        widths = {
+            'product_code': 18, 'name': 28, 'description': 42, 'tagline': 30,
+            'category': 20, 'status': 15, 'color': 18, 'color_hex': 14,
+            'size': 14, 'sku': 20, 'price': 16, 'stock': 14,
+            'image_1': 25, 'image_2': 25, 'image_3': 25, 'image_4': 25,
+        }
 
         for col_idx, col_name in enumerate(cls.DATA_COLUMNS, start=1):
             cell = ws.cell(row=1, column=col_idx, value=col_name)
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', wrap_text=True)
-            ws.column_dimensions[get_column_letter(col_idx)].width = max(15, len(col_name) + 5)
+            cell.border = header_border
+            cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            cell.comment = Comment(
+                next((row[2] for row in cls.INSTRUCTIONS[1:] if row[0] == col_name),
+                     'Optional product import field.'),
+                'MODEZA Boutique',
+            )
+            ws.column_dimensions[get_column_letter(col_idx)].width = widths.get(col_name, max(15, len(col_name) + 5))
 
-        for col_idx in range(1, len(cls.DATA_COLUMNS) + 1):
-            ws.cell(row=2, column=col_idx, value='')
+        ws.row_dimensions[1].height = 34
+        ws.sheet_view.showGridLines = False
+        ws.sheet_properties.tabColor = cls.BRAND_ACCENT
+        ws.auto_filter.ref = f'A1:{get_column_letter(len(cls.DATA_COLUMNS))}1000'
+        ws.sheet_view.zoomScale = 85
+
+        required_columns = {'product_code', 'name', 'category', 'color', 'size', 'sku', 'price', 'stock'}
+        for col_idx, col_name in enumerate(cls.DATA_COLUMNS, start=1):
+            for row_idx in range(2, 102):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.fill = PatternFill(
+                    fill_type='solid',
+                    fgColor=cls.BRAND_PALE if row_idx % 2 == 0 else 'FFFFFF',
+                )
+                if col_name in required_columns:
+                    cell.border = Border(bottom=Side(style='hair', color=cls.GRID))
+            if col_name == 'price':
+                for row_idx in range(2, 5001):
+                    ws.cell(row=row_idx, column=col_idx).number_format = '#,##0.00'
+            elif col_name == 'stock':
+                for row_idx in range(2, 5001):
+                    ws.cell(row=row_idx, column=col_idx).number_format = '0'
+
+        status_column = get_column_letter(cls.DATA_COLUMNS.index('status') + 1)
+        status_validation = DataValidation(type='list', formula1='"DRAFT,ACTIVE,ARCHIVED"', allow_blank=True)
+        status_validation.error = 'Choose DRAFT, ACTIVE, or ARCHIVED.'
+        status_validation.errorTitle = 'Unknown product status'
+        status_validation.prompt = 'Leave blank to use the status chosen on the upload page.'
+        status_validation.promptTitle = 'Optional status override'
+        ws.add_data_validation(status_validation)
+        status_validation.add(f'{status_column}2:{status_column}5000')
+
+        price_column = get_column_letter(cls.DATA_COLUMNS.index('price') + 1)
+        price_validation = DataValidation(type='decimal', operator='greaterThan', formula1='0', allow_blank=False)
+        price_validation.error = 'Enter a price greater than zero, with no more than two decimal places.'
+        price_validation.errorTitle = 'Check the price'
+        ws.add_data_validation(price_validation)
+        price_validation.add(f'{price_column}2:{price_column}5000')
+
+        stock_column = get_column_letter(cls.DATA_COLUMNS.index('stock') + 1)
+        stock_validation = DataValidation(type='whole', operator='greaterThanOrEqual', formula1='0', allow_blank=False)
+        stock_validation.error = 'Enter a whole number of zero or more.'
+        stock_validation.errorTitle = 'Check the stock quantity'
+        ws.add_data_validation(stock_validation)
+        stock_validation.add(f'{stock_column}2:{stock_column}5000')
 
         ws.freeze_panes = 'A2'
 
     @classmethod
     def _write_instructions_sheet(cls, ws):
         """Write the instructions sheet."""
-        header_font = Font(bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+        header_font = Font(name='Aptos', bold=True, color='FFFFFF', size=10)
+        header_fill = PatternFill(start_color=cls.BRAND_DARK, end_color=cls.BRAND_DARK, fill_type='solid')
 
         for col_idx, header in enumerate(cls.INSTRUCTIONS[0], start=1):
             cell = ws.cell(row=1, column=col_idx, value=header)
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+            cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
             ws.column_dimensions[get_column_letter(col_idx)].width = [25, 12, 60, 40][col_idx - 1]
+        ws.row_dimensions[1].height = 28
 
         for row_idx, row_data in enumerate(cls.INSTRUCTIONS[1:], start=2):
             for col_idx, value in enumerate(row_data, start=1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 cell.alignment = Alignment(wrap_text=True, vertical='top')
+                cell.fill = PatternFill(fill_type='solid', fgColor=cls.BRAND_PALE if row_idx % 2 == 0 else 'FFFFFF')
+                cell.border = Border(bottom=Side(style='hair', color=cls.GRID))
+            ws.row_dimensions[row_idx].height = 54
 
         ws.freeze_panes = 'A2'
+        ws.sheet_view.showGridLines = False
+        ws.sheet_properties.tabColor = 'C08D64'
+        ws.auto_filter.ref = f'A1:D{len(cls.INSTRUCTIONS)}'
+        ws.sheet_view.zoomScale = 90
 
     @classmethod
     def _write_example_sheet(cls, ws):
         """Write the example sheet with sample data."""
-        header_font = Font(bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='27AE60', end_color='27AE60', fill_type='solid')
-        example_fill = PatternFill(start_color='E8F8F5', end_color='E8F8F5', fill_type='solid')
+        widths = {
+            'product_code': 18, 'name': 28, 'description': 42, 'tagline': 30,
+            'category': 20, 'status': 15, 'color': 18, 'color_hex': 14,
+            'size': 14, 'sku': 20, 'price': 16, 'stock': 14,
+            'image_1': 25, 'image_2': 25, 'image_3': 25, 'image_4': 25,
+        }
+        header_font = Font(name='Aptos', bold=True, color='FFFFFF', size=10)
+        header_fill = PatternFill(start_color=cls.BRAND_ACCENT, end_color=cls.BRAND_ACCENT, fill_type='solid')
+        example_fill = PatternFill(start_color=cls.BRAND_BLUSH, end_color=cls.BRAND_BLUSH, fill_type='solid')
 
         for col_idx, col_name in enumerate(cls.DATA_COLUMNS, start=1):
             cell = ws.cell(row=1, column=col_idx, value=col_name)
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', wrap_text=True)
-            ws.column_dimensions[get_column_letter(col_idx)].width = max(15, len(col_name) + 5)
+            cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            ws.column_dimensions[get_column_letter(col_idx)].width = widths.get(col_name, max(15, len(col_name) + 5))
 
         for row_idx, row_data in enumerate(cls.EXAMPLE_ROWS, start=2):
             for col_idx, col_name in enumerate(cls.DATA_COLUMNS, start=1):
@@ -306,19 +386,24 @@ class BulkImportTemplateService:
                 cell.alignment = Alignment(wrap_text=True)
 
         ws.freeze_panes = 'A2'
+        ws.row_dimensions[1].height = 34
+        ws.sheet_view.showGridLines = False
+        ws.sheet_properties.tabColor = 'D39A8E'
+        ws.auto_filter.ref = f'A1:{get_column_letter(len(cls.DATA_COLUMNS))}{len(cls.EXAMPLE_ROWS) + 1}'
+        ws.sheet_view.zoomScale = 85
 
     @classmethod
     def _write_categories_sheet(cls, ws):
         """Write the categories reference sheet (populated from database)."""
-        header_font = Font(bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
+        header_font = Font(name='Aptos', bold=True, color='FFFFFF', size=10)
+        header_fill = PatternFill(start_color=cls.BRAND_DARK, end_color=cls.BRAND_DARK, fill_type='solid')
 
         headers = ['Category Name', 'Slug', 'Description', 'Active']
         for col_idx, header in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=col_idx, value=header)
             cell.font = header_font
             cell.fill = header_fill
-            cell.alignment = Alignment(horizontal='center', wrap_text=True)
+            cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
             ws.column_dimensions[get_column_letter(col_idx)].width = [30, 30, 50, 10][col_idx - 1]
 
         categories = Category.objects.filter(is_active=True).order_by('name')
@@ -329,6 +414,10 @@ class BulkImportTemplateService:
             ws.cell(row=row_idx, column=4, value='Yes' if cat.is_active else 'No')
 
         ws.freeze_panes = 'A2'
+        ws.row_dimensions[1].height = 28
+        ws.sheet_view.showGridLines = False
+        ws.sheet_properties.tabColor = '78836F'
+        ws.auto_filter.ref = f'A1:D{max(1, Category.objects.filter(is_active=True).count() + 1)}'
 
     @classmethod
     def to_bytes(cls) -> bytes:

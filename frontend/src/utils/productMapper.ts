@@ -34,5 +34,12 @@ export function mapProductDtoToDomain(dto: ProductDTO): Product {
         isAvailable: v.isAvailable,
       })
     ),
+    material: dto.material || '',
+    careInstructions: dto.careInstructions || '',
+    fitNotes: dto.fitNotes || '',
+    modelSize: dto.modelSize || '',
+    garmentMeasurements: dto.garmentMeasurements || {},
+    averageRating: dto.averageRating,
+    reviewCount: dto.reviewCount || 0,
   };
 }

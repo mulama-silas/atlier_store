@@ -50,6 +50,13 @@ export interface ProductDTO {
   isNewArrival?: boolean;
   isBestSeller?: boolean;
   variants: ProductVariantDTO[];
+  material?: string;
+  careInstructions?: string;
+  fitNotes?: string;
+  modelSize?: string;
+  garmentMeasurements?: Record<string, string | number>;
+  averageRating?: number | null;
+  reviewCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,6 +64,33 @@ export interface ProductDTO {
 export interface PaginatedProductsResponse {
   data: ProductDTO[];
   pagination: PaginationMeta;
+  facets?: { sizes: string[]; colors: string[] };
+}
+
+export interface CustomerAddressDTO {
+  id: string;
+  label: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2: string;
+  county: string;
+  subcounty: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  isDefault: boolean;
+}
+
+export interface ProductReviewDTO {
+  id: string;
+  rating: number;
+  title: string;
+  body: string;
+  displayName: string;
+  isVerified: boolean;
+  createdAt: string;
 }
 
 export interface CartItemDTO {

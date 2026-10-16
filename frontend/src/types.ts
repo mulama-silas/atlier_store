@@ -45,6 +45,13 @@ export interface Product {
   createdAt: string;
   updatedAt: string;
   variants: ProductVariant[];
+  material?: string;
+  careInstructions?: string;
+  fitNotes?: string;
+  modelSize?: string;
+  garmentMeasurements?: Record<string, string | number>;
+  averageRating?: number | null;
+  reviewCount?: number;
 }
 
 export interface CartItem {

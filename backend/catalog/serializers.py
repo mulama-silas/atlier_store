@@ -1,6 +1,7 @@
 from rest_framework import serializers
+from django.db.models import Avg
 
-from .models import Category, Product, ProductVariant
+from .models import Category, Product, ProductReview, ProductVariant
 
 
 def major_units(minor_units):
@@ -54,13 +55,20 @@ class ProductSerializer(serializers.ModelSerializer):
     updatedAt = serializers.DateTimeField(source='updated_at')
     price = serializers.SerializerMethodField()
     variants = ProductVariantSerializer(many=True, read_only=True)
+    averageRating = serializers.SerializerMethodField()
+    reviewCount = serializers.SerializerMethodField()
+    careInstructions = serializers.CharField(source='care_instructions', read_only=True)
+    fitNotes = serializers.CharField(source='fit_notes', read_only=True)
+    modelSize = serializers.CharField(source='model_size', read_only=True)
+    garmentMeasurements = serializers.JSONField(source='garment_measurements', read_only=True)
 
     class Meta:
         model = Product
         fields = (
             'id', 'name', 'slug', 'tagline', 'description', 'details', 'price', 'compareAtPrice',
             'category', 'images', 'status', 'isFeatured', 'isNewArrival', 'isBestSeller',
-            'variants', 'createdAt', 'updatedAt',
+            'variants', 'createdAt', 'updatedAt', 'material', 'careInstructions',
+            'fitNotes', 'modelSize', 'garmentMeasurements', 'averageRating', 'reviewCount',
         )
 
     def get_category(self, obj):
@@ -78,3 +86,41 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_compareAtPrice(self, obj):
         return major_units(obj.compare_at_price_minor) if obj.compare_at_price_minor is not None else None
+
+    def get_averageRating(self, obj):
+        if hasattr(obj, 'approved_average_rating'):
+            value = obj.approved_average_rating
+        else:
+            value = obj.reviews.filter(is_approved=True).aggregate(value=Avg('rating'))['value']
+        return round(float(value), 1) if value is not None else None
+
+    def get_reviewCount(self, obj):
+        if hasattr(obj, 'approved_review_count'):
+            return obj.approved_review_count
+        return obj.reviews.filter(is_approved=True).count()
+
+
+class ProductReviewSerializer(serializers.ModelSerializer):
+    displayName = serializers.SerializerMethodField()
+    isVerified = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = ProductReview
+        fields = ('id', 'rating', 'title', 'body', 'displayName', 'isVerified', 'createdAt')
+        read_only_fields = ('id', 'displayName', 'isVerified', 'createdAt')
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError('Choose a rating from 1 to 5 stars.')
+        return value
+
+    def get_displayName(self, obj):
+        first = (obj.user.first_name or '').strip()
+        last = (obj.user.last_name or '').strip()
+        if first and last:
+            return f'{first} {last[0]}.'
+        return first or 'Verified customer'
+
+    def get_isVerified(self, obj):
+        return True

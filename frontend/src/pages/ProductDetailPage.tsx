@@ -27,7 +27,10 @@ import {
   Bell,
 } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../services/apiClient';
+import { ProductReviewDTO } from '../types/api';
+import { mapProductDtoToDomain } from '../utils/productMapper';
 import { ProductImage } from '../components/ui/ProductImage';
 import { motion } from 'motion/react';
 import { audit } from '../lib/logger';
@@ -75,9 +78,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   const { navigate } = useRouter();
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const { user } = useAuth();
   const { getProductBySlug, products, refreshCatalog } = useStore();
 
-  const product = getProductBySlug(slug);
+  const catalogProduct = getProductBySlug(slug);
+  const [fetchedProduct, setFetchedProduct] = useState<Product | null>(null);
+  const [isFetchingProduct, setIsFetchingProduct] = useState(false);
+  const product = catalogProduct || fetchedProduct || undefined;
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selections, setSelections] = useState<VariantSelections>({});
@@ -90,6 +97,14 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   const [notifyEmail, setNotifyEmail] = useState('');
   const [notifyState, setNotifyState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [notifyMessage, setNotifyMessage] = useState('');
+  const [reviews, setReviews] = useState<ProductReviewDTO[]>([]);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState('');
+  const [reviewBody, setReviewBody] = useState('');
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const addToCartInFlight = useRef(false);
   const addToCartRequestId = useRef(0);
 
@@ -102,6 +117,24 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   const resolvedVariantPurchasable = isVariantPurchasable(resolvedVariant);
 
   // Restore deep-linked selections from the URL once, when the slug loads.
+  useEffect(() => {
+    if (catalogProduct) {
+      setFetchedProduct(null);
+      setIsFetchingProduct(false);
+      return;
+    }
+    let active = true;
+    setIsFetchingProduct(true);
+    void api.getProduct(slug).then((dto) => {
+      if (active) setFetchedProduct(mapProductDtoToDomain(dto));
+    }).catch(() => {
+      if (active) setFetchedProduct(null);
+    }).finally(() => {
+      if (active) setIsFetchingProduct(false);
+    });
+    return () => { active = false; };
+  }, [slug, catalogProduct?.id]);
+
   useEffect(() => {
     if (product) {
       setSelections(parseVariantSelections(product, window.location.search));
@@ -130,6 +163,19 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
       void audit('product_viewed', 'Viewed product detail.', {}, { slug, productId: product.id });
     }
   }, [product?.id]);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingReviews(true);
+    void api.getProductReviews(slug).then((result) => {
+      if (active) setReviews(result.results);
+    }).catch(() => {
+      if (active) setReviews([]);
+    }).finally(() => {
+      if (active) setIsLoadingReviews(false);
+    });
+    return () => { active = false; };
+  }, [slug]);
 
   useEffect(() => {
     if (!addFeedback) return;
@@ -247,15 +293,36 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
     }
   };
 
+  const handleSubmitReview = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setReviewError('');
+    setReviewMessage('');
+    setIsSubmittingReview(true);
+    try {
+      const result = await api.submitProductReview(slug, {
+        rating: reviewRating,
+        title: reviewTitle.trim(),
+        body: reviewBody.trim(),
+      });
+      setReviewMessage(result.message);
+      setReviewTitle('');
+      setReviewBody('');
+    } catch (error: unknown) {
+      setReviewError(error instanceof Error ? error.message : 'Your review could not be submitted.');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   if (!product) {
     return (
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <Card className="mx-auto max-w-2xl rounded-3xl p-8 text-center shadow-sm sm:p-12">
           <h1 className="font-serif text-3xl text-[#181716]">
-            {products.length === 0 ? 'Loading this piece...' : 'Piece no longer available'}
+            {isFetchingProduct || products.length === 0 ? 'Loading this piece...' : 'Piece no longer available'}
           </h1>
           <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-[#63605A]">
-            {products.length === 0
+            {isFetchingProduct || products.length === 0
               ? 'We are refreshing the collection from the modeza catalogue.'
               : 'This product may have been archived or removed, but the rest of the collection is still available.'}
           </p>
@@ -505,6 +572,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
               {product.name}
             </h1>
 
+            <a href="#product-reviews" className="inline-flex items-center gap-2 text-xs text-[#63605A] hover:text-[#A2574F]">
+              <Star className="h-3.5 w-3.5 fill-[#C6A77A] text-[#C6A77A]" aria-hidden="true" />
+              {product.averageRating ? `${product.averageRating.toFixed(1)} / 5` : 'No ratings yet'}
+              <span>({product.reviewCount || 0} verified reviews)</span>
+            </a>
+
             <p className="text-xs text-[#63605A] italic text-pretty">{product.tagline}</p>
 
             <div className="pt-2 flex items-baseline gap-3 flex-wrap">
@@ -700,6 +773,8 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                   className="p-5 pt-0 space-y-3 text-[#63605A] border-t border-[#F3F1ED]"
                 >
                   <p className="mt-3 text-xs leading-relaxed text-pretty">{product.description}</p>
+                  {product.material && <p className="text-xs leading-relaxed"><strong className="text-[#181716]">Material:</strong> {product.material}</p>}
+                  {product.careInstructions && <p className="text-xs leading-relaxed"><strong className="text-[#181716]">Care:</strong> {product.careInstructions}</p>}
                   <ul className="list-disc pl-5 space-y-1.5 pt-1">
                     {product.details.map((detail, idx) => (
                       <li key={idx}>{detail}</li>
@@ -731,24 +806,20 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
                   transition={{ duration: 0.2 }}
                   className="p-5 pt-0 space-y-4 text-[#63605A] border-t border-[#F3F1ED]"
                 >
-                  <p className="mt-3 text-xs leading-relaxed text-pretty">
-                    Designed for a relaxed silhouette with fluid drape. We suggest choosing your usual
-                    size. For a structured, fitted contour, take one size down.
-                  </p>
-                  <div className="grid grid-cols-4 gap-2 pt-1 text-center text-[10px]" role="table" aria-label="Size conversion chart">
-                    {[
-                      { size: 'XS', eu: 'EU 34', us: 'US 2' },
-                      { size: 'S', eu: 'EU 36', us: 'US 4' },
-                      { size: 'M', eu: 'EU 38', us: 'US 6' },
-                      { size: 'L', eu: 'EU 40', us: 'US 8' },
-                    ].map((row) => (
-                      <div key={row.size} role="row" className="bg-[#FAF9F6] p-2.5 rounded-lg border border-[#E8E5DF] hover:border-[#A2574F] transition-colors">
-                        <span role="columnheader" className="font-semibold block text-[#181716]">{row.size}</span>
-                        <span role="cell" className="block">{row.eu}</span>
-                        <span role="cell" className="block">{row.us}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {product.fitNotes && <p className="mt-3 text-xs leading-relaxed text-pretty">{product.fitNotes}</p>}
+                  {product.modelSize && <p className="text-xs leading-relaxed"><strong className="text-[#181716]">Model wears:</strong> {product.modelSize}</p>}
+                  {Object.keys(product.garmentMeasurements || {}).length > 0 ? (
+                    <dl className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3">
+                      {Object.entries(product.garmentMeasurements || {}).map(([measurement, value]) => (
+                        <div key={measurement} className="rounded-lg border border-[#E8E5DF] bg-[#FAF9F6] p-3">
+                          <dt className="text-[10px] uppercase tracking-wider text-[#827E77]">{measurement}</dt>
+                          <dd className="mt-1 text-sm font-medium text-[#181716]">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="mt-3 text-xs leading-relaxed text-[#827E77]">Detailed garment measurements are not available yet. Contact us for fit guidance.</p>
+                  )}
                 </motion.div>
               )}
             </div>
@@ -832,6 +903,72 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
           </Button>
         </div>
       </motion.div>
+
+      <section id="product-reviews" className="mx-auto w-full max-w-7xl scroll-mt-24 px-4 pt-12 sm:px-6 lg:px-8" aria-labelledby="reviews-heading">
+        <div className="grid gap-8 border-t border-[#E8E5DF] pt-10 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
+          <div>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">Customer notes</p>
+                <h2 id="reviews-heading" className="mt-2 font-serif text-3xl text-[#181716]">Verified reviews</h2>
+              </div>
+              <p className="inline-flex items-center gap-2 text-sm text-[#63605A]">
+                <Star className="h-4 w-4 fill-[#C6A77A] text-[#C6A77A]" aria-hidden="true" />
+                {product.averageRating ? `${product.averageRating.toFixed(1)} / 5` : 'No rating yet'}
+                <span>({product.reviewCount || 0})</span>
+              </p>
+            </div>
+            {isLoadingReviews ? (
+              <p className="mt-6 text-sm text-[#827E77]" role="status">Loading customer reviews...</p>
+            ) : reviews.length ? (
+              <div className="mt-6 space-y-4">
+                {reviews.map((review) => (
+                  <article key={review.id} className="rounded-2xl border border-[#E8E5DF] bg-white p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-medium text-[#181716]">{review.title}</h3>
+                      <span className="text-xs text-[#63605A]">{review.rating} / 5</span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-[#63605A]">{review.body}</p>
+                    <p className="mt-4 text-[11px] text-[#827E77]">{review.displayName} · Verified purchase · {new Date(review.createdAt).toLocaleDateString()}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-6 rounded-2xl border border-dashed border-[#D8D3CB] bg-white p-5 text-sm text-[#63605A]">No approved reviews yet. Purchased this item? Once your order is delivered, you can share your experience.</p>
+            )}
+          </div>
+
+          <Card className="h-fit rounded-2xl border-[#E8E5DF] p-5 shadow-sm sm:p-6">
+            <h3 className="font-serif text-xl text-[#181716]">Share your experience</h3>
+            <p className="mt-2 text-xs leading-5 text-[#63605A]">Reviews are accepted from customers with a delivered order and checked before publication.</p>
+            {user ? (
+              <form onSubmit={(event) => void handleSubmitReview(event)} className="mt-5 space-y-4">
+                <fieldset>
+                  <legend className="text-xs font-semibold text-[#181716]">Your rating</legend>
+                  <div className="mt-2 flex gap-1" role="radiogroup" aria-label="Rating from one to five stars">
+                    {[1, 2, 3, 4, 5].map((rating) => (
+                      <button key={rating} type="button" role="radio" aria-checked={reviewRating === rating} aria-label={`${rating} star${rating === 1 ? '' : 's'}`} onClick={() => setReviewRating(rating)} className="rounded p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]">
+                        <Star className={`h-5 w-5 ${rating <= reviewRating ? 'fill-[#C6A77A] text-[#C6A77A]' : 'text-[#D8D3CB]'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <label className="block text-xs font-semibold text-[#181716]">Review title
+                  <input required maxLength={120} value={reviewTitle} onChange={(event) => setReviewTitle(event.target.value)} className="mt-1.5 w-full rounded-xl border border-[#E8E5DF] px-3.5 py-2.5 text-sm font-normal focus:border-[#A2574F] focus:outline-none" />
+                </label>
+                <label className="block text-xs font-semibold text-[#181716]">Your review
+                  <textarea required maxLength={2000} rows={4} value={reviewBody} onChange={(event) => setReviewBody(event.target.value)} className="mt-1.5 w-full resize-y rounded-xl border border-[#E8E5DF] px-3.5 py-2.5 text-sm font-normal focus:border-[#A2574F] focus:outline-none" />
+                </label>
+                {reviewError && <p role="alert" className="text-xs text-[#9E332B]">{reviewError}</p>}
+                {reviewMessage && <p role="status" className="text-xs text-[#2E5A44]">{reviewMessage}</p>}
+                <Button type="submit" variant="primary" size="md" disabled={isSubmittingReview} isLoading={isSubmittingReview}>Submit review</Button>
+              </form>
+            ) : (
+              <Button type="button" variant="outline" size="md" className="mt-5" onClick={() => navigate('/account')}>Sign in to review</Button>
+            )}
+          </Card>
+        </div>
+      </section>
 
       {/* 3. RELATED PRODUCTS ("You May Also Appreciate") */}
       {relatedProducts.length > 0 && (

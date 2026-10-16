@@ -1,16 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Order, OrderItem, OrderStatus, CreateOrderInput, OrderTimelineEvent } from '../types';
+import { Order, OrderStatus, CreateOrderInput, OrderTimelineEvent } from '../types';
 import { useStore } from './StoreContext';
 import { useAuth } from './AuthContext';
 import { api } from '../services/apiClient';
 import { mapServerOrder } from '../utils/orderMapper';
 import { canMarkReceived } from '../utils/orderStatus';
-import {
-  FREE_SHIPPING_THRESHOLD,
-  STANDARD_SHIPPING_COST,
-  EXPRESS_SHIPPING_COST,
-  VAT_RATE,
-} from '../utils/currency';
 
 const ORDERS_STORAGE_BASE_KEY = 'modeza_orders_v4_kes';
 const GUEST_KEY = `${ORDERS_STORAGE_BASE_KEY}:guest`;
@@ -56,7 +50,7 @@ export interface OrdersContextType {
 const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
 
 export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { checkBatchStock, deductInventoryForOrder, restockInventoryForOrder, validatePromoCode } = useStore();
+  const { restockInventoryForOrder } = useStore();
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -198,96 +192,13 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return { success: false, error: message };
         }
 
-        // Local fallback if offline or local preview
-        const stockCheck = checkBatchStock(input.items);
-        if (!stockCheck.available) {
-          return {
-            success: false,
-            error: stockCheck.errors[0] || 'One or more items exceed current modeza inventory.',
-          };
-        }
-
-        const subtotal = input.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        let orderDiscount = undefined;
-        let discountAmount = 0;
-        if (input.discountCode) {
-          const promo = validatePromoCode(input.discountCode, subtotal);
-          if (promo.valid && promo.discount) {
-            discountAmount = promo.discountAmount;
-            orderDiscount = {
-              code: promo.discount.code,
-              type: promo.discount.type,
-              amount: discountAmount,
-              description: promo.discount.description,
-            };
-          }
-        }
-
-        const standardCost = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_COST;
-        const shippingCost = input.shippingMethod === 'express' ? EXPRESS_SHIPPING_COST : standardCost;
-        const taxableSubtotal = Math.max(0, subtotal - discountAmount);
-        const tax = Math.round(taxableSubtotal * VAT_RATE);
-        const grandTotal = taxableSubtotal + shippingCost + tax;
-
-        const randomSuffix = Math.floor(100000 + Math.random() * 900000);
-        const orderNumber = `ATL-KES-${randomSuffix}`;
-        const orderId = `ord-${Date.now()}`;
-        const now = new Date().toISOString();
-
-        const orderItems: OrderItem[] = input.items.map((ci) => ({
-          id: `oi-${Date.now()}-${ci.variantId}`,
-          productId: ci.productId,
-          variantId: ci.variantId,
-          productName: ci.name,
-          variantDetails: `Size ${ci.size} / ${ci.color}`,
-          sku: `${ci.productId.toUpperCase()}-${ci.size}`,
-          unitPrice: ci.price,
-          quantity: ci.quantity,
-          subtotal: ci.price * ci.quantity,
-          image: ci.image,
-        }));
-
-        const newOrder: Order = {
-          id: orderId,
-          orderNumber,
-          customer: input.customer,
-          items: orderItems,
-          subtotal,
-          discount: orderDiscount,
-          shippingMethod: input.shippingMethod,
-          shippingCost,
-          tax,
-          total: grandTotal,
-          status: 'pending',
-          paymentStatus: 'paid',
-          notes: input.notes,
-          timeline: [
-            {
-              status: 'confirmed',
-              title: 'Order Placed',
-              description: 'Order registered while offline; it will sync with modeza services when back online.',
-              timestamp: now,
-              completed: true,
-            },
-          ],
-          createdAt: now,
-          updatedAt: now,
+        return {
+          success: false,
+          error: 'We could not reach the store to place your order. Your bag is saved; check your connection and try again.',
         };
-
-        deductInventoryForOrder(
-          input.items.map((item) => ({
-            productId: item.productId,
-            variantId: item.variantId,
-            quantity: item.quantity,
-          })),
-          orderNumber
-        );
-
-        setOrders((prev) => [newOrder, ...prev]);
-        return { success: true, order: newOrder };
       }
     },
-    [checkBatchStock, deductInventoryForOrder, validatePromoCode]
+    []
   );
 
   const updateOrderStatus = useCallback(

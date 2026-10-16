@@ -10,6 +10,8 @@ import {
   PromotionAnnouncementDTO,
   ReceiptDTO,
   PaginatedProductsResponse,
+  CustomerAddressDTO,
+  ProductReviewDTO,
 } from '../types/api';
 import { CustomerNotification } from '../types';
 import { supabase } from './supabaseClient';
@@ -110,6 +112,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
     throw error;
   }
 
+  if (res.status === 204) return undefined as T;
+
   return res.json() as Promise<T>;
 }
 
@@ -161,6 +165,14 @@ export const api = {
     category?: string;
     search?: string;
     sort?: string;
+    collection?: string;
+    occasion?: string;
+    sale?: boolean;
+    minPrice?: string;
+    maxPrice?: string;
+    size?: string;
+    color?: string;
+    inStock?: boolean;
   } = {}): Promise<PaginatedProductsResponse> {
     const query = new URLSearchParams();
     if (params.page) query.set('page', String(params.page));
@@ -168,12 +180,53 @@ export const api = {
     if (params.category && params.category !== 'all') query.set('category', params.category);
     if (params.search) query.set('search', params.search);
     if (params.sort) query.set('sort', params.sort);
+    if (params.collection) query.set('collection', params.collection);
+    if (params.occasion) query.set('occasion', params.occasion);
+    if (params.sale) query.set('sale', 'true');
+    if (params.minPrice) query.set('minPrice', params.minPrice);
+    if (params.maxPrice) query.set('maxPrice', params.maxPrice);
+    if (params.size) query.set('size', params.size);
+    if (params.color) query.set('color', params.color);
+    if (params.inStock) query.set('inStock', 'true');
 
     return request<PaginatedProductsResponse>(`/api/products/?${query.toString()}`, {}, false);
   },
 
   async getProduct(idOrSlug: string): Promise<ProductDTO> {
     return request<ProductDTO>(`/api/products/${encodeURIComponent(idOrSlug)}/`, {}, false);
+  },
+
+  async getProductReviews(idOrSlug: string): Promise<{ results: ProductReviewDTO[] }> {
+    return request<{ results: ProductReviewDTO[] }>(`/api/products/${encodeURIComponent(idOrSlug)}/reviews/`, {}, false);
+  },
+
+  async submitProductReview(idOrSlug: string, payload: { rating: number; title: string; body: string }): Promise<{ id: string; message: string }> {
+    return request<{ id: string; message: string }>(`/api/products/${encodeURIComponent(idOrSlug)}/reviews/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true, true);
+  },
+
+  async getAddresses(): Promise<CustomerAddressDTO[]> {
+    return request<CustomerAddressDTO[]>('/api/addresses', {}, true, true);
+  },
+
+  async createAddress(payload: Omit<CustomerAddressDTO, 'id'>): Promise<CustomerAddressDTO> {
+    return request<CustomerAddressDTO>('/api/addresses', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, true, true);
+  },
+
+  async updateAddress(id: string, payload: Partial<Omit<CustomerAddressDTO, 'id'>>): Promise<CustomerAddressDTO> {
+    return request<CustomerAddressDTO>(`/api/addresses/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }, true, true);
+  },
+
+  async deleteAddress(id: string): Promise<void> {
+    await request<void>(`/api/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' }, true, true);
   },
 
   // Categories

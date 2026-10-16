@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useStore } from "../context/StoreContext";
 import { ProductCard } from "../components/ProductCard";
 import { CategorySlug, Product } from "../types";
@@ -22,6 +22,8 @@ import { Checkbox } from "../components/modeza/Checkbox";
 import { Progress } from "../components/modeza/Progress";
 import { motion, AnimatePresence } from "motion/react";
 import { audit } from "../lib/logger";
+import { api } from "../services/apiClient";
+import { mapProductDtoToDomain } from "../utils/productMapper";
 
 export interface ShopPageProps {
   initialCategory?: CategorySlug;
@@ -29,16 +31,16 @@ export interface ShopPageProps {
   initialOccasion?: ShopOccasion;
   initialQuery?: string;
   initialSale?: boolean;
+  initialMinPrice?: string;
+  initialMaxPrice?: string;
+  initialSize?: string;
+  initialColor?: string;
+  initialInStock?: boolean;
+  initialSort?: string;
   onQuickView: (product: Product) => void;
 }
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "newest";
-
-const OCCASION_CATEGORIES: Record<ShopOccasion, CategorySlug[]> = {
-  everyday: ["women", "men", "tops", "bottoms", "shoes"],
-  evening: ["dresses", "outerwear"],
-  "special-occasions": ["dresses", "accessories", "outerwear"],
-};
 
 const OCCASION_TITLES: Record<ShopOccasion, string> = {
   everyday: "The Everyday Edit",
@@ -59,18 +61,27 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   initialOccasion,
   initialQuery,
   initialSale,
+  initialMinPrice,
+  initialMaxPrice,
+  initialSize,
+  initialColor,
+  initialInStock,
+  initialSort,
   onQuickView,
 }) => {
-  const { navigate } = useRouter();
+  const { navigate, replace } = useRouter();
   const {
-    products,
-    catalogHasMore,
-    catalogTotal,
-    isLoadingMoreCatalog,
-    loadMoreCatalog,
     categories: storeCategories,
     availablePromotions,
   } = useStore();
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [resultTotal, setResultTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [isLoadingMoreCatalog, setIsLoadingMoreCatalog] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
+  const [facets, setFacets] = useState<{ sizes: string[]; colors: string[] }>({ sizes: [], colors: [] });
+  const catalogRequestId = useRef(0);
   const [selectedCategory, setSelectedCategory] =
     useState<CategorySlug>(initialCategory);
   const [selectedCollection, setSelectedCollection] =
@@ -82,10 +93,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     Boolean(initialSale),
   );
   const [searchQuery, setSearchQuery] = useState(initialQuery || "");
-  const [onlyInStock, setOnlyInStock] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>("featured");
-  const [itemsToShow, setItemsToShow] = useState(6);
-  const [loadMoreError, setLoadMoreError] = useState("");
+  const [onlyInStock, setOnlyInStock] = useState(Boolean(initialInStock));
+  const [sortBy, setSortBy] = useState<SortOption>((initialSort as SortOption) || "featured");
+  const [minPrice, setMinPrice] = useState(initialMinPrice || "");
+  const [maxPrice, setMaxPrice] = useState(initialMaxPrice || "");
+  const [selectedSize, setSelectedSize] = useState(initialSize || "");
+  const [selectedColor, setSelectedColor] = useState(initialColor || "");
   const [showFilters, setShowFilters] = useState(false);
   const isNewArrivalsView = selectedCollection === "new-arrivals";
 
@@ -95,15 +108,24 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     setSelectedOccasion(initialOccasion);
     setSelectedSale(Boolean(initialSale));
     setSearchQuery(initialQuery || "");
-    setOnlyInStock(false);
-    setSortBy("featured");
-    setItemsToShow(6);
+    setOnlyInStock(Boolean(initialInStock));
+    setSortBy((initialSort as SortOption) || "featured");
+    setMinPrice(initialMinPrice || "");
+    setMaxPrice(initialMaxPrice || "");
+    setSelectedSize(initialSize || "");
+    setSelectedColor(initialColor || "");
   }, [
     initialCategory,
     initialCollection,
     initialOccasion,
     initialQuery,
     initialSale,
+    initialMinPrice,
+    initialMaxPrice,
+    initialSize,
+    initialColor,
+    initialInStock,
+    initialSort,
   ]);
 
   useEffect(() => {
@@ -125,101 +147,69 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }
   }, [initialCategory, initialQuery]);
 
-  const filteredProducts = useMemo(() => {
-    const hasMarkedNewArrivals = products.some(
-      (product) => product.isNewArrival,
-    );
-    let list = products.filter((product) => {
-      const matchesCategory =
-        selectedCategory === "all" || product.categorySlug === selectedCategory;
-      const matchesCollection =
-        selectedCollection === "best-sellers"
-          ? product.isBestSeller
-          : selectedCollection === "new-arrivals"
-            ? !hasMarkedNewArrivals || product.isNewArrival
-            : true;
-      const matchesOccasion = !selectedOccasion
-        ? true
-        : OCCASION_CATEGORIES[selectedOccasion].includes(product.categorySlug);
-      const matchesSale = !selectedSale || product.compareAtPrice !== undefined;
-      const search = searchQuery.trim().toLowerCase();
-      const matchesSearch =
-        !search ||
-        [product.name, product.tagline, product.description].some(
-          (value) => value?.toLowerCase().includes(search) ?? false,
-        );
-      return (
-        matchesCategory &&
-        matchesCollection &&
-        matchesOccasion &&
-        matchesSale &&
-        matchesSearch
-      );
-    });
+  useEffect(() => {
+    const query = new URLSearchParams();
+    if (selectedCollection) query.set("collection", selectedCollection);
+    if (selectedOccasion) query.set("occasion", selectedOccasion);
+    if (searchQuery.trim()) query.set("q", searchQuery.trim());
+    if (selectedSale) query.set("sale", "true");
+    if (minPrice) query.set("minPrice", minPrice);
+    if (maxPrice) query.set("maxPrice", maxPrice);
+    if (selectedSize) query.set("size", selectedSize);
+    if (selectedColor) query.set("color", selectedColor);
+    if (onlyInStock) query.set("inStock", "true");
+    if (sortBy !== "featured") query.set("sort", sortBy);
+    const path = selectedCategory === "all" ? "/shop" : `/shop/${selectedCategory}`;
+    const queryString = query.toString();
+    replace(queryString ? `${path}?${queryString}` : path);
+  }, [replace, selectedCategory, selectedCollection, selectedOccasion, searchQuery, selectedSale,
+    minPrice, maxPrice, selectedSize, selectedColor, onlyInStock, sortBy]);
 
-    list = [...list].sort((a, b) => {
-      if (isNewArrivalsView) return b.createdAt.localeCompare(a.createdAt);
-      if (sortBy === "price-asc") return a.price - b.price;
-      if (sortBy === "price-desc") return b.price - a.price;
-      if (sortBy === "newest") return b.createdAt.localeCompare(a.createdAt);
-      return (
-        Number(b.isFeatured) - Number(a.isFeatured) ||
-        b.createdAt.localeCompare(a.createdAt)
-      );
-    });
+  useEffect(() => {
+    const requestId = ++catalogRequestId.current;
+    const timer = window.setTimeout(async () => {
+      setIsLoadingProducts(true);
+      setLoadMoreError("");
+      try {
+        const response = await api.getProducts({
+          page: 1, limit: 12, category: selectedCategory, search: searchQuery.trim(),
+          sort: isNewArrivalsView ? "newest" : sortBy, collection: selectedCollection,
+          occasion: selectedOccasion, sale: selectedSale, minPrice, maxPrice,
+          size: selectedSize, color: selectedColor, inStock: onlyInStock,
+        });
+        if (catalogRequestId.current !== requestId) return;
+        setFilteredProducts(response.data.map(mapProductDtoToDomain));
+        setResultTotal(response.pagination.total);
+        setPage(1);
+        if (response.facets) setFacets(response.facets);
+      } catch {
+        if (catalogRequestId.current === requestId) {
+          setFilteredProducts([]);
+          setResultTotal(0);
+          setLoadMoreError("We couldn't load the collection. Check your connection and try again.");
+        }
+      } finally {
+        if (catalogRequestId.current === requestId) setIsLoadingProducts(false);
+      }
+    }, searchQuery.trim() ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [selectedCategory, searchQuery, sortBy, selectedCollection, selectedOccasion,
+    selectedSale, minPrice, maxPrice, selectedSize, selectedColor, onlyInStock, isNewArrivalsView]);
 
-    if (onlyInStock) {
-      list = list.filter((p) => {
-        const totalStock = p.variants.reduce(
-          (sum, v) => sum + v.stockQuantity,
-          0,
-        );
-        return totalStock > 0;
-      });
-    }
-    if (isNewArrivalsView) list = list.slice(0, 8);
-    return list;
-  }, [
-    products,
-    selectedCategory,
-    selectedCollection,
-    selectedOccasion,
-    selectedSale,
-    searchQuery,
-    sortBy,
-    onlyInStock,
-  ]);
-
-  const displayedProducts = filteredProducts.slice(0, itemsToShow);
-  const remainingLoadedProducts = Math.max(
-    0,
-    filteredProducts.length - displayedProducts.length,
-  );
-  const hasMore =
-    remainingLoadedProducts > 0 ||
-    (catalogHasMore && !isNewArrivalsView);
+  const displayedProducts = filteredProducts;
+  const hasMore = filteredProducts.length < resultTotal;
   const activeFilterCount = [
-    Boolean(searchQuery),
-    onlyInStock,
-    selectedCategory !== "all",
-    Boolean(selectedCollection),
-    Boolean(selectedOccasion),
-    selectedSale,
+    Boolean(searchQuery), onlyInStock, selectedCategory !== "all",
+    Boolean(selectedCollection), Boolean(selectedOccasion), selectedSale,
+    Boolean(minPrice), Boolean(maxPrice), Boolean(selectedSize), Boolean(selectedColor),
   ].filter(Boolean).length;
   const hasActiveFilters = activeFilterCount > 0;
   const activeSortLabel = isNewArrivalsView
     ? "Newest First"
-    : (SORT_OPTIONS.find((option) => option.value === sortBy)?.label ??
-      "Featured First");
-  const visibleProgress =
-    filteredProducts.length > 0
-      ? Math.min(
-          100,
-          Math.round(
-            (displayedProducts.length / filteredProducts.length) * 100,
-          ),
-        )
-      : 0;
+    : (SORT_OPTIONS.find((option) => option.value === sortBy)?.label ?? "Featured First");
+  const visibleProgress = resultTotal > 0
+    ? Math.min(100, Math.round((displayedProducts.length / resultTotal) * 100))
+    : 0;
 
   const headerTitle = selectedSale
     ? "The Sale Edit"
@@ -247,20 +237,31 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     setSelectedOccasion(undefined);
     setSelectedSale(false);
     setSortBy("featured");
-    setItemsToShow(6);
+    setMinPrice("");
+    setMaxPrice("");
+    setSelectedSize("");
+    setSelectedColor("");
   };
 
   const loadAdditionalProducts = async () => {
     setLoadMoreError("");
-    if (remainingLoadedProducts > 0) {
-      setItemsToShow((previous) => previous + 6);
-      return;
-    }
+    setIsLoadingMoreCatalog(true);
+    const requestId = catalogRequestId.current;
     try {
-      const loaded = await loadMoreCatalog();
-      if (loaded) setItemsToShow((previous) => previous + 6);
+      const nextPage = page + 1;
+      const response = await api.getProducts({
+        page: nextPage, limit: 12, category: selectedCategory, search: searchQuery.trim(),
+        sort: isNewArrivalsView ? "newest" : sortBy, collection: selectedCollection,
+        occasion: selectedOccasion, sale: selectedSale, minPrice, maxPrice,
+        size: selectedSize, color: selectedColor, inStock: onlyInStock,
+      });
+      if (catalogRequestId.current !== requestId) return;
+      setFilteredProducts((current) => [...current, ...response.data.map(mapProductDtoToDomain)]);
+      setPage(nextPage);
     } catch {
-      setLoadMoreError("We couldn't load more pieces. Please try again.");
+      if (catalogRequestId.current === requestId) setLoadMoreError("We couldn't load more pieces. Please try again.");
+    } finally {
+      setIsLoadingMoreCatalog(false);
     }
   };
 
@@ -371,10 +372,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               </span>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="font-serif text-4xl font-normal text-white sm:text-5xl">
-                  {filteredProducts.length}
+                  {resultTotal}
                 </span>
                 <span className="text-xs uppercase tracking-wider text-white/50">
-                  {filteredProducts.length === 1 ? "Piece" : "Pieces"}
+                  {resultTotal === 1 ? "Piece" : "Pieces"}
                 </span>
               </div>
               <p className="mt-3 text-xs text-white/45">
@@ -383,6 +384,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </div>
           </div>
         </div>
+
       </Card>
 
       {availablePromotions.length > 0 && (
@@ -509,6 +511,13 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             )}
           </div>
         </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#F3F1ED] pt-3 sm:grid-cols-4 lg:grid-cols-6">
+          <Input id="filter-min-price" type="number" min="0" step="1" placeholder="Min KSh" aria-label="Minimum price in Kenyan shillings" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} className="h-10 bg-[#FAF9F6] text-xs" />
+          <Input id="filter-max-price" type="number" min="0" step="1" placeholder="Max KSh" aria-label="Maximum price in Kenyan shillings" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} className="h-10 bg-[#FAF9F6] text-xs" />
+          <SortSelect id="filter-size" value={selectedSize} onChange={(event) => setSelectedSize(event.target.value)} options={[{ value: "", label: "All sizes" }, ...facets.sizes.map((size) => ({ value: size, label: size }))]} aria-label="Filter by size" className="h-10 bg-[#FAF9F6] py-0 text-xs" />
+          <SortSelect id="filter-color" value={selectedColor} onChange={(event) => setSelectedColor(event.target.value)} options={[{ value: "", label: "All colors" }, ...facets.colors.map((color) => ({ value: color, label: color }))]} aria-label="Filter by color" className="h-10 bg-[#FAF9F6] py-0 text-xs" />
+          <p className="col-span-2 self-center text-[11px] text-[#827E77] sm:col-span-4 lg:col-span-2">Filters apply across the full collection and remain in this link.</p>
+        </div>
       </Card>
 
       <AnimatePresence>
@@ -545,8 +554,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                   Refine selection
                 </span>
                 <p className="mt-1.5 text-sm text-[#63605A]">
-                  {filteredProducts.length}{" "}
-                  {filteredProducts.length === 1 ? "piece" : "pieces"} match
+                  {resultTotal}{" "}
+                  {resultTotal === 1 ? "piece" : "pieces"} match
                   your view
                 </p>
               </div>
@@ -634,8 +643,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             Curated selection
           </span>
           <h2 className="mt-2 font-serif text-2xl font-normal text-[#181716] sm:text-3xl">
-            {filteredProducts.length}{" "}
-            {filteredProducts.length === 1 ? "piece" : "pieces"} in view
+            {resultTotal}{" "}
+            {resultTotal === 1 ? "piece" : "pieces"} in view
           </h2>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -648,7 +657,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         </div>
       </div>
 
-      {displayedProducts.length === 0 ? (
+      {isLoadingProducts && displayedProducts.length === 0 ? (
+        <Card className="p-12 text-center text-sm text-[#827E77]" role="status">Loading the collection...</Card>
+      ) : displayedProducts.length === 0 ? (
         <Card className="overflow-hidden">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -669,7 +680,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               Try resetting your active search or removing the in-stock filter
               to reveal more of the collection.
             </p>
-            {catalogHasMore && !isNewArrivalsView && (
+            {hasMore && (
               <Button
                 type="button"
                 variant="outline"
@@ -724,14 +735,14 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           <div className="mx-auto max-w-2xl rounded-2xl border border-[#E8E5DF] bg-white px-5 py-6 text-center shadow-sm sm:px-8">
             <div className="flex items-center justify-between gap-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
               <span>
-                Viewing {displayedProducts.length} of {filteredProducts.length} loaded pieces
+                Viewing {displayedProducts.length} of {resultTotal} matching pieces
               </span>
               <span className="text-[#A2574F]">{visibleProgress}%</span>
             </div>
             <Progress
               value={visibleProgress}
               aria-label="Products viewed"
-              aria-valuetext={`${displayedProducts.length} of ${filteredProducts.length} products viewed`}
+              aria-valuetext={`${displayedProducts.length} of ${resultTotal} matching products viewed`}
               className="mt-3 h-1.5"
             />
             <Button
@@ -744,9 +755,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             >
               {isLoadingMoreCatalog
                 ? "Loading pieces..."
-                : remainingLoadedProducts > 0
-                  ? `Load Additional Pieces (${remainingLoadedProducts} loaded)`
-                  : `Load More Pieces (${Math.max(0, catalogTotal - products.length)} in collection)`}
+                : `Load more pieces (${Math.max(0, resultTotal - filteredProducts.length)} remaining)`}
             </Button>
             {loadMoreError && (
               <p className="mt-3 text-sm text-[#9E332B]" role="alert">

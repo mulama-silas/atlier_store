@@ -18,6 +18,12 @@ export type AppRoute =
       occasion?: ShopOccasion;
       query?: string;
       sale?: boolean;
+      minPrice?: string;
+      maxPrice?: string;
+      size?: string;
+      color?: string;
+      inStock?: boolean;
+      sort?: string;
     }
   | { path: "/product/:slug"; slug: string }
   | { path: "/cart" }
@@ -40,15 +46,44 @@ export type AppRoute =
   | { path: "/terms" }
   | { path: "/shipping" }
   | { path: "/returns" }
-  | { path: "/cookies" };
+  | { path: "/cookies" }
+  | { path: "/not-found" };
 
 interface RouterContextType {
   currentPath: string;
   navigate: (path: string) => void;
+  replace: (path: string) => void;
   route: AppRoute;
 }
 
 const RouterContext = createContext<RouterContextType | undefined>(undefined);
+
+function parseShopRoute(cleanPath: string, searchString: string): AppRoute {
+  const params = new URLSearchParams(searchString);
+  const category = cleanPath.startsWith('/shop/')
+    ? cleanPath.slice('/shop/'.length) as CategorySlug
+    : undefined;
+  const collection = params.get('collection');
+  const occasion = params.get('occasion');
+  const requestedSort = params.get('sort');
+  const sort = requestedSort === 'featured' || requestedSort === 'newest' || requestedSort === 'price-asc' || requestedSort === 'price-desc'
+    ? requestedSort
+    : undefined;
+  return {
+    path: '/shop',
+    category,
+    collection: collection === 'best-sellers' || collection === 'new-arrivals' ? collection : undefined,
+    occasion: occasion === 'everyday' || occasion === 'evening' || occasion === 'special-occasions' ? occasion : undefined,
+    query: params.get('q') || undefined,
+    sale: params.get('sale') === 'true',
+    minPrice: params.get('minPrice') || undefined,
+    maxPrice: params.get('maxPrice') || undefined,
+    size: params.get('size') || undefined,
+    color: params.get('color') || undefined,
+    inStock: params.get('inStock') === 'true',
+    sort,
+  };
+}
 
 function parsePathToRoute(path: string): AppRoute {
   const cleanPath = path.split("?")[0].split("#")[0] || "/";
@@ -63,30 +98,11 @@ function parsePathToRoute(path: string): AppRoute {
   }
 
   if (cleanPath === "/shop") {
-    const params = new URLSearchParams(searchString);
-    const collection = params.get("collection");
-    const occasion = params.get("occasion");
-    const sale = params.get("sale");
-    return {
-      path: "/shop",
-      collection:
-        collection === "best-sellers" || collection === "new-arrivals"
-          ? collection
-          : undefined,
-      occasion:
-        occasion === "everyday" ||
-        occasion === "evening" ||
-        occasion === "special-occasions"
-          ? occasion
-          : undefined,
-      query: params.get("q") || undefined,
-      sale: sale === "true",
-    };
+    return parseShopRoute(cleanPath, searchString);
   }
 
   if (cleanPath.startsWith("/shop/")) {
-    const category = cleanPath.replace("/shop/", "") as CategorySlug;
-    return { path: "/shop", category };
+    return parseShopRoute(cleanPath, searchString);
   }
 
   if (cleanPath.startsWith("/product/")) {
@@ -180,7 +196,7 @@ function parsePathToRoute(path: string): AppRoute {
     return { path: "/track", orderNumber };
   }
 
-  return { path: "/" };
+  return { path: "/not-found" };
 }
 
 export const RouterProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -206,6 +222,14 @@ export const RouterProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
+  const replace = useCallback((newPath: string) => {
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", newPath);
+      setCurrentPath(newPath.split("?")[0]);
+      setRoute(parsePathToRoute(newPath));
+    }
+  }, []);
+
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname || "/";
@@ -219,7 +243,7 @@ export const RouterProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   return (
-    <RouterContext.Provider value={{ currentPath, navigate, route }}>
+    <RouterContext.Provider value={{ currentPath, navigate, replace, route }}>
       {children}
     </RouterContext.Provider>
   );
@@ -228,7 +252,7 @@ export const RouterProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useRouter = (): RouterContextType => {
   const context = useContext(RouterContext);
   if (!context) {
-    throw new Error("useRouter must be used within a RouterProvider");
+      throw new Error("useRouter must be used within a RouterProvider");
   }
   return context;
 };

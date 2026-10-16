@@ -33,13 +33,13 @@ const helpLinks = [
   },
 ];
 
-const emailAddress = "boutique.modeza.support@gmail.com";
+const emailAddress = import.meta.env.VITE_SUPPORT_EMAIL || "";
 const emailComposeUrl = createGmailComposeUrl(emailAddress);
 
 export const ContactPage: React.FC = () => {
   const { navigate } = useRouter();
   const whatsappNumber = (
-    import.meta.env.DEFAULT_WHATSAPP_NUMBER || "+254768873844"
+    import.meta.env.VITE_DEFAULT_WHATSAPP_NUMBER || "+254768873844"
   ).replace(/\D/g, "");
   const whatsappMessage = encodeURIComponent(
     "Hello MODEZA, I would like some help with my order or a product.",
@@ -79,16 +79,14 @@ export const ContactPage: React.FC = () => {
               touch with our team and we’ll help you find your way.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Button asChild variant="primary" size="lg" className="gap-2">
-                <a
-                  href={emailComposeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Mail className="h-4 w-4" aria-hidden="true" />
-                  Email the concierge
-                </a>
-              </Button>
+              {emailAddress && (
+                <Button asChild variant="primary" size="lg" className="gap-2">
+                  <a href={emailComposeUrl} target="_blank" rel="noopener noreferrer">
+                    <Mail className="h-4 w-4" aria-hidden="true" />
+                    Email the concierge
+                  </a>
+                </Button>
+              )}
               <Button
                 asChild
                 variant="outline"
@@ -128,14 +126,16 @@ export const ContactPage: React.FC = () => {
                 Choose what works for you.
               </h2>
             </div>
-            <a
-              href={emailComposeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-[#181716] underline decoration-[#C6A77A] underline-offset-4 transition-colors hover:text-[#A2574F]"
-            >
-              {emailAddress}
-            </a>
+            {emailAddress && (
+              <a
+                href={emailComposeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-[#181716] underline decoration-[#C6A77A] underline-offset-4 transition-colors hover:text-[#A2574F]"
+              >
+                {emailAddress}
+              </a>
+            )}
           </div>
 
           <div className="grid gap-8 pt-2 md:grid-cols-2 md:gap-12">
@@ -148,15 +148,19 @@ export const ContactPage: React.FC = () => {
                 Send a note about sizing, product details, an order, or anything
                 else you need help with.
               </p>
-              <a
-                href={emailComposeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#A2574F] hover:text-[#83443D]"
-              >
-                Start an email{" "}
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </a>
+              {emailAddress ? (
+                <a
+                  href={emailComposeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#A2574F] hover:text-[#83443D]"
+                >
+                  Start an email{" "}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </a>
+              ) : (
+                <p className="mt-5 text-xs text-[#827E77]">Email contact details are not configured yet.</p>
+              )}
             </div>
 
             <div className="py-6">

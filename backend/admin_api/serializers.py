@@ -11,6 +11,11 @@ class ProductWriteSerializer(serializers.Serializer):
         max_length=255, required=False, allow_blank=True)
     details = serializers.ListField(
         child=serializers.CharField(), required=False)
+    material = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    careInstructions = serializers.CharField(required=False, allow_blank=True)
+    fitNotes = serializers.CharField(required=False, allow_blank=True)
+    modelSize = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    garmentMeasurements = serializers.JSONField(required=False)
     price = serializers.DecimalField(
         max_digits=12, decimal_places=2, min_value=0)
     compareAtPrice = serializers.DecimalField(

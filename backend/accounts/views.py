@@ -7,10 +7,88 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from admin_ui.models import CustomerNotification
+from .models import CustomerAddress
+from rest_framework import serializers
 
 from .permissions import IsAdmin, IsAuthenticatedSupabaseUser, IsStaffOrAdmin
 
 logger = logging.getLogger("accounts.notifications")
+
+
+class CustomerAddressSerializer(serializers.ModelSerializer):
+    firstName = serializers.CharField(source='first_name')
+    lastName = serializers.CharField(source='last_name')
+    addressLine1 = serializers.CharField(source='address_line_1')
+    addressLine2 = serializers.CharField(source='address_line_2', required=False, allow_blank=True)
+    postalCode = serializers.CharField(source='postal_code', required=False, allow_blank=True)
+    isDefault = serializers.BooleanField(source='is_default', required=False)
+    phone = serializers.RegexField(regex=r'^[\d\s+().-]{9,25}$')
+
+    class Meta:
+        model = CustomerAddress
+        fields = ('id', 'label', 'firstName', 'lastName', 'phone', 'addressLine1',
+                  'addressLine2', 'county', 'subcounty', 'city', 'postalCode',
+                  'country', 'isDefault')
+        read_only_fields = ('id',)
+
+
+class CustomerAddressesView(APIView):
+    permission_classes = [IsAuthenticatedSupabaseUser]
+
+    def get(self, request):
+        rows = CustomerAddress.objects.filter(user=request.user)
+        return Response(CustomerAddressSerializer(rows, many=True).data)
+
+    def post(self, request):
+        serializer = CustomerAddressSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'error': {'code': 'VALIDATION_ERROR',
+                                       'message': 'Address details are invalid.',
+                                       'details': serializer.errors}}, status=400)
+        with transaction.atomic():
+            type(request.user).objects.select_for_update().get(pk=request.user.pk)
+            values = dict(serializer.validated_data)
+            wants_default = values.pop('is_default', False)
+            if wants_default or not CustomerAddress.objects.filter(user=request.user).exists():
+                CustomerAddress.objects.filter(user=request.user, is_default=True).update(is_default=False)
+                values['is_default'] = True
+            address = CustomerAddress.objects.create(user=request.user, **values)
+        return Response(CustomerAddressSerializer(address).data, status=status.HTTP_201_CREATED)
+
+
+class CustomerAddressDetailView(APIView):
+    permission_classes = [IsAuthenticatedSupabaseUser]
+
+    def patch(self, request, address_id):
+        address = CustomerAddress.objects.filter(user=request.user, pk=address_id).first()
+        if not address:
+            return Response({'error': {'code': 'NOT_FOUND', 'message': 'Address was not found.', 'details': {}}}, status=404)
+        serializer = CustomerAddressSerializer(address, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({'error': {'code': 'VALIDATION_ERROR',
+                                       'message': 'Address details are invalid.',
+                                       'details': serializer.errors}}, status=400)
+        with transaction.atomic():
+            type(request.user).objects.select_for_update().get(pk=request.user.pk)
+            if serializer.validated_data.get('is_default'):
+                CustomerAddress.objects.filter(user=request.user, is_default=True).exclude(pk=address.pk).update(is_default=False)
+            updated = serializer.save()
+        return Response(CustomerAddressSerializer(updated).data)
+
+    def delete(self, request, address_id):
+        with transaction.atomic():
+            type(request.user).objects.select_for_update().get(pk=request.user.pk)
+            address = CustomerAddress.objects.filter(user=request.user, pk=address_id).first()
+            if not address:
+                return Response({'error': {'code': 'NOT_FOUND', 'message': 'Address was not found.', 'details': {}}}, status=404)
+            was_default = address.is_default
+            address.delete()
+            if was_default:
+                next_address = CustomerAddress.objects.filter(user=request.user).order_by('created_at').first()
+                if next_address:
+                    next_address.is_default = True
+                    next_address.save(update_fields=['is_default', 'updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class CurrentUserView(APIView):
