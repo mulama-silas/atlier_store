@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Download,
   Eye,
-  Heart,
   Mail,
   MapPin,
   PackageCheck,
@@ -24,7 +23,7 @@ import { useRouter } from '../router/RouterContext';
 import { ProductImage } from '../components/ui/ProductImage';
 import { api } from '../services/apiClient';
 import { formatPrice } from '../utils/currency';
-import { formatShortOrderDate, getOrderStatusTimestamp, mapServerOrder } from '../utils/orderMapper';
+import { mapServerOrder } from '../utils/orderMapper';
 import { ORDER_STATUS_META, PROGRESS_STEPS } from '../utils/orderStatus';
 import { Order, OrderStatus, PaymentStatus } from '../types';
 import { ReceiptDTO } from '../types/api';
@@ -209,197 +208,111 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
   const refCode = resolvedOrder ? resolvedOrder.orderNumber : (orderNumber || '');
   const progressValue = resolvedOrder ? getProgressValue(resolvedOrder) : 0;
   return (
-    <div className="min-h-screen bg-[#F5F2EC] pb-16">
-      <header className="relative isolate overflow-hidden bg-[#263A30] text-white">
-        <div className="pointer-events-none absolute -right-24 -top-40 h-[30rem] w-[30rem] rounded-full border border-white/10" aria-hidden="true" />
-        <div className="pointer-events-none absolute -right-8 -top-24 h-[22rem] w-[22rem] rounded-full border border-white/10" aria-hidden="true" />
-        <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-10 sm:px-6 sm:pb-16 sm:pt-14 lg:px-8">
-          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#C9D7C9]">
-            <span className="h-px w-8 bg-[#C9D7C9]/70" /> MODEZA Â· Order care
+    <div className="min-h-screen bg-[#F3F7F2] pb-14">
+      <header className="bg-[#EAF4E9] px-4 py-9 text-center sm:py-12">
+        <div className="mx-auto flex max-w-3xl flex-col items-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#D8EED9] text-[#2E7D4F] shadow-sm ring-8 ring-white/60">
+            <BadgeCheck className="h-9 w-9" strokeWidth={1.6} aria-hidden="true" />
           </div>
-          <div className="mt-10 grid items-end gap-8 md:grid-cols-[1fr_auto]">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#D9E6D9]/25 bg-white/10 px-3 py-1.5 text-xs text-[#F0F4EF]">
-                <BadgeCheck className="h-4 w-4 text-[#CFE1D1]" aria-hidden="true" />
-                {simulatedPayment ? 'Demo order created' : 'Your order is confirmed'}
-              </div>
-              <h1 className="mt-5 font-serif text-4xl font-normal leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl">
-                A beautiful choice.<br /><span className="text-[#D7C6A3]">Well on its way.</span>
-              </h1>
-              <p className="mt-5 max-w-xl text-sm leading-7 text-white/70 sm:text-base">
-                Thank you for making MODEZA part of your story. Weâ€™ve saved your order and will share each update as it moves toward you.
-              </p>
-              {simulatedPayment && (
-                <p className="mt-5 max-w-xl border-l-2 border-[#D7C6A3] bg-white/5 px-4 py-3 text-xs leading-5 text-[#F4EBD9]" role="status">
-                  Demo checkout: no M-PESA request was sent and no payment was collected.
-                </p>
-              )}
-            </div>
-            <div className="w-full border-t border-white/15 pt-5 md:w-56 md:border-l md:border-t-0 md:pb-1 md:pl-6 md:pt-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">Order reference</p>
-              <p className="mt-2 break-all font-mono text-sm font-medium text-white">{refCode || 'Awaiting reference'}</p>
-              {resolvedOrder && <p className="mt-2 text-xs text-white/55">Placed {formatDate(resolvedOrder.createdAt)}</p>}
-            </div>
-          </div>
-          {resolvedOrder && (
-            <section className="mt-8 grid grid-cols-2 gap-5 border-t border-white/15 pt-5 sm:grid-cols-3 sm:gap-8" aria-label="Order summary">
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">Order total</p>
-                <p className="mt-1 font-serif text-2xl text-[#E4D6B8]">{formatPrice(resolvedOrder.total)}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">Items</p>
-                <p className="mt-1 text-sm font-medium text-white">{resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0)} {resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'piece' : 'pieces'}</p>
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">Payment</p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-white">{paymentMethodLabel(resolvedOrder.paymentMethod)}</span>
-                  <PaymentStatusBadge status={resolvedOrder.paymentStatus} />
-                </div>
-              </div>
-            </section>
-          )}
+          <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#52715A]">MODEZA · Order care</p>
+          <h1 className="mt-2 font-serif text-3xl font-medium leading-tight text-[#1D2920] sm:text-5xl">Thank you for your order, {resolvedOrder?.customer.firstName || 'there'}!</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-[#58675B] sm:text-base">Your order has been received and we’re getting it ready for you.</p>
+          {simulatedPayment && <p className="mt-4 rounded-xl border border-[#D9C79F] bg-[#FFF9E9] px-4 py-3 text-xs leading-5 text-[#725B2F]" role="status">Demo checkout: no M-PESA request was sent and no payment was collected.</p>}
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pt-7 sm:px-6 sm:pt-9 lg:px-8">
-        {orderLoading && resolvedOrder && (
-          <p className="mb-5 text-xs text-[#827E77]" role="status" aria-live="polite">Refreshing your order detailsâ€¦</p>
-        )}
-
+      <main className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 sm:pt-9 lg:px-8">
+        {orderLoading && resolvedOrder && <p className="mb-4 text-xs text-[#827E77]" role="status" aria-live="polite">Refreshing your order details…</p>}
         {orderLoading && !resolvedOrder ? (
           <Card className="mx-auto max-w-3xl p-8 text-center" role="status" aria-live="polite">
             <p className="font-serif text-xl text-[#181716]">Gathering your order details</p>
             <Progress className="mx-auto mt-5 h-1.5 max-w-xs" aria-label="Loading order details" />
           </Card>
         ) : resolvedOrder ? (
-          <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.78fr)]">
-            <div className="space-y-5">
-              <Card className="overflow-hidden border-[#E7E1D6] bg-[#FBFAF7] p-5 shadow-[0_12px_40px_-28px_rgba(38,58,48,0.3)] sm:p-7">
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">The next steps</p>
-                    <h2 className="mt-1 font-serif text-2xl text-[#181716]">Your order journey</h2>
-                  </div>
-                  <div className="text-right">
+          <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,0.85fr)]">
+            <Card className="border-[#E3E8E1] bg-white p-5 shadow-sm sm:p-7" aria-busy={receiptLoading}>
+              <div className="flex items-start gap-4 sm:gap-5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#E6F4E8] text-[#2F965F] sm:h-16 sm:w-16"><Check className="h-8 w-8" strokeWidth={2.5} aria-hidden="true" /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-serif text-2xl text-[#1D2920] sm:text-3xl">{resolvedOrder.status === 'cancelled' ? 'Order update' : 'Order placed successfully!'}</h2>
                     <StatusBadge status={resolvedOrder.status} />
-                    <p className="mt-2 text-[11px] text-[#827E77]">{progressValue}% complete</p>
                   </div>
+                  <p className="mt-2 text-sm leading-6 text-[#647067]">{resolvedOrder.status === 'cancelled' ? 'This order has been cancelled. You can review the details below.' : 'We’ve received your order and are getting it ready to ship.'}</p>
+                  <div className="mt-4 grid gap-1 text-sm text-[#59645C] sm:grid-cols-2 sm:gap-3">
+                    <p><span className="text-[#879188]">Order ID:</span> <span className="font-semibold text-[#26352A]">#{resolvedOrder.orderNumber}</span></p>
+                    <p><span className="text-[#879188]">Placed:</span> <span className="font-medium text-[#26352A]">{formatDate(resolvedOrder.createdAt)}</span></p>
+                  </div>
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#EDF7ED] px-3 py-1.5 text-xs text-[#41674B]"><Truck className="h-3.5 w-3.5" aria-hidden="true" />Estimated delivery: <strong>{resolvedOrder.shippingMethod === 'express' ? '2 business days' : '3–5 business days'}</strong></div>
                 </div>
-                <Progress value={progressValue} className="mt-5 h-1.5 bg-[#EAE6DE]" aria-label="Order progress" aria-valuetext={`${progressValue}% complete`} />
-                <ol className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+              </div>
+
+              <section className="mt-7 border-t border-[#E9EDE8] pt-6" aria-labelledby="success-progress-heading">
+                <div className="flex items-center justify-between gap-3"><h3 id="success-progress-heading" className="text-xs font-semibold uppercase tracking-[0.14em] text-[#536257]">Order progress</h3><span className="text-[11px] text-[#849087]">{progressValue}%</span></div>
+                <Progress value={progressValue} className="mt-3 h-1.5 bg-[#E7EAE7]" aria-label="Order progress" aria-valuetext={`${progressValue}% complete`} />
+                <ol className="mt-4 grid grid-cols-4 gap-1.5 sm:gap-3">
                   {PROGRESS_STEPS.map((step, index) => {
                     const reached = resolvedOrder.status !== 'cancelled' && ORDER_STATUS_META[resolvedOrder.status].rank >= ORDER_STATUS_META[step.status].rank;
-                    return (
-                      <li key={step.status} className="flex items-start gap-2.5">
-                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs ${reached ? 'bg-[#263A30] text-white' : 'border border-[#DED8CD] bg-white text-[#A29E96]'}`}>
-                          {reached ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
-                        </span>
-                        <span className={`pt-1 text-xs leading-4 ${reached ? 'font-medium text-[#181716]' : 'text-[#827E77]'}`}>{step.label}</span>
-                      </li>
-                    );
+                    return <li key={step.status} className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:text-left"><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] ${reached ? 'bg-[#3CA66B] text-white' : 'bg-[#E6E9E6] text-[#89918B]'}`}>{reached ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}</span><span className={`text-[10px] leading-4 sm:text-xs ${reached ? 'font-semibold text-[#405348]' : 'text-[#89918B]'}`}>{step.label}</span></li>;
                   })}
                 </ol>
-              </Card>
+              </section>
 
-              <Card className="border-[#E7E1D6] bg-white p-5 shadow-sm sm:p-7">
-                <div className="flex items-end justify-between gap-4 border-b border-[#EEEAE3] pb-4">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">Chosen for you</p>
-                    <h2 className="mt-1 font-serif text-2xl text-[#181716]">Your MODEZA pieces</h2>
-                  </div>
-                  <span className="text-xs text-[#827E77]">
-                    {resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0)} {resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'piece' : 'pieces'}
-                  </span>
-                </div>
-                <ul className="divide-y divide-[#EEEAE3]">
-                  {resolvedOrder.items.map((item) => (
-                    <li key={item.id} className="flex items-center gap-4 py-4 sm:gap-5 sm:py-5">
-                      <ProductImage src={item.image} alt={item.productName} className="h-16 w-16 shrink-0 rounded-md bg-[#F4ECE9] sm:h-[4.5rem] sm:w-[4.5rem]" />
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 font-serif text-lg leading-snug text-[#181716] sm:text-xl">{item.productName}</p>
-                        <p className="mt-1 text-sm text-[#63605A]">Order {resolvedOrder.orderNumber}</p>
-                        <p className="mt-1 text-xs text-[#827E77]">{item.variantDetails || 'One of a kind'} Â· Qty {item.quantity}</p>
-                        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                          <StatusBadge status={resolvedOrder.status} />
-                          <span className="text-sm font-semibold text-[#181716]">On {formatShortOrderDate(getOrderStatusTimestamp(resolvedOrder)) || 'date pending'}</span>
-                        </div>
-                      </div>
-                      <span className="shrink-0 self-start pt-1 text-sm font-medium text-[#181716]">{formatPrice(item.subtotal)}</span>
-                    </li>
-                  ))}
+              <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+                <Button type="button" variant="primary" size="lg" onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)} className="gap-2 bg-[#3566C5] hover:bg-[#2957B0]"><Eye className="h-4 w-4" aria-hidden="true" />Track your order</Button>
+                {receiptLoading ? <Button type="button" variant="outline" size="lg" isLoading disabled>Checking receipt</Button> : receipt ? (
+                  <Button type="button" variant="outline" size="lg" isLoading={downloading} onClick={() => void handleDownloadReceipt()} className="gap-2"><Download className="h-4 w-4" aria-hidden="true" />{downloading ? 'Downloading' : 'Download receipt'}</Button>
+                ) : <Button type="button" variant="outline" size="lg" disabled className="gap-2 text-[#89918B]"><Download className="h-4 w-4" aria-hidden="true" />Receipt unavailable</Button>}
+                <Button type="button" variant="outline" size="lg" onClick={() => navigate('/shop')} className="gap-2 border-[#AEBDB0] bg-white text-[#385B43]">Continue shopping<ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>
+              </div>
+              {receiptError && <p role="alert" className="mt-3 text-xs leading-5 text-[#9B1C1C]">{receiptError}</p>}
+            </Card>
+
+            <aside className="space-y-5">
+              <Card className="border-[#E3E8E1] bg-white p-5 shadow-sm sm:p-6">
+                <div className="flex items-center justify-between gap-3 border-b border-[#E9EDE8] pb-4"><h2 className="font-serif text-2xl text-[#1D2920]">Order summary</h2><span className="text-xs text-[#778279]">{resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0)} items</span></div>
+                <ul className="divide-y divide-[#EEF0ED]">
+                  {resolvedOrder.items.map((item) => <li key={item.id} className="flex items-center gap-3 py-3.5">
+                    <ProductImage src={item.image} alt={item.productName} className="h-14 w-14 shrink-0 rounded-lg bg-[#F4ECE9] sm:h-16 sm:w-16" />
+                    <div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold leading-5 text-[#29332B]">{item.productName}</p><p className="mt-0.5 text-[11px] text-[#818A82]">{item.variantDetails || 'One of a kind'}</p><p className="mt-1 text-xs text-[#606B62]">Qty: {item.quantity}</p></div>
+                    <span className="shrink-0 text-sm font-medium text-[#29332B]">{formatPrice(item.subtotal)}</span>
+                  </li>)}
                 </ul>
-              </Card>
-
-              <section className="grid gap-4 sm:grid-cols-2" aria-label="Delivery details">
-                <Card className="border-[#E7E1D6] bg-[#ECEFE9] p-5 shadow-none sm:p-6">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#355641]"><Truck className="h-4 w-4" aria-hidden="true" /></div>
-                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6B766D]">Delivery estimate</p>
-                  <p className="mt-1 font-serif text-xl text-[#263A30]">{resolvedOrder.shippingMethod === 'express' ? '2 business days' : '3â€“5 business days'}</p>
-                  <p className="mt-2 flex items-center gap-1.5 text-xs text-[#636B64]"><MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{resolvedOrder.customer.city}, {resolvedOrder.customer.country}</p>
-                  <p className="mt-1 text-[11px] text-[#777E77]">{resolvedOrder.shippingMethod === 'express' ? 'Express courier' : 'Standard delivery'}</p>
-                </Card>
-                <Card className="border-[#E7E1D6] bg-white p-5 shadow-none sm:p-6">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F7F1E7] text-[#A2574F]"><Mail className="h-4 w-4" aria-hidden="true" /></div>
-                  <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">Order updates</p>
-                  <p className="mt-1 break-words text-sm font-medium text-[#181716]">{resolvedOrder.customer.email}</p>
-                  <p className="mt-2 text-xs leading-5 text-[#827E77]">Weâ€™ll let you know when your order is prepared and on its way.</p>
-                </Card>
-              </section>
-            </div>
-
-            <aside className="space-y-5 lg:sticky lg:top-6">
-              <Card className="border-[#E7E1D6] bg-white p-5 shadow-sm sm:p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">Payment & receipt</p>
-                    <p className="mt-1 text-sm font-medium text-[#181716]">{paymentMethodLabel(resolvedOrder.paymentMethod)}</p>
-                  </div>
-                  <PaymentStatusBadge status={resolvedOrder.paymentStatus} />
+                <div className="space-y-2 border-t border-[#E9EDE8] pt-4 text-sm">
+                  <div className="flex justify-between gap-3 text-[#6F7A71]"><span>Subtotal</span><span>{formatPrice(resolvedOrder.subtotal)}</span></div>
+                  {resolvedOrder.discount && resolvedOrder.discount.amount > 0 && <div className="flex justify-between gap-3 text-[#3D8055]"><span>Discount</span><span>-{formatPrice(resolvedOrder.discount.amount)}</span></div>}
+                  <div className="flex justify-between gap-3 text-[#6F7A71]"><span>Shipping</span><span>{resolvedOrder.shippingCost > 0 ? formatPrice(resolvedOrder.shippingCost) : 'Free'}</span></div>
+                  {resolvedOrder.tax > 0 && <div className="flex justify-between gap-3 text-[#6F7A71]"><span>Tax</span><span>{formatPrice(resolvedOrder.tax)}</span></div>}
+                  <div className="flex items-baseline justify-between gap-3 border-t border-[#E9EDE8] pt-3 font-semibold text-[#26352A]"><span>Total</span><span className="font-serif text-2xl">{formatPrice(resolvedOrder.total)}</span></div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-[#748076]"><span>{paymentMethodLabel(resolvedOrder.paymentMethod)}</span><PaymentStatusBadge status={resolvedOrder.paymentStatus} /></div>
                 </div>
-                <p className="mt-4 border-t border-[#EEEAE3] pt-4 text-xs leading-5 text-[#827E77]">
-                  {simulatedPayment
-                    ? 'A receipt will be available after a real payment is collected.'
-                    : receipt ? `Receipt ${receipt.receiptNumber} is ready to download.` : 'Your official receipt is available once payment is confirmed.'}
-                </p>
-                {receiptLoading ? (
-                  <Button type="button" variant="outline" size="lg" isLoading disabled className="mt-4 w-full">Checking receipt</Button>
-                ) : receipt ? (
-                  <Button type="button" variant="outline" size="lg" isLoading={downloading} onClick={() => void handleDownloadReceipt()} className="mt-4 w-full gap-2">
-                    <Download className="h-4 w-4" aria-hidden="true" />{downloading ? 'Downloading' : 'Download receipt'}
-                  </Button>
-                ) : (
-                  <Button type="button" variant="outline" size="lg" disabled className="mt-4 w-full gap-2">
-                    <Download className="h-4 w-4" aria-hidden="true" />Receipt unavailable
-                  </Button>
-                )}
               </Card>
 
-              <section className="space-y-3" aria-label="Order actions">
-                <Button type="button" variant="primary" size="lg" onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)} className="w-full gap-2">
-                  <Eye className="h-4 w-4" aria-hidden="true" />Track your order
-                </Button>
-                <Button type="button" variant="outline" size="lg" onClick={() => navigate('/shop')} className="w-full gap-2 border-[#D8D1C5] bg-white">
-                  Continue exploring<ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </section>
-              <p className="flex items-center justify-center gap-2 text-center text-[11px] text-[#827E77]"><Heart className="h-3.5 w-3.5 text-[#A2574F]" aria-hidden="true" />Thoughtfully chosen. Carefully prepared.</p>
+              <Card className="border-[#E3E8E1] bg-white p-5 shadow-sm sm:p-6">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#718075]">Shipping to</p>
+                <p className="mt-1 text-sm font-medium text-[#29372D]">{resolvedOrder.customer.firstName} {resolvedOrder.customer.lastName}</p>
+                <address className="mt-1 text-xs not-italic leading-5 text-[#6F7A71]">{resolvedOrder.customer.addressLine1}{resolvedOrder.customer.addressLine2 ? `, ${resolvedOrder.customer.addressLine2}` : ''}<br />{[resolvedOrder.customer.city, resolvedOrder.customer.stateOrProvince, resolvedOrder.customer.postalCode, resolvedOrder.customer.country].filter(Boolean).join(', ')}</address>
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-[#738075]"><Mail className="h-3.5 w-3.5" aria-hidden="true" />{resolvedOrder.customer.email}</p>
+              </Card>
+
+              <Card className="border-[#E3E8E1] bg-white p-5 shadow-sm sm:p-6">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#718075]">Receipt</p>
+                <p className="mt-1 text-sm leading-5 text-[#58665C]">{simulatedPayment ? 'A receipt will be available after a real payment is collected.' : receipt ? `Receipt ${receipt.receiptNumber} is ready to download.` : 'Your official receipt is available once payment is confirmed.'}</p>
+              </Card>
             </aside>
           </div>
         ) : (
-          <Card className="mx-auto max-w-2xl border-[#E7E1D6] bg-white p-7 text-center shadow-sm sm:p-10">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E8EFEA] text-[#2E5A44]"><PackageCheck className="h-7 w-7" aria-hidden="true" /></div>
+          <Card className="mx-auto max-w-2xl border-[#E3E8E1] bg-white p-7 text-center shadow-sm sm:p-10">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E6F4E8] text-[#2F965F]"><PackageCheck className="h-7 w-7" aria-hidden="true" /></div>
             <CardTitle className="mt-5 font-serif text-3xl">Your order is safe with us.</CardTitle>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#827E77]">Weâ€™re still connecting the order details. Keep your reference to check its status, or continue exploring the collection.</p>
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#6F7A71]">We’re still connecting the order details. Keep your reference to check its status, or continue shopping.</p>
+            <p className="mt-4 font-mono text-sm text-[#405348]">{refCode || 'Awaiting reference'}</p>
             <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
               <Button type="button" variant="primary" onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)} className="gap-2"><Eye className="h-4 w-4" aria-hidden="true" />Track your order</Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/shop')} className="gap-2">Continue exploring<ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>
+              <Button type="button" variant="outline" onClick={() => navigate('/shop')} className="gap-2">Continue shopping<ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>
             </div>
           </Card>
         )}
-
-        {receiptError && <p role="alert" className="mx-auto mt-5 max-w-2xl text-center text-xs leading-5 text-[#9B1C1C]">{receiptError}</p>}
       </main>
     </div>
   );
