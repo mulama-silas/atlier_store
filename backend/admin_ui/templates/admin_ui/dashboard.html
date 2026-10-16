@@ -28,7 +28,7 @@
       linear-gradient(115deg, #E9EDEA 0%, #F6F5F2 55%, #EEF1EE 100%);
     border: 1px solid var(--border);
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: space-between;
     gap: 24px;
     flex-wrap: wrap;
@@ -79,16 +79,28 @@
     gap: 10px;
     flex-wrap: wrap;
   }
+  .dashboard-hero-tools {
+    display: flex;
+    min-width: max-content;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    padding-top: 34px;
+  }
   .dashboard-hero-actions .btn {
     border-radius: 10px;
     padding: 9px 16px;
     font-weight: 600;
   }
   .dashboard-sync {
+    position: absolute;
+    top: 14px;
+    right: 20px;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 14px;
+    margin: 0;
     font-size: 12px;
     color: var(--dash-muted);
   }
@@ -342,8 +354,10 @@
     .dashboard-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 640px) {
-    .dashboard-hero { padding: 20px; }
+    .dashboard-hero { padding: 54px 20px 20px; }
     .dashboard-kpi-grid { grid-template-columns: 1fr; }
+    .dashboard-hero-tools { width: 100%; min-width: 0; align-items: flex-end; padding-top: 0; }
+    .dashboard-hero-actions { justify-content: flex-end; }
   }
 </style>
 {% endblock %}
@@ -360,6 +374,8 @@
         glance &mdash; revenue, orders, inventory and studio activity.
         <span class="date">{% now "l, M j, Y" %}</span>
       </p>
+    </div>
+    <div class="dashboard-hero-tools">
       <div class="dashboard-sync">
         <span class="dashboard-sync-dot" id="dashboard-sync-dot"></span>
         <span id="dashboard-sync-state">Live dashboard</span>
@@ -368,21 +384,21 @@
           <i class="ph ph-arrows-clockwise"></i>
         </button>
       </div>
-    </div>
-    <div class="dashboard-hero-actions">
-      <a class="btn btn-secondary" href="{{ storefront_url }}" target="_blank" rel="noopener noreferrer">
-        <i class="ph ph-arrow-up-right"></i> View Store
-      </a>
-      {% if request.user|can:'promotions.view' %}
-      <a class="btn btn-secondary" href="/admin/dashboard/promotions/">
-        <i class="ph ph-tag"></i> Promotions
-      </a>
-      {% endif %}
-      {% if request.user|can:'products.create' %}
-      <a class="btn btn-primary" href="/admin/dashboard/products/new/">
-        <i class="ph ph-plus"></i> Add Product
-      </a>
-      {% endif %}
+      <div class="dashboard-hero-actions">
+        <a class="btn btn-secondary" href="{{ storefront_url }}" target="_blank" rel="noopener noreferrer">
+          <i class="ph ph-arrow-up-right"></i> View Store
+        </a>
+        {% if request.user|can:'promotions.view' %}
+        <a class="btn btn-secondary" href="/admin/dashboard/promotions/">
+          <i class="ph ph-tag"></i> Promotions
+        </a>
+        {% endif %}
+        {% if request.user|can:'products.create' %}
+        <a class="btn btn-primary" href="/admin/dashboard/products/new/">
+          <i class="ph ph-plus"></i> Add Product
+        </a>
+        {% endif %}
+      </div>
     </div>
   </section>
 
