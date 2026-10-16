@@ -90,20 +90,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
               <Button
                 variant="modeza-sandstone"
                 size="lg"
-                onClick={() => navigate("/shop")}
+                onClick={() => navigate("/account")}
                 className="gap-2"
               >
-                Explore the collection
+                Get started
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="lg"
-                onClick={() => navigate("/shop?collection=new-arrivals")}
-                className="gap-2 border border-white/50 text-white hover:border-white hover:bg-white/10"
-              >
-                New arrivals
-                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
           </motion.div>
