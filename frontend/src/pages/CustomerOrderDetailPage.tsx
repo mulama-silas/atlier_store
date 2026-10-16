@@ -40,7 +40,9 @@ import { Order, OrderStatus, PaymentStatus } from "../types";
 import { ReceiptDTO } from "../types/api";
 import { formatPrice } from "../utils/currency";
 import {
+  formatShortOrderDate,
   formatOrderDate,
+  getOrderStatusTimestamp,
   mapServerOrder,
   totalQuantity,
 } from "../utils/orderMapper";
@@ -629,25 +631,30 @@ export const CustomerOrderDetailPage: React.FC<
                   {order.items.map((item) => (
                     <li
                       key={item.id}
-                      className="flex flex-wrap items-center gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-5"
+                      className="flex items-center gap-4 px-4 py-4 sm:gap-5 sm:px-6 sm:py-5"
                     >
                       <OrderItemThumb
                         item={item}
-                        className="h-24 w-[4.5rem] shrink-0 rounded-md bg-[#F4ECE9] sm:h-28 sm:w-20"
+                        className="h-24 w-24 shrink-0 rounded-md bg-[#F4ECE9] sm:h-28 sm:w-28"
                       />
-                      <div className="min-w-[8rem] flex-1">
-                        <h3 className="font-serif text-base text-[#181716] sm:text-lg">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="line-clamp-2 font-serif text-lg leading-snug text-[#181716] sm:text-xl">
                           {item.productName}
                         </h3>
-                        <p className="mt-1 text-xs text-[#63605A]">
-                          {item.variantDetails || "—"}
+                        <p className="mt-1 text-sm text-[#63605A]">
+                          Order {order.orderNumber}
                         </p>
-                        <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.12em] text-[#827E77]">
-                          Qty {item.quantity} · {formatPrice(item.unitPrice)}{" "}
-                          each
+                        <p className="mt-1 text-xs text-[#827E77]">
+                          {item.variantDetails || "One of a kind"} · Qty {item.quantity}
                         </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                          <StatusBadge status={order.status} />
+                          <span className="text-sm font-semibold text-[#181716]">
+                            On {formatShortOrderDate(getOrderStatusTimestamp(order)) || "date pending"}
+                          </span>
+                        </div>
                       </div>
-                      <p className="shrink-0 font-serif text-base text-[#181716]">
+                      <p className="shrink-0 self-start pt-1 font-serif text-base text-[#181716]">
                         {formatPrice(item.subtotal)}
                       </p>
                     </li>

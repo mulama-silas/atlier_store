@@ -24,7 +24,7 @@ import { useRouter } from '../router/RouterContext';
 import { ProductImage } from '../components/ui/ProductImage';
 import { api } from '../services/apiClient';
 import { formatPrice } from '../utils/currency';
-import { mapServerOrder } from '../utils/orderMapper';
+import { formatShortOrderDate, getOrderStatusTimestamp, mapServerOrder } from '../utils/orderMapper';
 import { ORDER_STATUS_META, PROGRESS_STEPS } from '../utils/orderStatus';
 import { Order, OrderStatus, PaymentStatus } from '../types';
 import { ReceiptDTO } from '../types/api';
@@ -296,16 +296,18 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                 </div>
                 <ul className="divide-y divide-[#EEEAE3]">
                   {resolvedOrder.items.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between gap-4 py-4 sm:py-5">
-                      <div className="flex min-w-0 items-center gap-4">
-                        <ProductImage src={item.image} alt={item.productName} className="h-20 w-[4.5rem] shrink-0 rounded-xl bg-[#F4ECE9] sm:h-24 sm:w-[5.25rem]" />
-                        <div className="min-w-0">
-                          <p className="font-serif text-base text-[#181716] sm:text-lg">{item.productName}</p>
-                          <p className="mt-1 text-xs leading-5 text-[#827E77]">{item.variantDetails || 'One of a kind'}</p>
-                          <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.1em] text-[#827E77]">Quantity · {item.quantity}</p>
+                    <li key={item.id} className="flex items-center gap-4 py-4 sm:gap-5 sm:py-5">
+                      <ProductImage src={item.image} alt={item.productName} className="h-24 w-24 shrink-0 rounded-md bg-[#F4ECE9] sm:h-28 sm:w-28" />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 font-serif text-lg leading-snug text-[#181716] sm:text-xl">{item.productName}</p>
+                        <p className="mt-1 text-sm text-[#63605A]">Order {resolvedOrder.orderNumber}</p>
+                        <p className="mt-1 text-xs text-[#827E77]">{item.variantDetails || 'One of a kind'} · Qty {item.quantity}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                          <StatusBadge status={resolvedOrder.status} />
+                          <span className="text-sm font-semibold text-[#181716]">On {formatShortOrderDate(getOrderStatusTimestamp(resolvedOrder)) || 'date pending'}</span>
                         </div>
                       </div>
-                      <span className="shrink-0 text-sm font-medium text-[#181716]">{formatPrice(item.subtotal)}</span>
+                      <span className="shrink-0 self-start pt-1 text-sm font-medium text-[#181716]">{formatPrice(item.subtotal)}</span>
                     </li>
                   ))}
                 </ul>

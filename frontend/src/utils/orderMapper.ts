@@ -87,6 +87,27 @@ export function totalQuantity(order: { items: { quantity: number }[] }): number 
   return order.items.reduce((sum, item) => sum + item.quantity, 0);
 }
 
+/** Timestamp for the order's current status, with a sensible placed-date fallback. */
+export function getOrderStatusTimestamp(order: Order): string {
+  const event = order.timeline.find((entry) => entry.status === order.status);
+  if (event?.timestamp) return event.timestamp;
+  if (order.status === 'delivered' || order.status === 'received' || order.status === 'cancelled') {
+    return order.updatedAt || order.createdAt;
+  }
+  return order.createdAt;
+}
+
+/** Compact day-month label used in order item rows, e.g. 28-08. */
+export function formatShortOrderDate(iso: string | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit' }).formatToParts(date);
+  const day = parts.find((part) => part.type === 'day')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  return day && month ? `${day}-${month}` : '';
+}
+
 /** Locale-aware date formatting used across the orders experience. */
 export function formatOrderDate(iso: string | undefined, opts?: Intl.DateTimeFormatOptions): string {
   if (!iso) return '';
