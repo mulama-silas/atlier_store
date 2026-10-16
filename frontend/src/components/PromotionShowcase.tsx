@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "./modeza";
 
-const POPUP_INTERVAL_MS = 5 * 60 * 1000;
+const POPUP_INTERVAL_MS = 30 * 60 * 1000;
 const LAST_POPUP_KEY = "modeza_promotion_popup_last_seen";
 
 function getLastPopupAt(fallback: number): number {
