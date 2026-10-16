@@ -4,7 +4,7 @@ import json
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from unittest.mock import patch
 from PIL import Image
 from rest_framework.test import APIClient
@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 from audit.models import AuditLog
 from catalog.models import Category, Product, ProductVariant
 from orders.models import Order, OrderItem
+from payments.models import PaymentIntent
 from admin_ui.models import AdminNotification, CustomerNotification
 from access_control.models import Permission, StaffProfile
 
@@ -1582,6 +1583,138 @@ class AdminDashboardTests(TestCase):
             f'action="/admin/dashboard/orders/{order.id}/approve/"',
         )
         self.assertContains(response, 'Confirm order')
+
+    def test_simulated_checkout_is_visible_and_admin_can_confirm_it(self):
+        from cart.models import Cart
+
+        product = Product.objects.create(
+            category=self.category,
+            name='Simulated Checkout Product',
+            slug='simulated-checkout-product',
+            description='Product for the simulated checkout test.',
+            price_minor=30000,
+            status=Product.Status.ACTIVE,
+        )
+        variant = ProductVariant.objects.create(
+            product=product, sku='SIM-CHECKOUT-001', stock_quantity=2)
+        cart_key = 'simulated-admin-confirm-cart'
+        api_client = APIClient()
+        added = api_client.post(
+            '/api/cart/items',
+            {'variantId': str(variant.id), 'quantity': 1},
+            format='json',
+            HTTP_X_CART_ID=cart_key,
+        )
+        self.assertEqual(added.status_code, 201, added.content)
+        created = api_client.post(
+            '/api/orders',
+            {
+                'customer': {
+                    'fullName': 'Simulation Buyer',
+                    'email': 'simulation@example.com',
+                    'phone': '0712345678',
+                    'addressLine1': '1 Market Street',
+                    'city': 'Nairobi',
+                    'county': 'Nairobi',
+                },
+                'shippingMethod': 'standard',
+                'paymentMethod': 'mpesa',
+            },
+            format='json',
+            HTTP_X_CART_ID=cart_key,
+        )
+        self.assertEqual(created.status_code, 201, created.content)
+        order_number = created.json()['orderNumber']
+
+        with override_settings(
+            MPESA_PAYMENT_MODE='simulation',
+            MPESA_ENVIRONMENT='sandbox',
+        ):
+            intent_response = api_client.post(
+                '/api/payments/create-intent',
+                {
+                    'orderNumber': order_number,
+                    'method': 'mpesa',
+                    'phoneNumber': '0712345678',
+                },
+                format='json',
+                HTTP_X_CART_ID=cart_key,
+            )
+        self.assertEqual(intent_response.status_code, 201, intent_response.content)
+        self.assertEqual(
+            intent_response.json()['status'], PaymentIntent.Status.SIMULATED)
+
+        order = Order.objects.get(order_number=order_number)
+        self.assertEqual(order.status, Order.Status.PENDING)
+        self.assertEqual(order.payment_status, Order.PaymentStatus.PENDING)
+
+        self.client.force_login(self.staff)
+        dashboard = self.client.get('/admin/dashboard/')
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertEqual(dashboard.context['orders_needing_attention'], 1)
+        refreshed_dashboard = self.client.get('/admin/dashboard/refresh/')
+        self.assertEqual(refreshed_dashboard.status_code, 200)
+        self.assertEqual(
+            refreshed_dashboard.json()['kpis']['attention_orders'], 1)
+
+        orders_page = self.client.get('/admin/dashboard/orders/')
+        self.assertContains(orders_page, order_number)
+        self.assertContains(
+            orders_page,
+            f'action="/admin/dashboard/orders/{order.id}/approve/"',
+        )
+        detail_page = self.client.get(
+            f'/admin/dashboard/orders/{order.id}/')
+        self.assertTrue(detail_page.context['can_approve'])
+        self.assertContains(detail_page, 'Approve & confirm order')
+
+        response = self.client.post(
+            f'/admin/dashboard/orders/{order.id}/approve/', follow=True)
+        self.assertEqual(response.status_code, 200)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.CONFIRMED)
+        self.assertEqual(order.payment_status, Order.PaymentStatus.PENDING)
+        self.assertContains(response, 'Order approved')
+        refreshed_dashboard = self.client.get('/admin/dashboard/refresh/')
+        self.assertEqual(
+            refreshed_dashboard.json()['kpis']['attention_orders'], 0)
+
+    def test_unverified_m_pesa_order_cannot_be_confirmed(self):
+        from cart.models import Cart
+
+        cart = Cart.objects.create(cart_key='unverified-mpesa-cart')
+        order = Order.objects.create(
+            order_number='AT-UNVERIFIED-MPESA-001',
+            cart=cart,
+            customer={'fullName': 'Unverified Buyer'},
+            subtotal_minor=1200,
+            total_minor=1400,
+            shipping_cost_minor=200,
+            payment_method='mpesa',
+            payment_status=Order.PaymentStatus.PENDING,
+            status=Order.Status.PENDING,
+        )
+        self.client.force_login(self.staff)
+
+        orders_page = self.client.get('/admin/dashboard/orders/')
+        self.assertContains(orders_page, order.order_number)
+        self.assertNotContains(
+            orders_page,
+            f'action="/admin/dashboard/orders/{order.id}/approve/"',
+        )
+        self.assertEqual(
+            self.client.get('/admin/dashboard/').context[
+                'orders_needing_attention'],
+            0,
+        )
+        response = self.client.post(
+            f'/admin/dashboard/orders/{order.id}/approve/', follow=True)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PENDING)
+        self.assertContains(
+            response,
+            'Only paid, pay-on-delivery, or simulated orders can be approved.',
+        )
 
     def test_staff_can_filter_orders_by_status_and_payment_status(self):
         from cart.models import Cart

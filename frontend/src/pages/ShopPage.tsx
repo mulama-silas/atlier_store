@@ -7,7 +7,6 @@ import { useRouter } from "../router/RouterContext";
 import {
   Search,
   SlidersHorizontal,
-  ArrowUpDown,
   ChevronLeft,
   X,
   Package,
@@ -15,7 +14,6 @@ import {
   ChevronRight,
   Sparkles,
   ArrowRight,
-  MoveRight,
 } from "lucide-react";
 import { Button } from "../components/modeza/Button";
 import { Input, Select as SortSelect } from "../components/modeza/Input";
@@ -226,10 +224,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     Boolean(minPrice), Boolean(maxPrice), Boolean(selectedSize), Boolean(selectedColor),
   ].filter(Boolean).length;
   const hasActiveFilters = activeFilterCount > 0;
-  const activeSortLabel = isNewArrivalsView
-    ? "Newest First"
-    : (SORT_OPTIONS.find((option) => option.value === sortBy)?.label ?? "Featured First");
-
   const headerTitle = selectedSale
     ? "The Sale Edit"
     : selectedOccasion
@@ -239,14 +233,16 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         : selectedCollection === "new-arrivals"
           ? "New Arrivals"
           : selectedCategory === "all"
-            ? "The Complete Wardrobe"
+            ? "All Products"
             : storeCategories.find((c) => c.slug === selectedCategory)?.name ||
               "The Collection";
 
   const headerDescription = selectedSale
     ? "Focused reductions on select pieces from the permanent collection, while they last."
     : storeCategories.find((c) => c.slug === selectedCategory)?.description ||
-      "Tailored from organic fibers with meticulous attention to line, drape, and enduring tactility.";
+      (selectedCategory === "all"
+        ? "Browse the complete MODEZA collection and find your next favorite."
+        : "Tailored from organic fibers with meticulous attention to line, drape, and enduring tactility.");
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -276,126 +272,23 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const shopCategories = storeCategories.filter((category) => category.slug !== "all");
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-8 px-4 pb-20 pt-6 sm:px-6 sm:pt-10 lg:px-8 2xl:max-w-[88rem]">
-      <Card className="relative overflow-hidden rounded-[2rem] border-white/10 bg-[#181716] p-0 text-[#FAF9F6] shadow-xl hover:shadow-xl">
-        <img
-          src="https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?q=80&w=2200&auto=format&fit=crop"
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 z-0 h-full w-full object-cover object-center"
-          referrerPolicy="no-referrer"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 bg-[#181716]/75"
-        ></div>
-
-        <div className="relative z-10 px-5 py-7 sm:px-8 sm:py-9 lg:px-12 lg:py-11">
-          <nav
-            aria-label="Breadcrumb"
-            className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="-ml-3 h-8 px-3 text-[10px] text-white/55 hover:bg-white/10 hover:text-white focus-visible:ring-offset-[#181716]"
-            >
-              Home
-            </Button>
-            <ChevronRight className="h-3 w-3" aria-hidden="true" />
-            <span className="text-white/80">Shop</span>
-            {selectedCategory !== "all" && (
-              <>
-                <ChevronRight className="h-3 w-3" aria-hidden="true" />
-                <span className="max-w-40 truncate text-white/80 capitalize sm:max-w-none">
-                  {selectedCategory}
-                </span>
-              </>
-            )}
-          </nav>
-
-          <div className="mt-8 grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-12">
-            <div className="max-w-3xl">
-              <Badge variant="new" size="lg" className="mb-5 gap-1.5">
-                <Sparkles className="h-3 w-3" aria-hidden="true" />
-                MODEZA Collection
-              </Badge>
-              <h1 className="font-serif text-4xl font-normal leading-[1.08] tracking-tight text-balance sm:text-5xl lg:text-6xl">
-                {headerTitle}
-              </h1>
-              <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/65 text-pretty sm:text-base">
-                {headerDescription}
-              </p>
-
-              {(selectedCategory !== "all" ||
-                selectedOccasion ||
-                selectedSale) && (
-                <div className="mt-6 flex flex-wrap items-center gap-2">
-                  <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
-                    Refining
-                  </span>
-                  {selectedCategory !== "all" && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedCategory("all")}
-                      className="h-8 border border-white/15 px-3 text-[10px] text-white/80 hover:border-white/30 hover:bg-white/10 hover:text-white"
-                    >
-                      <X className="h-3 w-3" aria-hidden="true" />
-                      Clear Category
-                    </Button>
-                  )}
-                  {selectedOccasion && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedOccasion(undefined)}
-                      className="h-8 border border-white/15 px-3 text-[10px] text-white/80 hover:border-white/30 hover:bg-white/10 hover:text-white"
-                    >
-                      <X className="h-3 w-3" aria-hidden="true" />
-                      Clear Occasion
-                    </Button>
-                  )}
-                  {selectedSale && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedSale(false)}
-                      className="h-8 border border-white/15 px-3 text-[10px] text-white/80 hover:border-white/30 hover:bg-white/10 hover:text-white"
-                    >
-                      <X className="h-3 w-3" aria-hidden="true" />
-                      Clear Sale
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="min-w-52 rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-sm">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">
-                Collection result
-              </span>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="font-serif text-4xl font-normal text-white sm:text-5xl">
-                  {resultTotal}
-                </span>
-                <span className="text-xs uppercase tracking-wider text-white/50">
-                  {resultTotal === 1 ? "Piece" : "Pieces"}
-                </span>
-              </div>
-              <p className="mt-3 text-xs text-white/45">
-                Showing {displayedProducts.length} in the current view
-              </p>
-            </div>
+    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 pb-20 pt-6 sm:px-6 sm:pt-8 lg:px-8 2xl:max-w-[88rem]">
+      <header className="space-y-4 border-b border-[#E8E5DF] pb-5">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-[#827E77]">
+          <Button type="button" variant="ghost" size="sm" onClick={() => navigate("/")} className="-ml-3 h-8 px-3 text-xs text-[#63605A]">Home</Button>
+          <ChevronRight className="h-3 w-3" aria-hidden="true" />
+          <span className="text-[#181716]">Shop</span>
+          {selectedCategory !== "all" && <><ChevronRight className="h-3 w-3" aria-hidden="true" /><span className="max-w-40 truncate capitalize text-[#181716] sm:max-w-none">{selectedCategory}</span></>}
+        </nav>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">MODEZA collection</p>
+            <h1 className="mt-1 font-serif text-3xl font-normal tracking-tight text-[#181716] sm:text-4xl">{headerTitle}</h1>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[#63605A]">{headerDescription}</p>
           </div>
+          <div className="shrink-0 text-sm text-[#63605A]">{resultTotal} {resultTotal === 1 ? "product" : "products"}</div>
         </div>
-
-      </Card>
+      </header>
 
       {availablePromotions.length > 0 && (
         <div
@@ -418,40 +311,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </Badge>
           ))}
         </div>
-      )}
-
-      {!hasActiveFilters && shopCategories.length > 0 && (
-        <section aria-labelledby="shop-categories-title" className="space-y-4 sm:space-y-5">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">Find your next favorite</span>
-              <h2 id="shop-categories-title" className="mt-1.5 font-serif text-2xl font-normal text-[#181716] sm:text-3xl">Shop by category</h2>
-            </div>
-            <span className="hidden pb-1 text-xs text-[#827E77] sm:block">Thoughtful pieces, made to be worn often</span>
-          </div>
-          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 md:grid-cols-4">
-            {shopCategories.map((category, index) => (
-              <button
-                key={category.slug}
-                type="button"
-                onClick={() => { setSelectedCategory(category.slug); setPage(1); }}
-                className={`group relative flex min-h-28 w-[72vw] max-w-64 shrink-0 snap-start flex-col justify-between overflow-hidden rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 sm:min-h-32 sm:w-full sm:max-w-none ${index % 3 === 1 ? "border-[#E6D8D2] bg-[#F7ECEA]" : index % 3 === 2 ? "border-[#DCE4DB] bg-[#F0F3EE]" : "border-[#E8E5DF] bg-white"}`}
-                aria-pressed={selectedCategory === category.slug}
-              >
-                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">0{index + 1}</span>
-                <span className="flex items-end justify-between gap-2">
-                  <span>
-                    <span className="block font-serif text-xl text-[#181716] sm:text-2xl">{category.name}</span>
-                    <span className="mt-1 block line-clamp-1 text-[11px] text-[#827E77]">{category.description}</span>
-                  </span>
-                  <span className="mb-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#D8D3CB] text-[#63605A] transition-all group-hover:border-[#A2574F] group-hover:bg-[#A2574F] group-hover:text-white">
-                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
       )}
 
       <Card className="sticky top-3 z-30 rounded-2xl border-[#E8E5DF] bg-white/95 p-3 shadow-md backdrop-blur-xl sm:p-4">
@@ -482,42 +341,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-            <div className="hidden items-center gap-2 lg:flex">
-              <label
-                htmlFor="in-stock-desktop"
-                className="flex h-10 cursor-pointer select-none items-center gap-2.5 rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-3.5 text-xs font-medium text-[#63605A] transition-colors hover:border-[#D8D3CB]"
-              >
-                <Checkbox
-                  id="in-stock-desktop"
-                  checked={onlyInStock}
-                  onCheckedChange={(checked) =>
-                    setOnlyInStock(checked === true)
-                  }
-                  className="h-[18px] w-[18px] rounded-full"
-                />
-                <span>In stock only</span>
-              </label>
-
-              {!isNewArrivalsView && (
-                <div className="relative w-52">
-                  <ArrowUpDown
-                    className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-[#827E77]"
-                    aria-hidden="true"
-                  />
-                  <SortSelect
-                    id="sort-desktop"
-                    value={sortBy}
-                    onChange={(event) =>
-                      setSortBy(event.target.value as SortOption)
-                    }
-                    options={SORT_OPTIONS}
-                    aria-label="Sort products"
-                    className="h-10 bg-[#FAF9F6] py-0 pl-10 text-xs font-semibold"
-                  />
-                </div>
-              )}
-            </div>
-
             <Button
               type="button"
               variant={showFilters ? "primary" : "outline"}
@@ -555,7 +378,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             )}
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#F3F1ED] pt-3 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[#F3F1ED] pt-3 sm:grid-cols-4 lg:hidden">
           <Input id="filter-min-price" type="number" min="0" step="1" placeholder="Min KSh" aria-label="Minimum price in Kenyan shillings" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} className="h-10 bg-[#FAF9F6] text-xs" />
           <Input id="filter-max-price" type="number" min="0" step="1" placeholder="Max KSh" aria-label="Maximum price in Kenyan shillings" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} className="h-10 bg-[#FAF9F6] text-xs" />
           <SortSelect id="filter-size" value={selectedSize} onChange={(event) => setSelectedSize(event.target.value)} options={[{ value: "", label: "All sizes" }, ...facets.sizes.map((size) => ({ value: size, label: size }))]} aria-label="Filter by size" className="h-10 bg-[#FAF9F6] py-0 text-xs" />
@@ -681,6 +504,34 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         )}
       </AnimatePresence>
 
+      <div className="grid items-start gap-7 lg:grid-cols-[14rem_minmax(0,1fr)] xl:gap-9">
+        <aside className="hidden lg:block" aria-label="Product filters">
+          <Card className="sticky top-24 space-y-6 rounded-xl border-[#E8E5DF] bg-white p-4 shadow-sm">
+            <section aria-labelledby="desktop-categories-heading">
+              <h2 id="desktop-categories-heading" className="mb-2 text-sm font-semibold text-[#181716]">Categories</h2>
+              <div className="space-y-1">
+                <button type="button" onClick={() => { setSelectedCategory("all"); setPage(1); }} aria-pressed={selectedCategory === "all"} className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${selectedCategory === "all" ? "bg-[#F1F0EE] font-semibold text-[#181716]" : "text-[#63605A] hover:bg-[#FAF9F6]"}`}>All products</button>
+                {shopCategories.map((category) => <button key={category.slug} type="button" onClick={() => { setSelectedCategory(category.slug); setPage(1); }} aria-pressed={selectedCategory === category.slug} className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${selectedCategory === category.slug ? "bg-[#F1F0EE] font-semibold text-[#181716]" : "text-[#63605A] hover:bg-[#FAF9F6]"}`}>{category.name}</button>)}
+              </div>
+            </section>
+            <section className="border-t border-[#EEEAE3] pt-5" aria-labelledby="desktop-price-heading">
+              <h2 id="desktop-price-heading" className="mb-3 text-sm font-semibold text-[#181716]">Price range</h2>
+              <div className="grid grid-cols-2 gap-2">
+                <Input id="filter-min-price-desktop" type="number" min="0" step="1" placeholder="Min KSh" aria-label="Minimum price in Kenyan shillings" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} className="h-9 min-w-0 bg-[#FAF9F6] px-2 text-xs" />
+                <Input id="filter-max-price-desktop" type="number" min="0" step="1" placeholder="Max KSh" aria-label="Maximum price in Kenyan shillings" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} className="h-9 min-w-0 bg-[#FAF9F6] px-2 text-xs" />
+              </div>
+            </section>
+            <section className="space-y-3 border-t border-[#EEEAE3] pt-5" aria-label="More filters">
+              <label htmlFor="in-stock-sidebar" className="flex cursor-pointer items-center gap-2 text-xs text-[#3F4741]">
+                <Checkbox id="in-stock-sidebar" checked={onlyInStock} onCheckedChange={(checked) => setOnlyInStock(checked === true)} />In stock only
+              </label>
+              <SortSelect id="filter-size-sidebar" value={selectedSize} onChange={(event) => setSelectedSize(event.target.value)} options={[{ value: "", label: "All sizes" }, ...facets.sizes.map((size) => ({ value: size, label: size }))]} aria-label="Filter by size" className="h-9 bg-[#FAF9F6] py-0 text-xs" />
+              <SortSelect id="filter-color-sidebar" value={selectedColor} onChange={(event) => setSelectedColor(event.target.value)} options={[{ value: "", label: "All colors" }, ...facets.colors.map((color) => ({ value: color, label: color }))]} aria-label="Filter by color" className="h-9 bg-[#FAF9F6] py-0 text-xs" />
+            </section>
+            {hasActiveFilters && <Button type="button" variant="ghost" size="sm" fullWidth onClick={clearFilters} className="text-[#9E332B] hover:bg-[#FDF2F2]">Clear all filters</Button>}
+          </Card>
+        </aside>
+        <div className="min-w-0 space-y-6">
       <div className="flex flex-col gap-3 border-b border-[#E8E5DF] pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
@@ -691,14 +542,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           </h2>
           <p className="mt-1.5 text-xs text-[#827E77]">Showing {displayedProducts.length} of {resultTotal} pieces</p>
         </div>
-        <div className="flex items-center justify-between gap-2 self-start sm:self-auto">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">
-            Order
-          </span>
-          <Badge variant="default" size="lg">
-            {activeSortLabel}
-          </Badge>
-          <span className="hidden items-center gap-1 text-[10px] text-[#827E77] sm:flex lg:hidden">Swipe for more <MoveRight className="h-3 w-3" aria-hidden="true" /></span>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <label htmlFor="sort-results" className="shrink-0 text-xs text-[#63605A]">Sort by</label>
+          <SortSelect
+            id="sort-results"
+            value={isNewArrivalsView ? "newest" : sortBy}
+            onChange={(event) => setSortBy(event.target.value as SortOption)}
+            options={SORT_OPTIONS}
+            aria-label="Sort products"
+            disabled={isNewArrivalsView}
+            className="h-10 min-w-0 flex-1 bg-white py-0 text-xs sm:w-52 sm:flex-none"
+          />
         </div>
       </div>
 
@@ -740,8 +594,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       ) : (
         <section
           aria-label="Shop products"
-          className="-mx-4 grid grid-flow-col auto-rows-fr gap-3 overflow-x-auto snap-x snap-mandatory px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:gap-x-6 sm:gap-y-10 sm:overflow-visible sm:px-0 sm:pb-0 sm:snap-none lg:grid-cols-3 lg:gap-x-7 lg:gap-y-12 xl:grid-cols-4"
-          style={{ gridAutoColumns: "minmax(0, 42vw)" }}
+          className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-5 sm:gap-y-8 lg:grid-cols-3 2xl:grid-cols-4"
         >
           {displayedProducts.map((product, index) => (
             <motion.div
@@ -763,15 +616,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </motion.div>
           ))}
         </section>
-      )}
-
-      {displayedProducts.length > 0 && !isLoadingProducts && (
-        <div className="flex items-center justify-center gap-2 border-t border-[#E8E5DF] pt-5 text-center text-[10px] font-medium uppercase tracking-[0.16em] text-[#827E77] sm:hidden" aria-hidden="true">
-          <span className="h-px w-8 bg-[#D8D3CB]" />
-          Swipe to discover more
-          <MoveRight className="h-3 w-3 text-[#A2574F]" />
-          <span className="h-px w-8 bg-[#D8D3CB]" />
-        </div>
       )}
 
       {resultTotalPages > 1 && displayedProducts.length > 0 && (
@@ -830,6 +674,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
           {loadMoreError && <p className="mt-3 text-center text-sm text-[#9E332B]" role="alert">{loadMoreError}</p>}
         </nav>
       )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -52,7 +52,8 @@ from assistant.analytics import assistant_analytics
 from botique_backend.storage import object_key_from_url, supabase_storage_enabled
 from inventory.services import adjust_stock
 from orders.models import Order, OrderItem
-from orders.services import approve_order
+from orders.services import approve_order, is_order_approvable
+from payments.models import PaymentIntent
 from receipts.models import Receipt
 from receipts.services import read_pdf_bytes, regenerate_receipt
 from replica.services.sync import (
@@ -1310,7 +1311,8 @@ class AdminPageView(View):
 
         if page == 'orders':
             order_rows = []
-            orders = Order.objects.order_by('-created_at')
+            orders = Order.objects.prefetch_related(
+                'payment_intents').order_by('-created_at')
             status = request.GET.get('status')
             payment_status = request.GET.get('payment_status')
 
@@ -1350,13 +1352,7 @@ class AdminPageView(View):
                     'status': order.get_status_display(),
                     'can_approve': (
                         order.status == Order.Status.PENDING
-                        and (
-                            order.payment_status == Order.PaymentStatus.PAID
-                            or order.payment_method in {
-                                'cash_on_delivery',
-                                'pay_on_delivery',
-                            }
-                        )
+                        and is_order_approvable(order)
                     ),
                     'actions': 'View',
                 })
@@ -1927,7 +1923,9 @@ class DashboardView(View):
             ).filter(
                 Q(payment_status=Order.PaymentStatus.PAID)
                 | Q(payment_method__in=['cash_on_delivery', 'pay_on_delivery'])
-            ).count(),
+                | Q(payment_intents__method=PaymentIntent.Method.MPESA,
+                    payment_intents__status=PaymentIntent.Status.SIMULATED)
+            ).distinct().count(),
             'sales_overview': sales_overview,
             'sales_chart': sales_chart,
             'sales_peak_kes': sales_peak,
@@ -2090,7 +2088,10 @@ class DashboardDataView(View):
         orders_needing_attention = Order.objects.filter(
             status=Order.Status.PENDING).filter(
             Q(payment_status=Order.PaymentStatus.PAID)
-            | Q(payment_method__in=['cash_on_delivery', 'pay_on_delivery'])).count()
+            | Q(payment_method__in=['cash_on_delivery', 'pay_on_delivery'])
+            | Q(payment_intents__method=PaymentIntent.Method.MPESA,
+                payment_intents__status=PaymentIntent.Status.SIMULATED)
+        ).distinct().count()
 
         low_stock_count = ProductVariant.objects.filter(
             stock_quantity__lte=3).count()
@@ -2829,7 +2830,8 @@ class OrderDetailPageView(View):
 
     def get(self, request, order_id):
         order = Order.objects.prefetch_related(
-            'items__variant', 'items__product').filter(pk=order_id).first()
+            'items__variant', 'items__product',
+            'payment_intents').filter(pk=order_id).first()
         if not order:
             messages.error(request, 'Order not found.')
             return redirect('admin-orders')
@@ -2861,16 +2863,9 @@ class OrderDetailPageView(View):
                 'line_total_display': Decimal(item.line_total_minor) / Decimal(100),
             })
 
-        is_delivery_payment = order.payment_method in {
-            'cash_on_delivery',
-            'pay_on_delivery',
-        }
         can_approve = (
-            (
-                order.payment_status == Order.PaymentStatus.PAID
-                or is_delivery_payment
-            )
-            and order.status != Order.Status.CONFIRMED
+            order.status == Order.Status.PENDING
+            and is_order_approvable(order)
         )
 
         activity = AuditLog.objects.select_related('actor').filter(
@@ -2895,7 +2890,7 @@ class OrderDetailPageView(View):
             'total': total,
             'items': items,
             'page_title': f'Order {order.order_number}',
-            'page_subtitle': 'Review the full order and approve payment.',
+            'page_subtitle': 'Review order details and confirm eligible orders.',
             'can_approve': can_approve,
             'activity_logs': activity,
             'logs': activity,

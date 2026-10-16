@@ -11,6 +11,7 @@ from cart.models import Cart
 from catalog.models import Product
 from emails.services import queue_email
 from inventory.services import release_reservation, reserve_variant
+from payments.models import PaymentIntent
 from receipts.services import generate_receipt
 
 from .models import Order, OrderItem
@@ -384,7 +385,7 @@ def create_order(cart_key, payload, user=None):
     placed = {
         'category': 'order',
         'title': 'Order placed',
-        'message': f'Your order {order.order_number} has been placed and is being prepared.',
+        'message': f'Your order {order.order_number} has been placed and is awaiting confirmation.',
         'link': f'/account/orders/{order.order_number}',
         'event_key': f'customer-order-created:{order.pk}',
     }
@@ -402,15 +403,32 @@ def create_order(cart_key, payload, user=None):
     return order
 
 
-@transaction.atomic
-def approve_order(order):
+def is_order_approvable(order):
     is_delivery_payment = order.payment_method in {
         'cash_on_delivery',
         'pay_on_delivery',
     }
-    if order.payment_status != Order.PaymentStatus.PAID and not is_delivery_payment:
+    if order.payment_status == Order.PaymentStatus.PAID or is_delivery_payment:
+        return True
+    return any(
+        intent.method == PaymentIntent.Method.MPESA
+        and intent.status == PaymentIntent.Status.SIMULATED
+        for intent in order.payment_intents.all()
+    )
+
+
+@transaction.atomic
+def approve_order(order):
+    if order.status == Order.Status.CANCELLED:
         raise ValidationError(
-            {'payment_status': 'Only paid orders can be approved.'})
+            {'status': 'Cancelled orders cannot be confirmed.'})
+    is_delivery_payment = order.payment_method in {
+        'cash_on_delivery',
+        'pay_on_delivery',
+    }
+    if not is_order_approvable(order):
+        raise ValidationError(
+            {'payment_status': 'Only paid, pay-on-delivery, or simulated orders can be approved.'})
     if order.status == Order.Status.CONFIRMED:
         if order.payment_status == Order.PaymentStatus.PAID:
             generate_receipt(order)
@@ -449,7 +467,8 @@ def approve_order(order):
         f'Order {order.order_number} confirmed',
         confirmed['message'], confirmed,
     )
-    generate_receipt(order)
+    if order.payment_status == Order.PaymentStatus.PAID:
+        generate_receipt(order)
     return order
 
 
