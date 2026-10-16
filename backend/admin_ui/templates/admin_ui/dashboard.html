@@ -354,7 +354,7 @@
   <section class="dashboard-hero">
     <div>
       <div class="dashboard-eyebrow"><i class="ph ph-sparkle pin"></i> MODEZA &middot; Store Command</div>
-      <h1 class="dashboard-greeting">Good morning.</h1>
+      <h1 class="dashboard-greeting">Welcome back.</h1>
       <p class="dashboard-subtitle">
         {% firstof request.user.get_full_name request.user.username 'Admin' %}, here is your boutique at a
         glance &mdash; revenue, orders, inventory and studio activity.
@@ -370,9 +370,14 @@
       </div>
     </div>
     <div class="dashboard-hero-actions">
-      <a class="btn btn-secondary" href="http://127.0.0.1:3000/" target="_blank" rel="noopener noreferrer">
+      <a class="btn btn-secondary" href="{{ storefront_url }}" target="_blank" rel="noopener noreferrer">
         <i class="ph ph-arrow-up-right"></i> View Store
       </a>
+      {% if request.user|can:'promotions.view' %}
+      <a class="btn btn-secondary" href="/admin/dashboard/promotions/">
+        <i class="ph ph-tag"></i> Promotions
+      </a>
+      {% endif %}
       {% if request.user|can:'products.create' %}
       <a class="btn btn-primary" href="/admin/dashboard/products/new/">
         <i class="ph ph-plus"></i> Add Product

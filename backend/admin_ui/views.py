@@ -1082,6 +1082,14 @@ class AdminPageView(View):
             value = row.get('status', '')
             css = str(value).lower().replace(' ', '-')
             return mark_safe(f'<span class="status-badge {css}">{value}</span>')
+        if safe_column == 'code':
+            value = row.get('code') or '-'
+            mode = 'automatic' if value == 'Automatic' else 'coupon'
+            return format_html(
+                '<span class="promotion-code-chip promotion-code-chip--{}">{}</span>',
+                mode, value)
+        if safe_column == 'type':
+            return format_html('<span class="promotion-type-label">{}</span>', row.get('type', ''))
         if safe_column == 'actions':
             promo_id = row.get('id') or ''
             actions = row.get('actions') or []
@@ -1356,7 +1364,7 @@ class AdminPageView(View):
             page_data['rows'] = order_rows
 
         if page == 'promotions':
-            from promotions.models import Promotion
+            from promotions.models import Promotion, PromotionRedemption
             promo_rows = []
             promos = Promotion.objects.order_by('-priority', '-created_at')
             status_filter = request.GET.get('status') or ''
@@ -1412,11 +1420,18 @@ class AdminPageView(View):
             if not page_data['can_create']:
                 page_data['primary_action'] = ''
             page_data['promo_counts'] = {
+                'total': Promotion.objects.count(),
                 'active': Promotion.objects.filter(status='active').count(),
                 'scheduled': Promotion.objects.filter(status='scheduled').count(),
                 'expired': Promotion.objects.filter(status='expired').count(),
                 'disabled': Promotion.objects.filter(status='disabled').count(),
+                'draft': Promotion.objects.filter(status='draft').count(),
+                'automatic': Promotion.objects.filter(is_automatic=True).count(),
+                'coupon': Promotion.objects.filter(is_automatic=False).exclude(coupon_code='').count(),
+                'redemptions': PromotionRedemption.objects.filter(voided=False).count(),
             }
+            page_data['promo_status_choices'] = Promotion.Status.choices
+            page_data['promo_status'] = status_filter
 
         if page == 'customers':
             customer_rows = []
@@ -1919,6 +1934,7 @@ class DashboardView(View):
             'sales_period_total_kes': sum(
                 (point['value'] for point in sales_overview), Decimal('0')),
             'sales_range': sales_window_days,
+            'storefront_url': settings.FRONTEND_ORIGIN,
             'admin_page': 'dashboard',
         })
 
