@@ -22,6 +22,7 @@ import { useNotifications } from "../context/NotificationsContext";
 import { useStore } from "../context/StoreContext";
 import { useWishlist } from "../context/WishlistContext";
 import { useRouter, AppRoute } from "../router/RouterContext";
+import { formatRelativeTime } from "../utils/relativeTime";
 import { CollapsibleGroup } from "./CollapsibleGroup";
 import { PromotionShowcase } from "./PromotionShowcase";
 import {
@@ -529,6 +530,13 @@ const RightActions: React.FC<{
                       <p className="mt-2 text-xs leading-5 text-[#63605A]">
                         {notification.message}
                       </p>
+                      <time
+                        dateTime={notification.createdAt}
+                        title={new Date(notification.createdAt).toLocaleString('en-KE')}
+                        className="mt-2 block text-[10px] font-medium text-[#827E77]"
+                      >
+                        {formatRelativeTime(notification.createdAt)}
+                      </time>
                     </button>
                   ))
                 )}

@@ -1376,7 +1376,7 @@
                       <div class="notification-body">
                         <div class="notification-title">{{ notification.title }}</div>
                         <div class="notification-message">{{ notification.message }}</div>
-                        <div class="notification-time">{{ notification.created_at|date:'M d, Y' }}</div>
+                        <time class="notification-time" datetime="{{ notification.created_at|date:'c' }}" title="{{ notification.created_at|date:'DATETIME_FORMAT' }}" data-relative-time>{{ notification.created_at|date:'M d, Y' }}</time>
                       </div>
                       {% if not notification.is_read %}
                         <span class="notification-severity severity-{{ notification.severity }}"></span>
@@ -1660,6 +1660,36 @@
         return NOTIFICATION_CATEGORY_ICONS[category] || 'bell-simple';
       }
 
+      function formatRelativeNotificationTime(value) {
+        const timestamp = new Date(value).getTime();
+        if (!Number.isFinite(timestamp)) return 'Time unavailable';
+        const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+        if (seconds < 60) return 'just now';
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return minutes + ' ' + (minutes === 1 ? 'min' : 'mins') + ' ago';
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return hours + ' ' + (hours === 1 ? 'hour' : 'hours') + ' ago';
+        const days = Math.floor(hours / 24);
+        if (days < 7) return days + ' ' + (days === 1 ? 'day' : 'days') + ' ago';
+        return new Date(timestamp).toLocaleDateString();
+      }
+
+      function updateNotificationTimes() {
+        document.querySelectorAll('[data-relative-time]').forEach(function (node) {
+          const value = node.getAttribute('datetime');
+          if (value) node.textContent = formatRelativeNotificationTime(value);
+        });
+        document.querySelectorAll('.notification-item[data-created-at]').forEach(function (item) {
+          const time = item.querySelector('.notification-time');
+          const value = item.dataset.createdAt;
+          if (time && value) {
+            time.dateTime = value;
+            time.title = new Date(value).toLocaleString();
+            time.textContent = formatRelativeNotificationTime(value);
+          }
+        });
+      }
+
       function buildNotificationItem(item) {
         const anchor = document.createElement('a');
         anchor.className = 'notification-item notif-' + (item.category || 'system') +
@@ -1671,6 +1701,7 @@
         anchor.dataset.category = item.category || 'system';
         anchor.dataset.severity = item.severity || 'info';
         anchor.dataset.link = item.link || '';
+        anchor.dataset.createdAt = item.created_at || '';
 
         const iconWrap = document.createElement('span');
         iconWrap.className = 'notification-category-icon';
@@ -1686,8 +1717,14 @@
         const message = document.createElement('div');
         message.className = 'notification-message';
         message.textContent = item.message || '';
+        const time = document.createElement('time');
+        time.className = 'notification-time';
+        time.dateTime = item.created_at || '';
+        time.title = item.created_at ? new Date(item.created_at).toLocaleString() : '';
+        time.textContent = item.created_at ? formatRelativeNotificationTime(item.created_at) : '';
         body.appendChild(title);
         body.appendChild(message);
+        body.appendChild(time);
 
         const severity = document.createElement('span');
         severity.className = 'notification-severity severity-' + (item.severity || 'info');
@@ -1839,6 +1876,8 @@
 
       document.querySelectorAll('.notification-item').forEach(bindNotificationItem);
 
+      updateNotificationTimes();
+      setInterval(updateNotificationTimes, 30000);
       void refreshUnreadNotifications();
       setInterval(refreshUnreadNotifications, 15000);
     });
