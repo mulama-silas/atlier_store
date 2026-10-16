@@ -174,13 +174,29 @@ class SupabaseJWTAuthentication(BaseAuthentication):
             defaults={'email': email, 'is_active': True},
         )
         if created:
-            AuditLogService.log(
+            audit_log = AuditLogService.log(
                 'signup',
                 actor=user,
                 category='account',
+                object_type='customer',
+                object_id=user.pk,
+                object_repr=user.email or user.username,
                 result='success',
                 description=f'Account created for a new Supabase identity.',
             )
+            # Provisioning the local customer is the first server-verifiable
+            # confirmation that a Supabase signup became an active account.
+            # Emit here so email-confirmation signups (which have no session
+            # during the browser's signup request) still reach the admin bell.
+            if audit_log is not None:
+                from admin_ui.services import AdminNotificationService
+
+                AdminNotificationService.notify_for_audit(
+                    audit_log,
+                    message=f'New customer account created: {user.email or user.username}.',
+                    link=f'/admin/dashboard/customers/{user.pk}/',
+                    event_key=f'customer-registered:{user.pk}',
+                )
         if not created and email and user.email != email:
             user.email = email
             user.save(update_fields=['email'])

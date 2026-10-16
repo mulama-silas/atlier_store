@@ -7,12 +7,13 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
 <style>
   .replica-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
     margin-bottom: 20px;
   }
   .replica-card {
-    padding: 20px 22px;
+    min-width: 0;
+    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -38,6 +39,17 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
     font-size: 13px;
     color: var(--text-secondary);
     line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  @media (max-width: 1050px) {
+    .replica-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 620px) {
+    .replica-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   .replica-table {
     width: 100%;

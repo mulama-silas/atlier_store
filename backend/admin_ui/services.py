@@ -91,11 +91,11 @@ AUTO_NOTIFY = {
 }
 
 # Events the browser may report where the client is the only possible source
-# AND the success/failure is important enough to notify admins about. Checkout
-# and payment failures are deliberately excluded — the backend audits those
-# authoritatively (order_creation_failed / payment_failed) and would otherwise
-# produce duplicate notifications.
-CLIENT_NOTIFY_ALLOW = {'signup', 'registration_failed'}
+# AND the success/failure is important enough to notify admins about. Successful
+# signup notifications are emitted when the authenticated Supabase identity is
+# provisioned locally, which also covers email-confirmation signup flows where
+# the browser has no session to report with.
+CLIENT_NOTIFY_ALLOW = {'registration_failed'}
 
 
 class AdminNotificationService:
