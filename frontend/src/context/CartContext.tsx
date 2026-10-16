@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { CartItem, Product, ProductVariant, VariantSize, ToastType } from '../types';
-import { useStore } from './StoreContext';
 import { useAuth } from './AuthContext';
 import { FREE_SHIPPING_THRESHOLD, STANDARD_SHIPPING_COST, VAT_RATE } from '../utils/currency';
 import { api, resetCartId } from '../services/apiClient';
@@ -24,9 +23,11 @@ interface CartContextType {
   cartCount: number;
   subtotal: number;
   discountAmount: number;
+  shippingDiscountAmount: number;
   appliedPromo: AppliedPromo | null;
-  applyPromoCode: (code: string) => Promise<{ success: boolean; message: string }>;
-  removePromoCode: () => Promise<void>;
+  applyPromoCode: (code: string, shippingMethod?: 'standard' | 'express') => Promise<{ success: boolean; message: string }>;
+  removePromoCode: (shippingMethod?: 'standard' | 'express') => Promise<void>;
+  refreshPromotionPricing: (shippingMethod?: 'standard' | 'express') => Promise<void>;
   estimatedShipping: number;
   estimatedTax: number;
   estimatedTotal: number;
@@ -73,7 +74,6 @@ function mapCartDtoToItems(dto: CartDTO): CartItem[] {
 }
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { validatePromoCode } = useStore();
   const { user } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [serverSubtotal, setServerSubtotal] = useState<number>(0);
@@ -81,6 +81,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
   const [serverDiscount, setServerDiscount] = useState<number>(0);
+  const [serverShippingDiscount, setServerShippingDiscount] = useState<number>(0);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
   const [syncToast, setSyncToast] = useState<{ message: string; type: ToastType } | null>(null);
   const previousUser = useRef<{ id: string | undefined } | null | undefined>(undefined);
@@ -89,6 +90,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart(mapCartDtoToItems(dto));
     setServerSubtotal(dto.subtotal);
     setServerItemCount(dto.itemCount);
+    setServerShippingDiscount(dto.shippingDiscount ?? 0);
     // Django is the authority on promotion math: prefer server values.
     if (dto.promotion) {
       setServerDiscount(dto.discount ?? dto.promotion.discount ?? 0);
@@ -99,8 +101,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } else if ((dto.discount ?? 0) > 0) {
       setServerDiscount(dto.discount ?? 0);
+      setAppliedPromo(null);
     } else {
       setServerDiscount(0);
+      setServerShippingDiscount(0);
+      setAppliedPromo(null);
     }
   }, []);
 
@@ -231,10 +236,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cleared = await api.clearCart();
       applyServerCart(cleared);
       setServerDiscount(0);
+      setServerShippingDiscount(0);
       setAppliedPromo(null);
     } catch (err) {
       console.error('[CartContext] Clear cart failed:', err);
       setCart([]);
+      setServerDiscount(0);
+      setServerShippingDiscount(0);
+      setAppliedPromo(null);
     } finally {
       setIsLoading(false);
     }
@@ -243,76 +252,73 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const cartCount = cart.length;
   const subtotal = serverSubtotal || cart.reduce((total, item) => total + item.price * item.quantity, 0);
 
-  // Recalculate locally-derived promos whenever subtotal changes. Server
-  // promos (serverDiscount > 0) are authoritative and left untouched.
-  useEffect(() => {
-    if (appliedPromo && serverDiscount === 0) {
-      const check = validatePromoCode(appliedPromo.code, subtotal);
-      if (check.valid && check.discount) {
-        setAppliedPromo({
-          code: check.discount.code,
-          discountAmount: check.discountAmount,
-          description: check.discount.description,
-        });
-      } else {
-        setAppliedPromo(null);
-      }
-    }
-  }, [subtotal, validatePromoCode, appliedPromo, serverDiscount]);
-
-  const applyPromoCode = async (code: string): Promise<{ success: boolean; message: string }> => {
+  const applyPromoCode = async (code: string, shippingMethod: 'standard' | 'express' = 'standard'): Promise<{ success: boolean; message: string }> => {
     const normalized = code.trim();
     if (!normalized) return { success: false, message: 'Please enter a coupon code.' };
     // Server-first: Django validates eligibility and computes the discount.
     try {
-      const pricing = await api.applyPromoCode(normalized);
-      const promo = pricing.promotion;
+      const pricing = await api.applyPromoCode(normalized, shippingMethod);
+      const promo = pricing.appliedPromotions.find((entry) => entry.code.toUpperCase() === normalized.toUpperCase())
+        ?? pricing.promotion;
       if (promo) {
         setServerDiscount(pricing.discount);
-        setAppliedPromo({ code: promo.code, discountAmount: pricing.discount, description: promo.name });
-        return { success: true, message: `${promo.name} applied — you saved ${pricing.discount.toLocaleString()} KES.` };
+        setServerShippingDiscount(pricing.shippingDiscount);
+        setAppliedPromo({ code: promo.code || normalized, discountAmount: pricing.discount, description: promo.name });
+        const saved = pricing.discount + pricing.shippingDiscount;
+        const message = pricing.shippingDiscount > 0 && pricing.discount === 0
+          ? `${promo.name} applied. Delivery is complimentary.`
+          : `${promo.name} applied — you saved ${saved.toLocaleString()} KES.`;
+        return { success: true, message };
       }
       return { success: false, message: 'This code did not apply to your bag.' };
     } catch (err) {
       const serverMessage = (err as Error)?.message || '';
-      const serverCode = (err as Error & { code?: string })?.code || '';
-      const isValidationRejection = ['INVALID_CODE', 'EXPIRED', 'NOT_STARTED', 'NOT_AVAILABLE',
-        'USAGE_LIMIT_REACHED', 'CUSTOMER_LIMIT_REACHED', 'NOT_AVAILABLE_FOR_CUSTOMER',
-        'MINIMUM_ORDER_NOT_REACHED', 'MINIMUM_QUANTITY_NOT_REACHED', 'DOES_NOT_APPLY_TO_CART'].includes(serverCode);
-      if (isValidationRejection) {
-        return { success: false, message: serverMessage };
-      }
-      // Backend unreachable (offline dev): fall back to local estimate so the
-      // shopper is never blocked; checkout still revalidates server-side.
-      const result = validatePromoCode(normalized, subtotal);
-      if (result.valid && result.discount) {
-        setServerDiscount(0);
-        setAppliedPromo({
-          code: result.discount.code,
-          discountAmount: result.discountAmount,
-          description: result.discount.description,
-        });
-        return { success: true, message: result.message };
-      }
-      return { success: false, message: serverMessage || result.message };
+      return { success: false, message: serverMessage || 'We could not verify this coupon. Please try again.' };
     }
   };
 
-  const removePromoCode = async () => {
+  const removePromoCode = async (shippingMethod: 'standard' | 'express' = 'standard') => {
     try {
-      await api.removePromoCode();
+      const pricing = await api.removePromoCode(shippingMethod);
+      setServerDiscount(pricing.discount);
+      setServerShippingDiscount(pricing.shippingDiscount);
+      const promo = pricing.appliedPromotions.find((entry) => entry.code) ?? pricing.promotion;
+      setAppliedPromo(promo ? {
+        code: promo.code,
+        discountAmount: pricing.discount,
+        description: promo.name,
+      } : null);
     } catch {
-      // ignore — local state is cleared regardless
+      setServerDiscount(0);
+      setServerShippingDiscount(0);
+      setAppliedPromo(null);
     }
-    setServerDiscount(0);
-    setAppliedPromo(null);
   };
+
+  const refreshPromotionPricing = useCallback(async (shippingMethod: 'standard' | 'express' = 'standard') => {
+    try {
+      const result = await api.getAvailablePromotions(shippingMethod);
+      const pricing = result.pricing;
+      if (!pricing) return;
+      setServerDiscount(pricing.discount);
+      setServerShippingDiscount(pricing.shippingDiscount);
+      const promo = pricing.appliedPromotions.find((entry) => entry.code) ?? pricing.promotion;
+      setAppliedPromo(promo ? {
+        code: promo.code,
+        discountAmount: pricing.discount,
+        description: promo.name,
+      } : null);
+    } catch {
+      // Keep the last server quote visible if refreshing it fails.
+    }
+  }, []);
 
   const localDiscount = appliedPromo ? appliedPromo.discountAmount : 0;
   const discountAmount = serverDiscount > 0 ? serverDiscount : localDiscount;
-  const estimatedShipping = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD
+  const baseEstimatedShipping = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD
     ? 0
     : Math.round(subtotal * 0.2);
+  const estimatedShipping = Math.max(0, baseEstimatedShipping - serverShippingDiscount);
   const taxableSubtotal = Math.max(0, subtotal - discountAmount);
   const estimatedTax = Math.round(taxableSubtotal * VAT_RATE);
   const estimatedTotal = taxableSubtotal + estimatedShipping + estimatedTax;
@@ -330,9 +336,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cartCount,
         subtotal,
         discountAmount,
+        shippingDiscountAmount: serverShippingDiscount,
         appliedPromo,
         applyPromoCode,
         removePromoCode,
+        refreshPromotionPricing,
         estimatedShipping,
         estimatedTax,
         estimatedTotal,

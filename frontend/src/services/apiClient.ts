@@ -290,7 +290,7 @@ export const api = {
     });
   },
 
-  async getAvailablePromotions(): Promise<{
+  async getAvailablePromotions(shippingMethod = 'standard'): Promise<{
     pricing: PromotionPricingDTO | null;
     available: AvailablePromotionDTO[];
     announcements: PromotionAnnouncementDTO[];
@@ -299,7 +299,7 @@ export const api = {
       pricing: PromotionPricingDTO | null;
       available: AvailablePromotionDTO[];
       announcements: PromotionAnnouncementDTO[];
-    }>('/api/promotions/available');
+    }>(`/api/promotions/available?shippingMethod=${encodeURIComponent(shippingMethod)}`);
   },
 
   async cancelOrder(orderNumber: string): Promise<OrderDTO> {

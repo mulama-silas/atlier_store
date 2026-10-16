@@ -75,6 +75,7 @@ function AppContent() {
                 initialColor={route.color}
                 initialInStock={route.inStock}
                 initialSort={route.sort}
+                initialPage={route.page}
                 onQuickView={handleQuickView}
               />
             )}

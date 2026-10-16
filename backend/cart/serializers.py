@@ -115,7 +115,13 @@ class CartSerializer(serializers.ModelSerializer):
         pricing = self._pricing(obj)
         if not pricing or not pricing.get('applied'):
             return None
-        primary = pricing['applied'][0]
+        from promotions.models import normalize_coupon_code
+        cart_code = normalize_coupon_code(getattr(obj, 'coupon_code', '') or '')
+        primary = next(
+            (entry for entry in pricing['applied']
+             if cart_code and normalize_coupon_code(entry.get('code')) == cart_code),
+            pricing['applied'][0],
+        )
         return {'code': primary['code'], 'name': primary['name'],
                 'discount': primary['discount'] / 100, 'type': primary['type']}
 
@@ -124,7 +130,9 @@ class CartSerializer(serializers.ModelSerializer):
         if not pricing:
             return []
         return [{'code': a['code'], 'name': a['name'], 'type': a['type'],
-                 'discount': a['discount'] / 100} for a in pricing.get('applied', [])]
+                 'discount': a['discount'] / 100,
+                 'shippingDiscount': a.get('shipping_discount', 0) / 100}
+                for a in pricing.get('applied', [])]
 
     def get_subtotal(self, obj):
         return sum(item.line_total_minor for item in self._priced_items(obj)) / 100

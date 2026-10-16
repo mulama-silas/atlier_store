@@ -24,6 +24,7 @@ export type AppRoute =
       color?: string;
       inStock?: boolean;
       sort?: string;
+      page?: number;
     }
   | { path: "/product/:slug"; slug: string }
   | { path: "/cart" }
@@ -82,6 +83,7 @@ function parseShopRoute(cleanPath: string, searchString: string): AppRoute {
     color: params.get('color') || undefined,
     inStock: params.get('inStock') === 'true',
     sort,
+    page: Math.max(1, Number.parseInt(params.get('page') || '1', 10) || 1),
   };
 }
 

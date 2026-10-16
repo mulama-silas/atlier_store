@@ -168,7 +168,10 @@ const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; detail: string;
 ];
 
 export const CheckoutPage: React.FC = () => {
-  const { cart, subtotal, discountAmount, appliedPromo, clearCart } = useCart();
+  const {
+    cart, subtotal, discountAmount, shippingDiscountAmount, appliedPromo,
+    applyPromoCode, removePromoCode, refreshPromotionPricing, clearCart,
+  } = useCart();
   const { createOrder } = useOrders();
   const { navigate } = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -193,9 +196,30 @@ export const CheckoutPage: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [couponMessage, setCouponMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const addressPrefillUserId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (appliedPromo?.code) setCouponCodeInput(appliedPromo.code);
+  }, [appliedPromo?.code]);
+
+  useEffect(() => {
+    void refreshPromotionPricing(deliveryMethod);
+  }, [deliveryMethod, refreshPromotionPricing]);
+
+  const handleApplyCoupon = async () => {
+    const code = couponCodeInput.trim();
+    if (!code || isApplyingCoupon) return;
+    setIsApplyingCoupon(true);
+    setCouponMessage(null);
+    const result = await applyPromoCode(code, deliveryMethod);
+    setCouponMessage({ text: result.message, isError: !result.success });
+    setIsApplyingCoupon(false);
+  };
 
   const applySavedAddress = useCallback((address: SavedAddress) => {
     setFormData((prev) => ({
@@ -283,7 +307,8 @@ export const CheckoutPage: React.FC = () => {
   const standardDeliveryCost = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD
     ? 0
     : Math.round(subtotal * 0.2);
-  const deliveryCost = deliveryMethod === 'express' ? EXPRESS_SHIPPING_COST : standardDeliveryCost;
+  const baseDeliveryCost = deliveryMethod === 'express' ? EXPRESS_SHIPPING_COST : standardDeliveryCost;
+  const deliveryCost = Math.max(0, baseDeliveryCost - shippingDiscountAmount);
   const taxableSubtotal = Math.max(0, subtotal - discountAmount);
   const tax = Math.round(taxableSubtotal * VAT_RATE);
   const grandTotal = taxableSubtotal + deliveryCost + tax;
@@ -337,6 +362,18 @@ export const CheckoutPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      let checkoutCouponCode = couponCodeInput.trim();
+      if (checkoutCouponCode && checkoutCouponCode.toUpperCase() !== (appliedPromo?.code || '').toUpperCase()) {
+        const couponResult = await applyPromoCode(checkoutCouponCode, deliveryMethod);
+        if (!couponResult.success) {
+          setIsSubmitting(false);
+          setCouponMessage({ text: couponResult.message, isError: true });
+          setCheckoutError(couponResult.message);
+          return;
+        }
+      } else if (!checkoutCouponCode && appliedPromo?.code) {
+        await removePromoCode(deliveryMethod);
+      }
       void audit(
         'checkout_started',
         'Submitting MODEZA order.',
@@ -362,7 +399,9 @@ export const CheckoutPage: React.FC = () => {
         items: cart,
         shippingMethod: deliveryMethod,
         paymentMethod,
-        discountCode: appliedPromo ? appliedPromo.code : undefined,
+        // An explicit empty string means the customer chose no coupon. Django
+        // still evaluates automatic promotions against the cart.
+        discountCode: checkoutCouponCode,
         notes: formData.orderNotes,
       });
 
@@ -791,6 +830,50 @@ export const CheckoutPage: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="space-y-3 rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] p-4">
+                  <Input
+                    id="checkout-coupon-code"
+                    name="couponCode"
+                    label="Coupon code (optional)"
+                    placeholder="Enter your code"
+                    value={couponCodeInput}
+                    onChange={(event) => {
+                      setCouponCodeInput(event.target.value);
+                      setCouponMessage(null);
+                    }}
+                    icon={<Tag className="h-3.5 w-3.5" aria-hidden="true" />}
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="pl-10 text-xs uppercase"
+                    disabled={checkoutBusy || isApplyingCoupon}
+                  />
+                  <p className="text-[11px] leading-relaxed text-[#827E77]">
+                    Have a code? Apply it here. Leave this blank if you don’t have one.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void handleApplyCoupon()}
+                    disabled={!couponCodeInput.trim() || checkoutBusy || isApplyingCoupon}
+                    isLoading={isApplyingCoupon}
+                    className="w-full sm:w-auto"
+                  >
+                    Apply coupon
+                  </Button>
+                  {couponMessage && (
+                    <p className={`text-xs ${couponMessage.isError ? 'text-[#9E332B]' : 'text-[#2E5A44]'}`} role={couponMessage.isError ? 'alert' : 'status'}>
+                      {couponMessage.text}
+                    </p>
+                  )}
+                  {appliedPromo?.code && (
+                    <Badge variant="success" size="sm" className="gap-1.5">
+                      <Check className="h-3 w-3" aria-hidden="true" />
+                      {appliedPromo.code} applied
+                    </Badge>
+                  )}
+                </div>
+
                 <dl className="space-y-3 border-t border-[#F3F1ED] pt-4 text-xs text-[#63605A]">
                   <div className="flex items-center justify-between gap-4">
                     <dt>Cart subtotal</dt>
@@ -800,7 +883,7 @@ export const CheckoutPage: React.FC = () => {
                     <div className="flex items-center justify-between gap-4 text-[#2E5A44]">
                       <dt className="flex items-center gap-1.5">
                         <Tag className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>Privilege code ({appliedPromo.code})</span>
+                        <span>{appliedPromo.code ? `Coupon (${appliedPromo.code})` : appliedPromo.description}</span>
                       </dt>
                       <dd className="font-medium">-{formatPrice(discountAmount)}</dd>
                     </div>

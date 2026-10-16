@@ -234,7 +234,7 @@ export const CartDrawer: React.FC = () => {
                 </div>
                 {appliedPromo && (
                   <div className="flex justify-between gap-4 text-[#2E5A44]">
-                    <span>Privilege ({appliedPromo.code})</span>
+                    <span>{appliedPromo.code ? `Coupon (${appliedPromo.code})` : appliedPromo.description}</span>
                     <span className="font-medium">-{formatPrice(discountAmount)}</span>
                   </div>
                 )}

@@ -33,9 +33,14 @@ def _cart_key(request):
     return cart, key
 
 
-def _pricing_payload(breakdown):
+def _pricing_payload(breakdown, preferred_code=''):
     applied = breakdown.get('applied') or []
-    primary = applied[0] if applied else None
+    normalized_preference = normalize_coupon_code(preferred_code)
+    primary = next(
+        (entry for entry in applied
+         if normalized_preference and normalize_coupon_code(entry.get('code')) == normalized_preference),
+        applied[0] if applied else None,
+    )
     return {
         'subtotal': breakdown['subtotal'] / 100,
         'eligibleSubtotal': breakdown.get('eligible_subtotal', 0) / 100,
@@ -65,7 +70,7 @@ def _error(code, status=400):
 
 
 class PromotionApplyView(APIView):
-    authentication_classes = []
+    authentication_classes = [SupabaseJWTAuthentication, SessionAuthentication]
     permission_classes = []
     throttle_scope = 'orders'
 
@@ -95,12 +100,12 @@ class PromotionApplyView(APIView):
                             object_repr=normalized, category='orders',
                             metadata={'cart_key': key, 'discount_minor': breakdown['discount']},
                             description=f'Coupon {normalized} applied to cart.')
-        payload = _pricing_payload(breakdown)
+        payload = _pricing_payload(breakdown, preferred_code=normalized)
         return Response(payload)
 
 
 class PromotionRemoveView(APIView):
-    authentication_classes = []
+    authentication_classes = [SupabaseJWTAuthentication, SessionAuthentication]
     permission_classes = []
     throttle_scope = 'orders'
 

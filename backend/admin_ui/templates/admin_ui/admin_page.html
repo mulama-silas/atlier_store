@@ -70,18 +70,14 @@
       const submitLiveSearch = function () {
         const formData = new FormData(filterForm);
         const params = new URLSearchParams(formData);
-        const url = new URL(window.location.href);
-        for (const key of Array.from(url.searchParams.keys())) {
-          if (key !== 'q' && key !== 'status' && key !== 'payment_status') {
-            url.searchParams.delete(key);
-          }
-        }
         const query = params.get('q') || '';
         if (query.trim()) {
-          url.searchParams.set('q', query.trim());
+          params.set('q', query.trim());
         } else {
-          url.searchParams.delete('q');
+          params.delete('q');
         }
+        const url = new URL(window.location.href);
+        url.search = params.toString();
         window.history.replaceState({}, '', url.toString());
         filterForm.submit();
       };
@@ -91,6 +87,13 @@
           window.clearTimeout(timeoutId);
         }
         timeoutId = window.setTimeout(submitLiveSearch, 250);
+      });
+      filterForm.querySelectorAll('select').forEach(function (select) {
+        select.addEventListener('change', function () { filterForm.submit(); });
+      });
+    } else if (filterForm) {
+      filterForm.querySelectorAll('select').forEach(function (select) {
+        select.addEventListener('change', function () { filterForm.submit(); });
       });
     }
   });
@@ -105,7 +108,32 @@
       </div>
       
       <div style="display: flex; gap: 8px; overflow-x: auto; flex: 1;">
-        {% if page_data.page == 'orders' %}
+        {% if page_data.page == 'products' %}
+          <select name="category" class="form-control" aria-label="Filter products by category" style="width:auto; min-width:150px; padding:6px 12px; font-size:13px;">
+            <option value="">All categories</option>
+            {% for category in page_data.product_categories %}
+            <option value="{{ category.slug }}" {% if page_data.product_category == category.slug %}selected{% endif %}>{{ category.name }}</option>
+            {% endfor %}
+          </select>
+          <select name="status" class="form-control" aria-label="Filter products by status" style="width:auto; min-width:135px; padding:6px 12px; font-size:13px;">
+            <option value="">All statuses</option>
+            {% for value, label in page_data.status_choices %}
+            <option value="{{ value }}" {% if page_data.product_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <select name="stock" class="form-control" aria-label="Filter products by stock" style="width:auto; min-width:145px; padding:6px 12px; font-size:13px;">
+            <option value="">Any stock level</option>
+            <option value="in-stock" {% if page_data.product_stock == 'in-stock' %}selected{% endif %}>In stock</option>
+            <option value="out-of-stock" {% if page_data.product_stock == 'out-of-stock' %}selected{% endif %}>Out of stock</option>
+          </select>
+          <select name="sort" class="form-control" aria-label="Sort products" style="width:auto; min-width:150px; padding:6px 12px; font-size:13px;">
+            <option value="newest" {% if page_data.product_sort == 'newest' %}selected{% endif %}>Newest first</option>
+            <option value="name" {% if page_data.product_sort == 'name' %}selected{% endif %}>Name A to Z</option>
+            <option value="price-low" {% if page_data.product_sort == 'price-low' %}selected{% endif %}>Price: low to high</option>
+            <option value="price-high" {% if page_data.product_sort == 'price-high' %}selected{% endif %}>Price: high to low</option>
+            <option value="stock-low" {% if page_data.product_sort == 'stock-low' %}selected{% endif %}>Lowest stock</option>
+          </select>
+        {% elif page_data.page == 'orders' %}
           <select name="status" class="form-control" style="width: auto; padding: 6px 12px; font-size: 13px;">
             <option value="">All statuses</option>
             <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
@@ -133,7 +161,7 @@
         {% endif %}
       </div>
       
-      {% if request.GET.q or request.GET.status or request.GET.payment_status %}
+      {% if request.GET.q or request.GET.status or request.GET.payment_status or request.GET.category or request.GET.stock or request.GET.sort %}
       <a href="?" class="btn btn-secondary" style="padding: 6px 12px;">Clear</a>
       {% endif %}
       <button type="submit" class="btn btn-secondary" style="padding: 6px 12px;"><i class="ph ph-funnel"></i> Filter</button>
@@ -302,10 +330,10 @@
     </span>
     <div style="display: flex; gap: 8px;">
       {% if page_data.products_page.has_previous %}
-      <a class="btn btn-secondary" href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&amp;{% endif %}page={{ page_data.products_page.previous_page_number }}">Previous</a>
+      <a class="btn btn-secondary" href="?{{ page_data.products_query_string }}{% if page_data.products_query_string %}&amp;{% endif %}page={{ page_data.products_page.previous_page_number }}">Previous</a>
       {% endif %}
       {% if page_data.products_page.has_next %}
-      <a class="btn btn-secondary" href="?{% if request.GET.q %}q={{ request.GET.q|urlencode }}&amp;{% endif %}page={{ page_data.products_page.next_page_number }}">Next</a>
+      <a class="btn btn-secondary" href="?{{ page_data.products_query_string }}{% if page_data.products_query_string %}&amp;{% endif %}page={{ page_data.products_page.next_page_number }}">Next</a>
       {% endif %}
     </div>
   </div>

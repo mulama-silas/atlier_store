@@ -352,9 +352,9 @@ export const CartPage: React.FC = () => {
                       <div className="flex items-center justify-between gap-2 rounded-xl bg-[#E8EFEA] px-3 py-2 text-xs font-medium text-[#2E5A44]">
                         <Badge variant="success" size="sm" className="gap-1.5">
                           <Tag className="h-3 w-3" aria-hidden="true" />
-                          {appliedPromo.code} applied
+                          {appliedPromo.code || appliedPromo.description} applied
                         </Badge>
-                        <Button
+                        {appliedPromo.code && <Button
                           type="button"
                           variant="ghost"
                           size="icon"
@@ -363,7 +363,7 @@ export const CartPage: React.FC = () => {
                           aria-label={`Remove promo code ${appliedPromo.code}`}
                         >
                           <X className="h-3.5 w-3.5" aria-hidden="true" />
-                        </Button>
+                        </Button>}
                       </div>
                     )}
                   </form>
@@ -375,7 +375,7 @@ export const CartPage: React.FC = () => {
                     </div>
                     {appliedPromo && (
                       <div className="flex items-center justify-between gap-4 text-[#2E5A44]">
-                        <dt>Privilege ({appliedPromo.code})</dt>
+                        <dt>{appliedPromo.code ? `Coupon (${appliedPromo.code})` : appliedPromo.description}</dt>
                         <dd className="font-medium">-{formatPrice(discountAmount)}</dd>
                       </div>
                     )}

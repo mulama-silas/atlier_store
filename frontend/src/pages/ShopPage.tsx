@@ -8,6 +8,7 @@ import {
   Search,
   SlidersHorizontal,
   ArrowUpDown,
+  ChevronLeft,
   X,
   Package,
   Filter,
@@ -19,7 +20,6 @@ import { Input, Select as SortSelect } from "../components/modeza/Input";
 import { Badge } from "../components/modeza/Badge";
 import { Card } from "../components/modeza/Card";
 import { Checkbox } from "../components/modeza/Checkbox";
-import { Progress } from "../components/modeza/Progress";
 import { motion, AnimatePresence } from "motion/react";
 import { audit } from "../lib/logger";
 import { api } from "../services/apiClient";
@@ -37,6 +37,7 @@ export interface ShopPageProps {
   initialColor?: string;
   initialInStock?: boolean;
   initialSort?: string;
+  initialPage?: number;
   onQuickView: (product: Product) => void;
 }
 
@@ -67,6 +68,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   initialColor,
   initialInStock,
   initialSort,
+  initialPage = 1,
   onQuickView,
 }) => {
   const { navigate, replace } = useRouter();
@@ -76,9 +78,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   } = useStore();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [resultTotal, setResultTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [resultTotalPages, setResultTotalPages] = useState(1);
+  const [page, setPage] = useState(Math.max(1, initialPage));
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [isLoadingMoreCatalog, setIsLoadingMoreCatalog] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState("");
   const [facets, setFacets] = useState<{ sizes: string[]; colors: string[] }>({ sizes: [], colors: [] });
   const catalogRequestId = useRef(0);
@@ -101,6 +103,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const [selectedColor, setSelectedColor] = useState(initialColor || "");
   const [showFilters, setShowFilters] = useState(false);
   const isNewArrivalsView = selectedCollection === "new-arrivals";
+  const catalogFiltersKey = JSON.stringify([
+    selectedCategory, searchQuery.trim(), sortBy, selectedCollection, selectedOccasion,
+    selectedSale, minPrice, maxPrice, selectedSize, selectedColor, onlyInStock,
+  ]);
+  const previousCatalogFiltersKey = useRef(catalogFiltersKey);
 
   useEffect(() => {
     setSelectedCategory(initialCategory);
@@ -114,6 +121,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     setMaxPrice(initialMaxPrice || "");
     setSelectedSize(initialSize || "");
     setSelectedColor(initialColor || "");
+    setPage(Math.max(1, initialPage));
   }, [
     initialCategory,
     initialCollection,
@@ -126,6 +134,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     initialColor,
     initialInStock,
     initialSort,
+    initialPage,
   ]);
 
   useEffect(() => {
@@ -159,20 +168,28 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     if (selectedColor) query.set("color", selectedColor);
     if (onlyInStock) query.set("inStock", "true");
     if (sortBy !== "featured") query.set("sort", sortBy);
+    if (page > 1) query.set("page", String(page));
     const path = selectedCategory === "all" ? "/shop" : `/shop/${selectedCategory}`;
     const queryString = query.toString();
     replace(queryString ? `${path}?${queryString}` : path);
   }, [replace, selectedCategory, selectedCollection, selectedOccasion, searchQuery, selectedSale,
-    minPrice, maxPrice, selectedSize, selectedColor, onlyInStock, sortBy]);
+    minPrice, maxPrice, selectedSize, selectedColor, onlyInStock, sortBy, page]);
 
   useEffect(() => {
+    if (previousCatalogFiltersKey.current !== catalogFiltersKey) {
+      previousCatalogFiltersKey.current = catalogFiltersKey;
+      if (page !== 1) {
+        setPage(1);
+        return;
+      }
+    }
     const requestId = ++catalogRequestId.current;
     const timer = window.setTimeout(async () => {
       setIsLoadingProducts(true);
       setLoadMoreError("");
       try {
         const response = await api.getProducts({
-          page: 1, limit: 12, category: selectedCategory, search: searchQuery.trim(),
+          page, limit: 12, category: selectedCategory, search: searchQuery.trim(),
           sort: isNewArrivalsView ? "newest" : sortBy, collection: selectedCollection,
           occasion: selectedOccasion, sale: selectedSale, minPrice, maxPrice,
           size: selectedSize, color: selectedColor, inStock: onlyInStock,
@@ -180,7 +197,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         if (catalogRequestId.current !== requestId) return;
         setFilteredProducts(response.data.map(mapProductDtoToDomain));
         setResultTotal(response.pagination.total);
-        setPage(1);
+        setResultTotalPages(Math.max(1, response.pagination.totalPages));
+        if (page > response.pagination.totalPages && response.pagination.totalPages > 0) {
+          setPage(response.pagination.totalPages);
+        }
         if (response.facets) setFacets(response.facets);
       } catch {
         if (catalogRequestId.current === requestId) {
@@ -194,10 +214,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     }, searchQuery.trim() ? 250 : 0);
     return () => window.clearTimeout(timer);
   }, [selectedCategory, searchQuery, sortBy, selectedCollection, selectedOccasion,
-    selectedSale, minPrice, maxPrice, selectedSize, selectedColor, onlyInStock, isNewArrivalsView]);
+    selectedSale, minPrice, maxPrice, selectedSize, selectedColor, onlyInStock, isNewArrivalsView,
+    page, catalogFiltersKey]);
 
   const displayedProducts = filteredProducts;
-  const hasMore = filteredProducts.length < resultTotal;
   const activeFilterCount = [
     Boolean(searchQuery), onlyInStock, selectedCategory !== "all",
     Boolean(selectedCollection), Boolean(selectedOccasion), selectedSale,
@@ -207,9 +227,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const activeSortLabel = isNewArrivalsView
     ? "Newest First"
     : (SORT_OPTIONS.find((option) => option.value === sortBy)?.label ?? "Featured First");
-  const visibleProgress = resultTotal > 0
-    ? Math.min(100, Math.round((displayedProducts.length / resultTotal) * 100))
-    : 0;
 
   const headerTitle = selectedSale
     ? "The Sale Edit"
@@ -241,29 +258,19 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     setMaxPrice("");
     setSelectedSize("");
     setSelectedColor("");
+    setPage(1);
   };
 
-  const loadAdditionalProducts = async () => {
+  const navigateToPage = (targetPage: number) => {
+    const safePage = Math.max(1, Math.min(targetPage, resultTotalPages));
+    if (safePage === page || isLoadingProducts) return;
     setLoadMoreError("");
-    setIsLoadingMoreCatalog(true);
-    const requestId = catalogRequestId.current;
-    try {
-      const nextPage = page + 1;
-      const response = await api.getProducts({
-        page: nextPage, limit: 12, category: selectedCategory, search: searchQuery.trim(),
-        sort: isNewArrivalsView ? "newest" : sortBy, collection: selectedCollection,
-        occasion: selectedOccasion, sale: selectedSale, minPrice, maxPrice,
-        size: selectedSize, color: selectedColor, inStock: onlyInStock,
-      });
-      if (catalogRequestId.current !== requestId) return;
-      setFilteredProducts((current) => [...current, ...response.data.map(mapProductDtoToDomain)]);
-      setPage(nextPage);
-    } catch {
-      if (catalogRequestId.current === requestId) setLoadMoreError("We couldn't load more pieces. Please try again.");
-    } finally {
-      setIsLoadingMoreCatalog(false);
-    }
+    setPage(safePage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const paginationPages = Array.from({ length: resultTotalPages }, (_, index) => index + 1)
+    .filter((pageNumber) => pageNumber === 1 || pageNumber === resultTotalPages || Math.abs(pageNumber - page) <= 1);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 px-4 pb-20 pt-6 sm:px-6 sm:pt-10 lg:px-8 2xl:max-w-[88rem]">
@@ -680,18 +687,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               Try resetting your active search or removing the in-stock filter
               to reveal more of the collection.
             </p>
-            {hasMore && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => void loadAdditionalProducts()}
-                disabled={isLoadingMoreCatalog}
-                className="mt-5"
-              >
-                {isLoadingMoreCatalog ? "Loading pieces..." : "Load more pieces"}
-              </Button>
-            )}
             <Button
               type="button"
               variant="outline"
@@ -730,40 +725,61 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         </section>
       )}
 
-      {hasMore && (
-        <div className="pt-4">
-          <div className="mx-auto max-w-2xl rounded-2xl border border-[#E8E5DF] bg-white px-5 py-6 text-center shadow-sm sm:px-8">
-            <div className="flex items-center justify-between gap-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">
-              <span>
-                Viewing {displayedProducts.length} of {resultTotal} matching pieces
-              </span>
-              <span className="text-[#A2574F]">{visibleProgress}%</span>
+      {resultTotalPages > 1 && displayedProducts.length > 0 && (
+        <nav aria-label="Product pages" aria-busy={isLoadingProducts} className="pt-3">
+          <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-5 rounded-2xl border border-[#E8E5DF] bg-white px-5 py-5 shadow-sm sm:flex-row sm:px-7">
+            <p className="text-xs tracking-wide text-[#827E77]" aria-live="polite">
+              Showing <span className="font-semibold text-[#181716]">{(page - 1) * 12 + 1}–{Math.min(page * 12, resultTotal)}</span> of {resultTotal} pieces
+            </p>
+            <div className="flex items-center gap-1.5" role="group" aria-label="Choose product page">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="Previous page"
+                onClick={() => navigateToPage(page - 1)}
+                disabled={page <= 1 || isLoadingProducts}
+                className="h-10 w-10 px-0"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              {paginationPages.map((pageNumber, index) => {
+                const previousPage = paginationPages[index - 1];
+                return (
+                  <React.Fragment key={pageNumber}>
+                    {previousPage && pageNumber - previousPage > 1 && (
+                      <span className="px-1 text-sm text-[#827E77]" aria-hidden="true">…</span>
+                    )}
+                    <Button
+                      type="button"
+                      variant={pageNumber === page ? "primary" : "outline"}
+                      size="sm"
+                      aria-label={`Page ${pageNumber}`}
+                      aria-current={pageNumber === page ? "page" : undefined}
+                      onClick={() => navigateToPage(pageNumber)}
+                      disabled={isLoadingProducts}
+                      className={`h-10 min-w-10 px-3 ${pageNumber === page ? "bg-[#A2574F] text-white hover:bg-[#8E4942]" : "border-transparent text-[#63605A] hover:border-[#E8E5DF]"}`}
+                    >
+                      {pageNumber}
+                    </Button>
+                  </React.Fragment>
+                );
+              })}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="Next page"
+                onClick={() => navigateToPage(page + 1)}
+                disabled={page >= resultTotalPages || isLoadingProducts}
+                className="h-10 w-10 px-0"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
             </div>
-            <Progress
-              value={visibleProgress}
-              aria-label="Products viewed"
-              aria-valuetext={`${displayedProducts.length} of ${resultTotal} matching products viewed`}
-              className="mt-3 h-1.5"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => void loadAdditionalProducts()}
-              disabled={isLoadingMoreCatalog}
-              className="mt-5 w-full px-8 hover-lift-sm sm:w-auto"
-            >
-              {isLoadingMoreCatalog
-                ? "Loading pieces..."
-                : `Load more pieces (${Math.max(0, resultTotal - filteredProducts.length)} remaining)`}
-            </Button>
-            {loadMoreError && (
-              <p className="mt-3 text-sm text-[#9E332B]" role="alert">
-                {loadMoreError}
-              </p>
-            )}
           </div>
-        </div>
+          {loadMoreError && <p className="mt-3 text-center text-sm text-[#9E332B]" role="alert">{loadMoreError}</p>}
+        </nav>
       )}
     </div>
   );

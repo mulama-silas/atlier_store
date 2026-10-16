@@ -240,8 +240,15 @@ def create_order(cart_key, payload, user=None):
     # Coupon precedence: explicit checkout code > code stored on the cart.
     from promotions.models import Promotion, PromotionRedemption, normalize_coupon_code
     from promotions.services import FRIENDLY, price_cart
-    requested_code = normalize_coupon_code(
-        payload.get('couponCode') or getattr(cart, 'coupon_code', '') or '')
+    # An explicitly blank coupon means the customer chose not to use one.
+    # Only fall back to the cart's stored coupon for older callers that omit
+    # the field entirely.
+    raw_coupon_code = (
+        payload.get('couponCode')
+        if 'couponCode' in payload
+        else getattr(cart, 'coupon_code', '')
+    )
+    requested_code = normalize_coupon_code(raw_coupon_code or '')
 
     order_items = []
     subtotal_minor = 0

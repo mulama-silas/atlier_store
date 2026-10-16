@@ -1149,6 +1149,39 @@ class AdminPageView(View):
                     | Q(category__name__icontains=query)
                     | Q(variants__sku__icontains=query)
                 ).distinct()
+            product_status = (request.GET.get('status') or '').strip().upper()
+            valid_statuses = {choice[0] for choice in Product.Status.choices}
+            if product_status in valid_statuses:
+                products = products.filter(status=product_status)
+            product_category = (request.GET.get('category') or '').strip()
+            if product_category:
+                products = products.filter(category__slug=product_category)
+            stock_filter = (request.GET.get('stock') or '').strip()
+            if stock_filter == 'in-stock':
+                products = products.filter(
+                    variants__is_active=True,
+                    variants__stock_quantity__gt=0,
+                ).distinct()
+            elif stock_filter == 'out-of-stock':
+                products = products.exclude(
+                    variants__is_active=True,
+                    variants__stock_quantity__gt=0,
+                ).distinct()
+            product_sort = (request.GET.get('sort') or 'newest').strip()
+            if product_sort == 'name':
+                products = products.order_by('name', '-created_at')
+            elif product_sort == 'price-low':
+                products = products.order_by('price_minor', '-created_at')
+            elif product_sort == 'price-high':
+                products = products.order_by('-price_minor', '-created_at')
+            elif product_sort == 'stock-low':
+                products = products.annotate(
+                    admin_stock_total=Sum('variants__stock_quantity')
+                ).order_by('admin_stock_total', '-created_at')
+            else:
+                product_sort = 'newest'
+                products = products.order_by('-created_at')
+            product_categories = Category.objects.order_by('name')
             products_page = Paginator(products, 25).get_page(
                 request.GET.get('page'))
             for product in products_page.object_list:
@@ -1175,6 +1208,21 @@ class AdminPageView(View):
                 })
             page_data = dict(page_data)
             page_data['rows'] = product_rows
+            page_data['product_categories'] = product_categories
+            page_data['status_choices'] = Product.Status.choices
+            page_data['product_status'] = product_status if product_status in valid_statuses else ''
+            page_data['product_category'] = product_category
+            page_data['product_stock'] = stock_filter if stock_filter in ('in-stock', 'out-of-stock') else ''
+            page_data['product_sort'] = product_sort
+            page_data['products_query_string'] = urlencode({
+                key: value for key, value in {
+                    'q': query,
+                    'status': page_data['product_status'],
+                    'category': page_data['product_category'],
+                    'stock': page_data['product_stock'],
+                    'sort': product_sort,
+                }.items() if value
+            })
 
         if page == 'categories':
             category_rows = []
