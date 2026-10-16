@@ -14,6 +14,8 @@ import {
   Filter,
   ChevronRight,
   Sparkles,
+  ArrowRight,
+  MoveRight,
 } from "lucide-react";
 import { Button } from "../components/modeza/Button";
 import { Input, Select as SortSelect } from "../components/modeza/Input";
@@ -271,6 +273,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
   const paginationPages = Array.from({ length: resultTotalPages }, (_, index) => index + 1)
     .filter((pageNumber) => pageNumber === 1 || pageNumber === resultTotalPages || Math.abs(pageNumber - page) <= 1);
+  const shopCategories = storeCategories.filter((category) => category.slug !== "all");
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 px-4 pb-20 pt-6 sm:px-6 sm:pt-10 lg:px-8 2xl:max-w-[88rem]">
@@ -417,7 +420,41 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         </div>
       )}
 
-      <Card className="sticky top-3 z-30 bg-white/95 p-3 shadow-lg backdrop-blur-xl sm:p-4">
+      {!hasActiveFilters && shopCategories.length > 0 && (
+        <section aria-labelledby="shop-categories-title" className="space-y-4 sm:space-y-5">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">Find your next favorite</span>
+              <h2 id="shop-categories-title" className="mt-1.5 font-serif text-2xl font-normal text-[#181716] sm:text-3xl">Shop by category</h2>
+            </div>
+            <span className="hidden pb-1 text-xs text-[#827E77] sm:block">Thoughtful pieces, made to be worn often</span>
+          </div>
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:snap-none sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 md:grid-cols-4">
+            {shopCategories.map((category, index) => (
+              <button
+                key={category.slug}
+                type="button"
+                onClick={() => { setSelectedCategory(category.slug); setPage(1); }}
+                className={`group relative flex min-h-28 w-[72vw] max-w-64 shrink-0 snap-start flex-col justify-between overflow-hidden rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 sm:min-h-32 sm:w-full sm:max-w-none ${index % 3 === 1 ? "border-[#E6D8D2] bg-[#F7ECEA]" : index % 3 === 2 ? "border-[#DCE4DB] bg-[#F0F3EE]" : "border-[#E8E5DF] bg-white"}`}
+                aria-pressed={selectedCategory === category.slug}
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">0{index + 1}</span>
+                <span className="flex items-end justify-between gap-2">
+                  <span>
+                    <span className="block font-serif text-xl text-[#181716] sm:text-2xl">{category.name}</span>
+                    <span className="mt-1 block line-clamp-1 text-[11px] text-[#827E77]">{category.description}</span>
+                  </span>
+                  <span className="mb-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#D8D3CB] text-[#63605A] transition-all group-hover:border-[#A2574F] group-hover:bg-[#A2574F] group-hover:text-white">
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <Card className="sticky top-3 z-30 rounded-2xl border-[#E8E5DF] bg-white/95 p-3 shadow-md backdrop-blur-xl sm:p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto] lg:items-center">
           <div className="relative">
             <Input
@@ -650,17 +687,18 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             Curated selection
           </span>
           <h2 className="mt-2 font-serif text-2xl font-normal text-[#181716] sm:text-3xl">
-            {resultTotal}{" "}
-            {resultTotal === 1 ? "piece" : "pieces"} in view
+            {headerTitle}
           </h2>
+          <p className="mt-1.5 text-xs text-[#827E77]">Showing {displayedProducts.length} of {resultTotal} pieces</p>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center justify-between gap-2 self-start sm:self-auto">
           <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">
             Order
           </span>
           <Badge variant="default" size="lg">
             {activeSortLabel}
           </Badge>
+          <span className="hidden items-center gap-1 text-[10px] text-[#827E77] sm:flex lg:hidden">Swipe for more <MoveRight className="h-3 w-3" aria-hidden="true" /></span>
         </div>
       </div>
 
@@ -702,11 +740,13 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       ) : (
         <section
           aria-label="Shop products"
-          className="grid grid-cols-1 gap-x-5 gap-y-10 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-3 lg:gap-x-7 xl:grid-cols-4"
+          className="-mx-4 grid grid-flow-col auto-rows-fr gap-3 overflow-x-auto snap-x snap-mandatory px-4 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:gap-x-6 sm:gap-y-10 sm:overflow-visible sm:px-0 sm:pb-0 sm:snap-none lg:grid-cols-3 lg:gap-x-7 lg:gap-y-12 xl:grid-cols-4"
+          style={{ gridAutoColumns: "minmax(0, 42vw)" }}
         >
           {displayedProducts.map((product, index) => (
             <motion.div
               key={product.id}
+              className="min-w-0 snap-start"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -723,6 +763,15 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </motion.div>
           ))}
         </section>
+      )}
+
+      {displayedProducts.length > 0 && !isLoadingProducts && (
+        <div className="flex items-center justify-center gap-2 border-t border-[#E8E5DF] pt-5 text-center text-[10px] font-medium uppercase tracking-[0.16em] text-[#827E77] sm:hidden" aria-hidden="true">
+          <span className="h-px w-8 bg-[#D8D3CB]" />
+          Swipe to discover more
+          <MoveRight className="h-3 w-3 text-[#A2574F]" />
+          <span className="h-px w-8 bg-[#D8D3CB]" />
+        </div>
       )}
 
       {resultTotalPages > 1 && displayedProducts.length > 0 && (
