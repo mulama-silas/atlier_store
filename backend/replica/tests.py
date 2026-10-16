@@ -204,8 +204,7 @@ class ExtractorTests(TestCase):
         self.assertIsNone(rows[str(order.id)]['user_id'])
 
     @override_settings(SUPABASE_DB_URL=REPLICA_DB)
-    def test_payment_intents_exclude_client_secret(self):
-        """client_secret is a live confirmation secret; analytics never needs it."""
+    def test_payment_intent_replica_contains_no_provider_secrets(self):
         from payments.models import PaymentIntent
 
         from replica.services.sync import payment_intent_rows
@@ -215,14 +214,13 @@ class ExtractorTests(TestCase):
             order=_order(),
             amount_minor=1000,
             method=PaymentIntent.Method.MPESA,
-            client_secret='secret-value',
             status=PaymentIntent.Status.PENDING,
         )
 
         rows = payment_intent_rows()
 
         self.assertEqual(len(rows), 1)
-        self.assertNotIn('client_secret', rows[0])
+        self.assertNotIn('checkout_request_id', rows[0])
         self.assertEqual(rows[0]['id'], intent.id)
 
     @override_settings(SUPABASE_DB_URL=REPLICA_DB)

@@ -1,0 +1,4 @@
+# Local configuration and credentials; retain the placeholder templates.
+.env
+.env.*
+!.env.example

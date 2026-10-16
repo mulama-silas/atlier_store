@@ -8,6 +8,7 @@ import jwt
 from django.core import mail
 from django.core.cache import cache
 from django.test import TestCase, override_settings
+from unittest.mock import patch
 from django.utils import timezone as django_timezone
 from rest_framework.test import APIClient
 
@@ -75,6 +76,11 @@ class ReceiptNumberTests(TestCase):
 )
 class ReceiptApiTests(TestCase):
     def setUp(self):
+        self.daraja_patch = patch('payments.services.initiate_stk_push', return_value={
+            'MerchantRequestID': 'merchant-receipt-test',
+            'CheckoutRequestID': 'ws_CO_20260922',
+        })
+        self.daraja_patch.start()
         cache.clear()
         self.client = APIClient()
         self.category = Category.objects.create(name='Bags', slug='bags')
@@ -95,6 +101,9 @@ class ReceiptApiTests(TestCase):
         self.order = Order.objects.get(
             order_number=created.json()['orderNumber'])
         self.headers = {'HTTP_X_CART_ID': 'receipt-cart'}
+
+    def tearDown(self):
+        self.daraja_patch.stop()
 
     def _create_intent(self):
         return self.client.post('/api/payments/create-intent', {
@@ -146,22 +155,26 @@ class ReceiptApiTests(TestCase):
         self.assertEqual(first.receipt_number, second.receipt_number)
         self.assertEqual(Receipt.objects.filter(order=self.order).count(), 1)
 
-    def test_mpesa_callback_generates_receipt(self):
+    @patch('payments.views.query_stk_status', return_value={
+        'ResponseCode': '0', 'ResultCode': '0',
+        'CheckoutRequestID': 'ws_CO_20260922',
+    })
+    def test_mpesa_callback_generates_receipt(self, query):
         intent = self._create_intent()
         intent_obj = PaymentIntent.objects.get(id=intent['id'])
-        intent_obj.client_secret = 'ws_CO_20260922'
-        intent_obj.save(update_fields=['client_secret'])
         callback = {
             'Body': {'stkCallback': {
+                'MerchantRequestID': 'merchant-receipt-test',
                 'CheckoutRequestID': 'ws_CO_20260922',
                 'ResultCode': 0,
                 'CallbackMetadata': {'Item': [
-                    {'Name': 'MpesaReceiptNumber', 'Value': 'TXN987654321'}],
+                    {'Name': 'MpesaReceiptNumber', 'Value': 'TXN987654321'},
+                    {'Name': 'Amount', 'Value': 348}],
                 },
             }},
         }
         response = self.client.post(
-            '/api/payments/mpesa/callback?token=local-development-mpesa-secret',
+            '/api/payments/mpesa/callback',
             callback, format='json')
         self.assertEqual(response.status_code, 200)
         receipt = Receipt.objects.get(order=self.order)
@@ -170,7 +183,7 @@ class ReceiptApiTests(TestCase):
         self.assertEqual(receipt.checkout_request_id, 'ws_CO_20260922')
 
         duplicate = self.client.post(
-            '/api/payments/mpesa/callback?token=local-development-mpesa-secret',
+            '/api/payments/mpesa/callback',
             callback, format='json')
         self.assertEqual(duplicate.status_code, 200)
         self.assertEqual(Receipt.objects.filter(order=self.order).count(), 1)
@@ -406,6 +419,11 @@ class ReceiptApiTests(TestCase):
 )
 class ReceiptAuditTests(TestCase):
     def setUp(self):
+        self.daraja_patch = patch('payments.services.initiate_stk_push', return_value={
+            'MerchantRequestID': 'merchant-audit-test',
+            'CheckoutRequestID': 'ws_CO_audit_test',
+        })
+        self.daraja_patch.start()
         cache.clear()
         self.client = APIClient()
         self.category = Category.objects.create(name='Bags', slug='bags')
@@ -426,6 +444,9 @@ class ReceiptAuditTests(TestCase):
         self.order = Order.objects.get(
             order_number=created.json()['orderNumber'])
         self.headers = {'HTTP_X_CART_ID': 'audit-cart'}
+
+    def tearDown(self):
+        self.daraja_patch.stop()
 
     def test_receipt_generated_is_audited(self):
         intent = self.client.post('/api/payments/create-intent', {

@@ -4,6 +4,7 @@ import { useOrders } from '../context/OrdersContext';
 import { useRouter } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
 import { audit } from '../lib/logger';
+import { api } from '../services/apiClient';
 import { listCustomerAddresses, saveCustomerAddress } from '../services/addressService';
 import type { SavedAddress } from '../utils/addressBook';
 import type { PaymentMethod } from '../types';
@@ -162,10 +163,20 @@ const LabeledSelect: React.FC<LabeledSelectProps> = ({
 );
 
 const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; detail: string; unavailable?: boolean }> = [
-  { id: 'mpesa', label: 'M-Pesa', detail: 'Online payments are being prepared', unavailable: true },
+  { id: 'mpesa', label: 'M-Pesa', detail: 'Pay securely with an M-Pesa prompt' },
   { id: 'card', label: 'Card', detail: 'Online payments are being prepared', unavailable: true },
   { id: 'pay_on_delivery', label: 'Pay on delivery', detail: 'Pay when your order arrives' },
 ];
+const ACTIVE_PAYMENT_KEY = 'modeza_active_mpesa_payment_v1';
+function readActivePayment(): { orderNumber: string; intentId: string } | null {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_PAYMENT_KEY);
+    const value = raw ? JSON.parse(raw) as { orderNumber?: unknown; intentId?: unknown } : null;
+    return typeof value?.orderNumber === 'string' && typeof value.intentId === 'string'
+      ? { orderNumber: value.orderNumber, intentId: value.intentId }
+      : null;
+  } catch { return null; }
+}
 
 export const CheckoutPage: React.FC = () => {
   const {
@@ -176,8 +187,9 @@ export const CheckoutPage: React.FC = () => {
   const { navigate } = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
 
+  const [restoredPayment] = useState(readActivePayment);
   const [deliveryMethod, setDeliveryMethod] = useState<'standard' | 'express'>('standard');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pay_on_delivery');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(restoredPayment ? 'mpesa' : 'pay_on_delivery');
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
@@ -195,6 +207,15 @@ export const CheckoutPage: React.FC = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activePaymentOrder, setActivePaymentOrder] = useState<{ orderNumber: string } | null>(
+    restoredPayment ? { orderNumber: restoredPayment.orderNumber } : null,
+  );
+  const [activePaymentIntentId, setActivePaymentIntentId] = useState(restoredPayment?.intentId ?? '');
+  const [paymentProgress, setPaymentProgress] = useState<'idle' | 'pending' | 'failed'>(
+    restoredPayment?.intentId ? 'pending' : restoredPayment ? 'failed' : 'idle',
+  );
+  const [paymentTimedOut, setPaymentTimedOut] = useState(false);
+  const paymentCompleted = useRef(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [couponCodeInput, setCouponCodeInput] = useState('');
   const [couponMessage, setCouponMessage] = useState<{ text: string; isError: boolean } | null>(null);
@@ -206,6 +227,39 @@ export const CheckoutPage: React.FC = () => {
   const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
   const [selectedAddressId, setSelectedAddressId] = useState('');
   const addressFieldsTouched = useRef(false);
+
+  useEffect(() => {
+    if (!activePaymentOrder || !activePaymentIntentId || paymentProgress !== 'pending') return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const status = await api.getPaymentStatus(activePaymentOrder.orderNumber, activePaymentIntentId);
+        if (!active) return;
+        if (status.status === 'succeeded' && !paymentCompleted.current) {
+          paymentCompleted.current = true;
+          setPaymentProgress('idle');
+          sessionStorage.removeItem(ACTIVE_PAYMENT_KEY);
+          await clearCart();
+          navigate(`/order/success?order=${activePaymentOrder.orderNumber}`);
+        } else if (status.status === 'failed') {
+          setPaymentProgress('failed');
+          setPaymentTimedOut(false);
+          setCheckoutError(status.failureMessage || 'M-Pesa payment did not complete. You can retry securely.');
+        }
+      } catch {
+        // Keep polling through transient connection errors.
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 8000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [activePaymentOrder, activePaymentIntentId, paymentProgress, clearCart, navigate]);
+
+  useEffect(() => {
+    if (paymentProgress !== 'pending') return;
+    const timer = window.setTimeout(() => setPaymentTimedOut(true), 90000);
+    return () => window.clearTimeout(timer);
+  }, [activePaymentIntentId, paymentProgress]);
 
   useEffect(() => {
     if (appliedPromo?.code) setCouponCodeInput(appliedPromo.code);
@@ -371,10 +425,7 @@ export const CheckoutPage: React.FC = () => {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (paymentMethod !== 'pay_on_delivery') {
-      setCheckoutError('Online payment is not available yet. Please choose pay on delivery.');
-      return;
-    }
+    if (paymentMethod === 'mpesa' && paymentProgress === 'pending') return;
     setCheckoutError('');
     setIsSubmitting(true);
 
@@ -426,6 +477,8 @@ export const CheckoutPage: React.FC = () => {
           total_minor: Math.round(grandTotal * 100),
         }
       );
+      let paymentOrderNumber = activePaymentOrder?.orderNumber;
+      if (!paymentOrderNumber) {
       const result = await createOrder({
         customer: {
           firstName: formData.firstName,
@@ -448,19 +501,32 @@ export const CheckoutPage: React.FC = () => {
         notes: formData.orderNotes,
       });
 
-      if (result.success && result.order) {
-        if (paymentMethod === 'pay_on_delivery') {
-          setIsSubmitting(false);
-          await clearCart();
-          navigate(`/order/success?order=${result.order.orderNumber}`);
-          return;
-        }
-
-
-      } else {
+      if (!result.success || !result.order) {
         setIsSubmitting(false);
         setCheckoutError(result.error || 'Failed to place order. Please check inventory levels.');
         void audit('checkout_failed', 'Order placement failed.', {}, { reason: result.error });
+        return;
+      }
+      paymentOrderNumber = result.order.orderNumber;
+      }
+
+      if (paymentMethod === 'pay_on_delivery' && paymentOrderNumber) {
+          setIsSubmitting(false);
+          await clearCart();
+          navigate(`/order/success?order=${paymentOrderNumber}`);
+          return;
+      }
+
+      if (paymentMethod === 'mpesa' && paymentOrderNumber) {
+        setActivePaymentOrder({ orderNumber: paymentOrderNumber });
+        sessionStorage.setItem(ACTIVE_PAYMENT_KEY, JSON.stringify({ orderNumber: paymentOrderNumber, intentId: '' }));
+        const intent = await api.createPaymentIntent(paymentOrderNumber, 'mpesa', formData.phone);
+        setActivePaymentIntentId(intent.id);
+        sessionStorage.setItem(ACTIVE_PAYMENT_KEY, JSON.stringify({ orderNumber: paymentOrderNumber, intentId: intent.id }));
+        setPaymentTimedOut(false);
+        setPaymentProgress('pending');
+        setCheckoutError('');
+        setIsSubmitting(false);
       }
     } catch (err: unknown) {
       const errorObj = err as Error;
@@ -690,7 +756,7 @@ export const CheckoutPage: React.FC = () => {
                     id="save-address-for-next-time"
                     checked={saveAddressForNextTime}
                     onCheckedChange={(checked) => setSaveAddressForNextTime(checked === true)}
-                    disabled={checkoutBusy}
+                    disabled={checkoutBusy || activePaymentOrder !== null}
                     className="mt-0.5"
                   />
                   <label htmlFor="save-address-for-next-time" className="cursor-pointer text-xs leading-relaxed text-[#63605A]">
@@ -767,7 +833,7 @@ export const CheckoutPage: React.FC = () => {
                     setDeliveryMethod(value);
                   }
                 }}
-                disabled={checkoutBusy}
+                disabled={checkoutBusy || activePaymentOrder !== null}
                 aria-label="Delivery method"
                 className="space-y-3"
               >
@@ -817,7 +883,7 @@ export const CheckoutPage: React.FC = () => {
                       setPaymentMethod(value);
                     }
                   }}
-                  disabled={checkoutBusy}
+                  disabled={checkoutBusy || activePaymentOrder !== null}
                   aria-label="Payment method"
                   className="grid grid-cols-1 gap-3 sm:grid-cols-2"
                 >
@@ -833,7 +899,7 @@ export const CheckoutPage: React.FC = () => {
                             : 'border-[#E8E5DF] bg-[#FAF9F6] hover:border-[#A2574F] hover:bg-white'
                         } ${checkoutBusy ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                       >
-                        <RadioGroupItem id={`payment-${option.id}`} value={option.id} disabled={option.unavailable} className="shrink-0" />
+                        <RadioGroupItem id={`payment-${option.id}`} value={option.id} disabled={option.unavailable || activePaymentOrder !== null} className="shrink-0" />
                         <span className="min-w-0">
                           <span className="block text-xs font-semibold text-[#181716]">{option.label}</span>
                           <span className="mt-0.5 block text-[11px] text-[#827E77]">{option.detail}</span>
@@ -843,9 +909,17 @@ export const CheckoutPage: React.FC = () => {
                   })}
                 </RadioGroup>
 
-                <div className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3 text-[11px] leading-relaxed text-[#63605A]">
-                  Online payment is temporarily unavailable. Choose pay on delivery; no payment is collected at checkout.
-                </div>
+                {paymentMethod === 'mpesa' && (
+                  <div aria-live="polite" className="rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3 text-[11px] leading-relaxed text-[#63605A]">
+                    {paymentProgress === 'pending'
+                      ? paymentTimedOut
+                        ? 'Payment confirmation is taking longer than expected. We are still checking; do not submit another payment.'
+                        : 'M-Pesa prompt sent. Enter your PIN on your phone and keep this page open while we confirm payment.'
+                      : paymentProgress === 'failed'
+                        ? 'Payment was not confirmed. Check your phone or try again using the same order.'
+                        : `We will send the payment prompt to ${formData.phone || 'the telephone number above'}. Use a Kenyan M-Pesa number.`}
+                  </div>
+                )}
 
                 <div className="flex items-start gap-3 rounded-xl border border-[#E8E5DF] bg-white p-3.5">
                   <Checkbox
@@ -854,7 +928,7 @@ export const CheckoutPage: React.FC = () => {
                     onCheckedChange={(checked) => {
                       setFormData((prev) => ({ ...prev, sameBilling: checked === true }));
                     }}
-                    disabled={checkoutBusy}
+                    disabled={checkoutBusy || activePaymentOrder !== null}
                     className="mt-0.5"
                   />
                   <label htmlFor="same-billing" className="cursor-pointer text-xs leading-relaxed text-[#63605A]">
@@ -917,7 +991,7 @@ export const CheckoutPage: React.FC = () => {
                     autoComplete="off"
                     spellCheck={false}
                     className="pl-10 text-xs uppercase"
-                    disabled={checkoutBusy || isApplyingCoupon}
+                    disabled={checkoutBusy || activePaymentOrder !== null || isApplyingCoupon}
                   />
                   <p className="text-[11px] leading-relaxed text-[#827E77]">
                     Have a code? Apply it here. Leave this blank if you don’t have one.
@@ -927,7 +1001,7 @@ export const CheckoutPage: React.FC = () => {
                     variant="secondary"
                     size="sm"
                     onClick={() => void handleApplyCoupon()}
-                    disabled={!couponCodeInput.trim() || checkoutBusy || isApplyingCoupon}
+                    disabled={!couponCodeInput.trim() || checkoutBusy || activePaymentOrder !== null || isApplyingCoupon}
                     isLoading={isApplyingCoupon}
                     className="w-full sm:w-auto"
                   >
@@ -989,12 +1063,14 @@ export const CheckoutPage: React.FC = () => {
                   variant="primary"
                   size="lg"
                   fullWidth
-                  disabled={checkoutBusy}
+                  disabled={checkoutBusy || paymentProgress === 'pending'}
                   isLoading={isSubmitting}
                   className="gap-2"
                   aria-describedby="checkout-terms"
                 >
-                  {!isSubmitting && `Place order - ${formatPrice(grandTotal)}`}
+                  {!isSubmitting && (paymentProgress === 'pending'
+                    ? 'Waiting for M-Pesa confirmation…'
+                    : `${activePaymentOrder ? 'Retry M-Pesa payment' : paymentMethod === 'mpesa' ? 'Pay with M-Pesa' : 'Place order'} - ${formatPrice(grandTotal)}`)}
                 </Button>
                 <p id="checkout-terms" className="text-center text-[11px] leading-relaxed text-[#827E77]">
                   By placing your order, you confirm acceptance of our Conditions of Sale and cancellation rights.

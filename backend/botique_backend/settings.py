@@ -68,25 +68,19 @@ ALLOWED_HOSTS = [
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS + ['testserver']))
 
 PAYMENT_WEBHOOK_SECRET = os.getenv(
-    'PAYMENT_WEBHOOK_SECRET', 'local-development-payment-secret')
-MPESA_CALLBACK_SECRET = os.getenv(
-    'MPESA_CALLBACK_SECRET', 'local-development-mpesa-secret')
+    'PAYMENT_WEBHOOK_SECRET', 'local-development-payment-secret' if DEBUG else '')
 # ---------------------------------------------------------------------------
 # Payment mode.
 #
-# The backend has no live Daraja STK push. Local development may opt into
-# mock settlement; production must keep it disabled until provider callbacks
-# or verification can authoritatively settle payments.
+# Daraja configuration is server-only. Mock settlement is never permitted.
 # ---------------------------------------------------------------------------
-MPESA_ENV = (os.getenv('MPESA_ENV', 'sandbox') or 'sandbox').strip().lower()
-# Default mock settlement on for local development, but fail closed in
-# production even when a manually configured Render service omits this var.
-# An explicit true value in production is still rejected below.
-PAYMENT_SANDBOX = _env_flag(
-    'PAYMENT_SANDBOX', DEBUG and MPESA_ENV != 'production')
-if not DEBUG and PAYMENT_SANDBOX:
-    raise ImproperlyConfigured(
-        'PAYMENT_SANDBOX must be disabled when DEBUG is false.')
+MPESA_ENVIRONMENT = (os.getenv('MPESA_ENVIRONMENT', os.getenv('MPESA_ENV', 'sandbox')) or 'sandbox').strip().lower()
+MPESA_CONSUMER_KEY = os.getenv('MPESA_CONSUMER_KEY', '').strip()
+MPESA_CONSUMER_SECRET = os.getenv('MPESA_CONSUMER_SECRET', '').strip()
+MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE', '').strip()
+MPESA_PASSKEY = os.getenv('MPESA_PASSKEY', '').strip()
+MPESA_CALLBACK_URL = os.getenv('MPESA_CALLBACK_URL', '').strip()
+MPESA_TRANSACTION_TYPE = os.getenv('MPESA_TRANSACTION_TYPE', 'CustomerPayBillOnline').strip()
 FRONTEND_ORIGIN = os.getenv(
     'FRONTEND_ORIGIN',
     'http://localhost:3000'

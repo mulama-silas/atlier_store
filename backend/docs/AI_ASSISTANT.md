@@ -147,8 +147,8 @@ python manage.py test ai.tests.test_integration
   service. `GEMINI_API_KEY` is `sync: false` — the key **must be entered by
   hand in the Render dashboard** for the web service. If it was copied from
   the legacy `GOOGLE_API_KEY`, keep both in sync.
-* The deploy uses `backend/.env.example` as a template; it already carries
-  `GEMINI_MODEL` and an empty `GEMINI_API_KEY`.
+* Configure `GEMINI_API_KEY` and `GEMINI_MODEL` in the ignored `backend/.env`
+  for local development, or in the Render service environment for deployment.
 
 ---
 

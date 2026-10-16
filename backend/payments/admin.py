@@ -10,7 +10,7 @@ class PaymentIntentAdmin(admin.ModelAdmin):
     list_filter = ('method', 'status', 'currency')
     search_fields = ('id', 'order__order_number', 'gateway_reference')
     readonly_fields = ('id', 'order', 'amount_minor', 'currency', 'method', 'status',
-                       'client_secret', 'gateway_reference', 'metadata', 'created_at', 'updated_at')
+                       'checkout_request_id', 'gateway_reference', 'metadata', 'created_at', 'updated_at')
 
 
 @admin.register(PaymentEvent)

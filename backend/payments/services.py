@@ -4,6 +4,7 @@ import uuid
 from django.conf import settings
 from django.db import transaction
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from django.utils import timezone
 
 from admin_ui.models import notify_customer
 from admin_ui.services import AdminNotificationService
@@ -14,6 +15,7 @@ from orders.models import Order
 from receipts.services import generate_receipt
 
 from .models import PaymentEvent, PaymentIntent
+from .daraja import DarajaError, initiate_stk_push, normalize_ke_phone, query_stk_status
 
 
 def get_order_for_cart(order_number, cart_key, user=None):
@@ -83,60 +85,62 @@ def _queue_payment_email(email_type, order, subject, body_text, notification):
     )
 
 
-@transaction.atomic
 def create_intent(order_number, method, phone_number, cart_key, user=None):
     order = get_order_for_cart(order_number, cart_key, user)
-    # Serialize against concurrent checkout retries so a double submit cannot
-    # mint two intents (or exceed one pending intent per order).
-    order = Order.objects.select_for_update().get(pk=order.pk)
-    if order.payment_status == Order.PaymentStatus.PAID:
-        raise ValidationError({'order': 'Order is already paid.'})
-    if order.status == Order.Status.CANCELLED:
-        raise ValidationError({'order': 'Order was cancelled and cannot be paid.'})
-    existing = PaymentIntent.objects.filter(
-        order=order, status=PaymentIntent.Status.PENDING).first()
-    if existing:
-        return existing
-    intent_id = f'pi_{uuid.uuid4().hex}'
-    sandbox = bool(getattr(settings, 'PAYMENT_SANDBOX', False))
-    intent = PaymentIntent.objects.create(
-        id=intent_id,
-        order=order,
-        amount_minor=order.total_minor,
-        method=method,
-        client_secret=f'cs_{secrets.token_urlsafe(24)}',
-        metadata={
-            'phoneNumber': phone_number or order.customer.get('phone', ''),
-            'mode': 'sandbox' if sandbox else 'local-development',
-        },
-    )
-    order.payment_intent_id = intent.id
-    order.save(update_fields=['payment_intent_id', 'updated_at'])
+    try:
+        phone = normalize_ke_phone(phone_number or (order.customer or {}).get('phone', ''))
+    except DarajaError as exc:
+        raise ValidationError({'phoneNumber': exc.message}) from exc
+    if method != PaymentIntent.Method.MPESA:
+        raise ValidationError({'method': 'Only M-Pesa checkout is currently supported.'})
+    # Serialize order retries, then release the lock before the network call.
+    with transaction.atomic():
+        order = Order.objects.select_for_update().get(pk=order.pk)
+        if order.payment_status == Order.PaymentStatus.PAID:
+            raise ValidationError({'order': 'Order is already paid.'})
+        if order.status == Order.Status.CANCELLED:
+            raise ValidationError({'order': 'Order was cancelled and cannot be paid.'})
+        existing = PaymentIntent.objects.filter(order=order, status=PaymentIntent.Status.PENDING).first()
+        if existing:
+            return existing
+        intent = PaymentIntent.objects.create(
+            id=f'pi_{uuid.uuid4().hex}', order=order, amount_minor=order.total_minor,
+            currency='KES', method=method,
+            metadata={'phoneLast4': phone[-4:]},
+        )
+        order.payment_intent_id = intent.id
+        order.save(update_fields=['payment_intent_id', 'updated_at'])
     AuditLogService.log(
-        'payment_initiated',
-        object_type='payment_intent',
-        object_id=intent.id,
-        object_repr=order.order_number,
-        category='payments',
-        metadata={'method': method, 'order_number': order.order_number},
-        status_code=201,
+        'payment_initiated', object_type='payment_intent', object_id=intent.id,
+        object_repr=order.order_number, category='payments',
+        metadata={'method': method, 'order_number': order.order_number}, status_code=201,
         description=f'Payment initiated for order {order.order_number}.',
     )
-    if sandbox:
-        # Mock gateway. Nothing in this codebase issues a Daraja STK push, so
-        # without this the intent would sit at `pending` forever: the order
-        # could never reach PAID and the admin Approve button — gated on PAID
-        # — would never appear. Completing it here is what a mock gateway
-        # does on the customer's phone. MPESA_ENV=production turns it off.
-        _mark_intent_succeeded(intent, f'SBX-{uuid.uuid4().hex[:12].upper()}')
+    try:
+        response = initiate_stk_push(phone, intent.amount_minor, order.order_number,
+                                     f'MODEZA {order.order_number}')
+    except Exception as exc:
+        code = exc.code if isinstance(exc, DarajaError) else 'CONFIGURATION_ERROR'
+        message = exc.message if isinstance(exc, DarajaError) else 'M-Pesa is not configured. Contact support.'
+        intent.status = PaymentIntent.Status.FAILED
+        intent.failure_code, intent.failure_message = code, message
+        intent.save(update_fields=['status', 'failure_code', 'failure_message', 'updated_at'])
+        raise ValidationError({'payment': message}) from exc
+    intent.merchant_request_id = response.get('MerchantRequestID', '')
+    intent.checkout_request_id = response['CheckoutRequestID']
+    intent.initiated_at = timezone.now()
+    intent.save(update_fields=['merchant_request_id', 'checkout_request_id', 'initiated_at', 'updated_at'])
     return intent
 
 
 @transaction.atomic
 def _mark_intent_succeeded(intent, gateway_reference):
+    if intent.status != PaymentIntent.Status.PENDING:
+        return intent.order
     intent.status = PaymentIntent.Status.SUCCEEDED
     intent.gateway_reference = gateway_reference or f'TXN-{uuid.uuid4().hex[:12].upper()}'
-    intent.save(update_fields=['status', 'gateway_reference', 'updated_at'])
+    intent.confirmed_at = timezone.now()
+    intent.save(update_fields=['status', 'gateway_reference', 'confirmed_at', 'updated_at'])
     order = intent.order
     if order.status == Order.Status.CANCELLED:
         # A payment arriving after cancellation must not revive the order.

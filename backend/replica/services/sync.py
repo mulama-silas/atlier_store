@@ -181,8 +181,7 @@ def order_item_rows():
 
 
 def payment_intent_rows():
-    # client_secret is deliberately excluded: it is a live confirmation
-    # secret and analytics has no use for it.
+    # Provider identifiers and customer phone details stay out of the analytics replica.
     return [
         {
             'id': p.id, 'order_id': str(p.order_id),

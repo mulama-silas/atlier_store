@@ -39,7 +39,7 @@ Browser ──▶ Vercel (Vite SPA, /assets)
 | Frontend | **Vercel** | React SPA served as static assets |
 | Backend API | **Render** (Docker) | Django REST Framework, `/api/*` |
 | Auth + DB | **Supabase** | Auth (JWT) + PostgreSQL |
-| Payments | **M-Pesa Daraja API** | STK Push; `PAYMENT_SANDBOX` completes intents in-process |
+| Payments | **M-Pesa Daraja API** | STK Push with verified provider confirmation |
 | Email | **Resend** (HTTPS API, port 443) | Outbound mail; SMTP is blocked on Render's free plan |
 
 ---
@@ -410,19 +410,17 @@ GET    /api/health/                    # health check
 
 ## Payments (M-Pesa)
 
-- **Provider:** Safaricom **Daraja API** (sandbox supported via `MPESA_ENV`)
+- **Provider:** Safaricom **Daraja API** (sandbox or production via `MPESA_ENVIRONMENT`)
 - **Flow:** Checkout creates an intent; a verified provider callback settles payment and unlocks order approval.
 - Card payment scaffolding exists but M-Pesa is the primary method
 - Callback secured with `MPESA_CALLBACK_SECRET` / `PAYMENT_WEBHOOK_SECRET`
-- **No STK push exists yet.** `PAYMENT_SANDBOX=true` can simulate settlement in
-  local development. Production keeps it false, so prepaid orders stay pending
-  until a verified provider callback or verification flow is integrated.
+- STK Push is initiated by the backend; an order becomes paid only after provider confirmation is verified.
 
 ---
 
 ## Environment Variables
 
-Three templates exist: root `.env.example` (master), `backend/.env.example`, `frontend/.env.example`.
+The root `.env.example` and `frontend/.env.example` document their respective settings. Backend local settings live in the ignored `backend/.env`; deployment settings belong in the Render service environment.
 
 ### Django
 | Variable | Purpose |
@@ -459,8 +457,7 @@ Three templates exist: root `.env.example` (master), `backend/.env.example`, `fr
 |---|---|
 | `PAYMENT_WEBHOOK_SECRET` | Webhook signature |
 | `MPESA_CALLBACK_SECRET` | Callback verification |
-| `MPESA_ENV` | `sandbox` / `production` |
-| `PAYMENT_SANDBOX` | Mock gateway: completes the intent in-process so orders reach `PAID` |
+| `MPESA_ENVIRONMENT` | `sandbox` / `production` |
 | `MPESA_CONSUMER_KEY` / `MPESA_CONSUMER_SECRET` | API credentials |
 | `MPESA_SHORTCODE` / `MPESA_PASSKEY` | Till number credentials |
 | `MPESA_CALLBACK_URL` | Public callback URL |

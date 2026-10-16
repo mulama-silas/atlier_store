@@ -375,7 +375,7 @@ export const api = {
     return request<PaymentIntentDTO>('/api/payments/create-intent', {
       method: 'POST',
       body: JSON.stringify({ orderNumber, method, phoneNumber }),
-    }, true, true);
+    }, true, false);
   },
 
   async confirmPayment(
@@ -387,6 +387,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ orderNumber, paymentIntentId, gatewayReference }),
     }, true, true);
+  },
+
+  async getPaymentStatus(orderNumber: string, paymentIntentId: string): Promise<{ status: 'pending' | 'succeeded' | 'failed'; failureMessage?: string }> {
+    const query = new URLSearchParams({ orderNumber, paymentIntentId });
+    return request(`/api/payments/status?${query.toString()}`, {}, true, false);
   },
 
   // Admin

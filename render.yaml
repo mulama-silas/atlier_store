@@ -32,8 +32,10 @@ services:
         value: "atlier-boutique.onrender.com"
       - key: FRONTEND_ORIGIN
         value: "https://atlier-boutique.vercel.app"
-      - key: MPESA_ENV
+      - key: MPESA_ENVIRONMENT
         value: "sandbox"
+      - key: MPESA_TRANSACTION_TYPE
+        value: "CustomerPayBillOnline"
       - key: SUPABASE_URL
         value: "https://ngpzjddvkgopfmghjqnv.supabase.co"
       - key: SUPABASE_STORAGE_BUCKET
@@ -79,11 +81,6 @@ services:
       - key: EMAIL_TIMEOUT
         value: "10"
       # Mock payment gateway can settle intents in local development.
-      # The mock is for local development only. Production keeps prepaid
-      # orders pending until a verified provider can settle the payment.
-      - key: PAYMENT_SANDBOX
-        value: "false"
-
       # ---- AI shopping assistant (server-side Gemini, see PROJECT.md) ------
       # Model used by backend/assistant; must support the Interactions API.
       - key: GEMINI_MODEL
@@ -144,8 +141,6 @@ services:
       - key: SUPABASE_JWT_ISSUER
         sync: false
       - key: PAYMENT_WEBHOOK_SECRET
-        sync: false
-      - key: MPESA_CALLBACK_SECRET
         sync: false
       - key: MPESA_CONSUMER_KEY
         sync: false

@@ -42,7 +42,7 @@ npm run test:api              # bundled API integration tests
    `backend/Dockerfile` automatically.
 3. Set environment variables in the dashboard (see `.env.example`):
    - `DJANGO_SECRET_KEY`, `DATABASE_URL`, `SUPABASE_JWT_SECRET`, `SUPABASE_JWT_ISSUER`,
-     `PAYMENT_WEBHOOK_SECRET`, `MPESA_CALLBACK_SECRET`, MPesa Daraja creds, `MPESA_CALLBACK_URL`.
+     `PAYMENT_WEBHOOK_SECRET`, MPesa Daraja credentials, `MPESA_CALLBACK_URL`.
    - `DJANGO_DEBUG=False`, `DJANGO_ALLOWED_HOSTS=<app.onrender.com>`,
      `DJANGO_SECURE_SSL_REDIRECT=True`, `FRONTEND_ORIGIN=<vercel-url>`.
    - Observability: `LOG_FORMAT=json`, `LOG_LEVEL=INFO`,
@@ -126,9 +126,9 @@ authenticated API endpoint (`GET /api/auth/me`), which is also where the admin
 - [ ] `https://<backend>/admin/dashboard/audit-logs/` lists orders, payments,
       logins and security events; `POST https://<backend>/api/audit/events`
       returns 202 for storefront events.
-- [ ] Prepaid checkout remains pending until a verified M-Pesa provider flow is
-      integrated. `PAYMENT_SANDBOX=true` is for local development only;
-      production (`DEBUG=false`) rejects that setting. Render sets it to false.
+- [ ] Prepaid checkout uses the configured Daraja STK Push flow. See
+      `backend/docs/MPESA_SETUP.md`; payment remains pending until callback
+      details have been checked against Daraja's STK query API.
 - [ ] CORS: frontend origin is in `FRONTEND_ORIGIN`; cookie-flags work over HTTPS.
 - [ ] `https://<backend>/admin/dashboard/emails/` loads and a test order produces a
       row there. Delivery is off (`EMAIL_ENABLED=false`), so rows stay `QUEUED`

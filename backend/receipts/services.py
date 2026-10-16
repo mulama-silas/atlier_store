@@ -409,5 +409,4 @@ def _clean_gateway_reference(order, intent):
 def _clean_checkout_request_id(intent):
     if intent is None:
         return ''
-    # The M-Pesa CheckoutRequestID is stored on client_secret.
-    return getattr(intent, 'client_secret', '') or ''
+    return getattr(intent, 'checkout_request_id', '') or ''
