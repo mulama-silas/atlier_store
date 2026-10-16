@@ -363,7 +363,9 @@ def price_cart(cart, user=None, shipping_method='standard', coupon_code='', now=
             {
                 'id': str(a['promo'].pk),
                 'name': a['promo'].name,
-                'code': a['promo'].coupon_code or '',
+                # Automatic promotions are evaluated for every eligible order;
+                # they must never masquerade as a customer-entered coupon.
+                'code': '' if a['promo'].is_automatic else (a['promo'].coupon_code or ''),
                 'type': a['promo'].promotion_type,
                 'discount': a['discount'] if a['shipping_discount'] != -1 else 0,
                 'shipping_discount': base_shipping if a['shipping_discount'] == -1 else 0,

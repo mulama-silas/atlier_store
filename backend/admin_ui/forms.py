@@ -361,6 +361,11 @@ class PromotionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            existing = field.widget.attrs.get('class', '')
+            field.widget.attrs['class'] = f'{existing} form-control'.strip()
+        for field_name in ('eligible_all', 'sale_only', 'new_only', 'stackable', 'is_automatic'):
+            self.fields[field_name].widget.attrs['class'] += ' promo-checkbox'
         inst = self.instance
         if inst is not None and getattr(inst, 'pk', None):
             self.fields['discount_amount'].initial = (inst.discount_amount_minor or 0) / 100
@@ -389,6 +394,10 @@ class PromotionForm(forms.ModelForm):
 
     def save(self, commit=True):
         promo = super().save(commit=False)
+        if promo.is_automatic:
+            # Automatic offers are applied by eligibility rules and do not have
+            # a customer-facing code to retain or prefill at checkout.
+            promo.coupon_code = ''
         promo.discount_amount_minor = int(round(float(self.cleaned_data.get('discount_amount') or 0) * 100))
         maxd = self.cleaned_data.get('maximum_discount')
         promo.maximum_discount_minor = None if maxd in (None, '') else int(round(float(maxd) * 100))

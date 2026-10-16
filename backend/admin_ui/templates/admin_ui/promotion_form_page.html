@@ -9,86 +9,154 @@
 {% endblock %}
 
 {% block content %}
-<div style="max-width: 760px; margin: 0 auto;">
+<style>
+  .promo-editor { max-width: 1040px; margin: 0 auto; }
+  .promo-editor-hero { display:flex; align-items:center; gap:16px; padding:22px 24px; margin:0 0 22px; border:1px solid #dce5dc; border-radius:16px; background:linear-gradient(115deg,#f0f4ef,#fbfaf7 72%); }
+  .promo-editor-hero__icon { display:grid; place-items:center; flex:0 0 48px; height:48px; border-radius:14px; color:var(--accent); background:#fff; box-shadow:var(--shadow-sm); font-size:23px; }
+  .promo-editor-hero p { margin:4px 0 0; color:var(--text-secondary); font-size:13px; }
+  .promo-editor-form { display:flex; flex-direction:column; gap:18px; }
+  .promo-panel { overflow:hidden; border:1px solid var(--border); border-radius:14px; background:var(--panel); box-shadow:var(--shadow-sm); }
+  .promo-panel__heading { padding:18px 22px; border-bottom:1px solid var(--border-light); }
+  .promo-panel__heading h3 { display:flex; align-items:center; gap:9px; margin:0; font-size:15px; font-weight:650; }
+  .promo-panel__heading h3 i { color:var(--accent); font-size:18px; }
+  .promo-panel__heading p { margin:5px 0 0 27px; color:var(--text-secondary); font-size:12px; }
+  .promo-panel__body { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; padding:22px; }
+  .promo-field { min-width:0; }
+  .promo-field--wide { grid-column:1 / -1; }
+  .promo-field label { display:block; margin:0 0 6px; color:var(--text); font-size:12px; font-weight:600; }
+  .promo-field .form-control { width:100%; min-height:40px; border-radius:9px; border-color:#deddd7; background:#fff; font:inherit; }
+  .promo-field textarea.form-control { min-height:88px; resize:vertical; }
+  .promo-field select[multiple].form-control { min-height:132px; padding:8px; }
+  .promo-field .form-control:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .promo-field small { display:block; margin-top:5px; color:var(--text-secondary); font-size:11px; line-height:1.5; }
+  .promo-field .errorlist { margin:0 0 6px; padding:0; color:var(--status-danger); font-size:12px; list-style:none; }
+  .promo-toggle { display:flex; align-items:center; gap:12px; min-height:64px; padding:12px 14px; border:1px solid var(--border); border-radius:11px; background:#fbfaf8; }
+  .promo-toggle input[type=checkbox] { width:18px; height:18px; flex:0 0 18px; accent-color:var(--accent); }
+  .promo-toggle label { margin:0; cursor:pointer; }
+  .promo-toggle__hint { display:block; margin-top:3px; color:var(--text-secondary); font-size:11px; font-weight:400; }
+  .promo-details { margin:0 22px 22px; border:1px solid var(--border); border-radius:11px; background:#fbfaf8; }
+  .promo-details summary { display:flex; align-items:center; gap:9px; padding:15px 16px; color:var(--text); cursor:pointer; font-size:13px; font-weight:600; list-style:none; }
+  .promo-details summary::-webkit-details-marker { display:none; }
+  .promo-details summary i { color:var(--accent); }
+  .promo-details[open] summary { border-bottom:1px solid var(--border); }
+  .promo-details__body { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:17px 20px; padding:20px 16px; }
+  .promo-actions { display:flex; justify-content:flex-end; align-items:center; gap:10px; padding:15px 20px; border-top:1px solid var(--border-light); background:#fcfcfb; }
+  .promo-actions .btn { min-height:40px; }
+  @media(max-width:680px) {
+    .promo-panel__body,.promo-details__body { grid-template-columns:1fr; padding:17px; }
+    .promo-field--wide { grid-column:auto; }
+    .promo-editor-hero { align-items:flex-start; padding:17px; }
+    .promo-editor-hero__icon { flex-basis:40px; height:40px; }
+    .promo-actions { justify-content:stretch; }
+    .promo-actions .btn { flex:1; text-align:center; }
+  }
+</style>
+
+<div class="promo-editor">
   <div class="page-header">
     <div>
       <h2 class="page-title">{{ page_title }}</h2>
-      <p class="page-subtitle">Set the offer and when it ends. Publishing notifies eligible customers.</p>
+      <p class="page-subtitle">Build a clear offer and control exactly when and where it applies.</p>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-body">
-      <form method="post" style="display: flex; flex-direction: column; gap: 20px;">
-        {% csrf_token %}
-        <h3 style="margin: 0;">Promotion details</h3>
-        {{ form.name.errors }}{{ form.name.label_tag }}{{ form.name }}
-        {{ form.description.errors }}{{ form.description.label_tag }}{{ form.description }}
-        {{ form.promotion_type.errors }}{{ form.promotion_type.label_tag }}{{ form.promotion_type }}
-        <div data-discount-field="percentage">
-          {{ form.discount_percent.errors }}{{ form.discount_percent.label_tag }}{{ form.discount_percent }}
-        </div>
-        <div data-discount-field="fixed">
-          {{ form.discount_amount.errors }}{{ form.discount_amount.label_tag }}{{ form.discount_amount }}
-        </div>
-        {{ form.is_automatic.errors }}{{ form.is_automatic.label_tag }}{{ form.is_automatic }}
-        <div data-coupon-field>
-          {{ form.coupon_code.errors }}{{ form.coupon_code.label_tag }}{{ form.coupon_code }}
-        </div>
-        {{ form.status.errors }}{{ form.status.label_tag }}{{ form.status }}
-        {{ form.ends_at.errors }}{{ form.ends_at.label_tag }}{{ form.ends_at }}
-        <p style="margin: -12px 0 0; color: var(--text-muted); font-size: 13px;">
-          An end date is required to publish so customers can see the countdown.
-        </p>
-
-        <details style="border-top: 1px solid var(--border-subtle); padding-top: 16px;">
-          <summary style="cursor: pointer; font-weight: 600;">Advanced options</summary>
-          <div style="display: flex; flex-direction: column; gap: 16px; padding-top: 16px;">
-            {{ form.maximum_discount.errors }}{{ form.maximum_discount.label_tag }}{{ form.maximum_discount }}
-            {{ form.qualifying_quantity.errors }}{{ form.qualifying_quantity.label_tag }}{{ form.qualifying_quantity }}
-            {{ form.reward_quantity.errors }}{{ form.reward_quantity.label_tag }}{{ form.reward_quantity }}
-            {{ form.reward_discount_percent.errors }}{{ form.reward_discount_percent.label_tag }}{{ form.reward_discount_percent }}
-            {{ form.max_redemptions_per_order.errors }}{{ form.max_redemptions_per_order.label_tag }}{{ form.max_redemptions_per_order }}
-            {{ form.minimum_order_value.errors }}{{ form.minimum_order_value.label_tag }}{{ form.minimum_order_value }}
-            {{ form.minimum_quantity.errors }}{{ form.minimum_quantity.label_tag }}{{ form.minimum_quantity }}
-            {{ form.eligible_all.errors }}{{ form.eligible_all.label_tag }}{{ form.eligible_all }}
-            {{ form.sale_only.errors }}{{ form.sale_only.label_tag }}{{ form.sale_only }}
-            {{ form.new_only.errors }}{{ form.new_only.label_tag }}{{ form.new_only }}
-            {{ form.target_products.errors }}{{ form.target_products.label_tag }}{{ form.target_products }}
-            {{ form.target_categories.errors }}{{ form.target_categories.label_tag }}{{ form.target_categories }}
-            {{ form.target_variants.errors }}{{ form.target_variants.label_tag }}{{ form.target_variants }}
-            {{ form.customer_scope.errors }}{{ form.customer_scope.label_tag }}{{ form.customer_scope }}
-            {{ form.starts_at.errors }}{{ form.starts_at.label_tag }}{{ form.starts_at }}
-            {{ form.usage_limit.errors }}{{ form.usage_limit.label_tag }}{{ form.usage_limit }}
-            {{ form.usage_limit_per_customer.errors }}{{ form.usage_limit_per_customer.label_tag }}{{ form.usage_limit_per_customer }}
-            {{ form.priority.errors }}{{ form.priority.label_tag }}{{ form.priority }}
-            {{ form.stackable.errors }}{{ form.stackable.label_tag }}{{ form.stackable }}
-          </div>
-        </details>
-
-        {% if form.non_field_errors %}
-        <ul class="errorlist" style="color: var(--status-danger);">
-          {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
-        </ul>
-        {% endif %}
-
-        <div style="display: flex; gap: 12px; padding-top: 8px;">
-          <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
-          <a class="btn btn-secondary" href="/admin/dashboard/promotions/">Cancel</a>
-        </div>
-      </form>
+  <div class="promo-editor-hero">
+    <span class="promo-editor-hero__icon"><i class="ph ph-ticket" aria-hidden="true"></i></span>
+    <div>
+      <strong>Promotion setup</strong>
+      <p>Automatic offers apply to each eligible order. Coupon offers require a code at checkout.</p>
     </div>
   </div>
+
+  {% if form.non_field_errors %}
+  <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form method="post" class="promo-editor-form">
+    {% csrf_token %}
+    <section class="promo-panel" aria-labelledby="promo-basics-title">
+      <div class="promo-panel__heading">
+        <h3 id="promo-basics-title"><i class="ph ph-sparkle" aria-hidden="true"></i>Offer details</h3>
+        <p>Choose the promotion and the benefit customers receive.</p>
+      </div>
+      <div class="promo-panel__body">
+        <div class="promo-field promo-field--wide">{{ form.name.errors }}{{ form.name.label_tag }}{{ form.name }}</div>
+        <div class="promo-field promo-field--wide">{{ form.description.errors }}{{ form.description.label_tag }}{{ form.description }}</div>
+        <div class="promo-field promo-field--wide" data-show-types="percentage,fixed,free_shipping,buy_x_get_y,buy_x_get_pct">{{ form.promotion_type.errors }}{{ form.promotion_type.label_tag }}{{ form.promotion_type }}</div>
+        <div class="promo-field" data-show-types="percentage">{{ form.discount_percent.errors }}{{ form.discount_percent.label_tag }}{{ form.discount_percent }}</div>
+        <div class="promo-field" data-show-types="fixed">{{ form.discount_amount.errors }}{{ form.discount_amount.label_tag }}{{ form.discount_amount }}</div>
+        <div class="promo-field" data-show-types="percentage">{{ form.maximum_discount.errors }}{{ form.maximum_discount.label_tag }}{{ form.maximum_discount }}</div>
+        <div class="promo-field" data-show-types="buy_x_get_y,buy_x_get_pct">{{ form.qualifying_quantity.errors }}{{ form.qualifying_quantity.label_tag }}{{ form.qualifying_quantity }}</div>
+        <div class="promo-field" data-show-types="buy_x_get_y,buy_x_get_pct">{{ form.reward_quantity.errors }}{{ form.reward_quantity.label_tag }}{{ form.reward_quantity }}</div>
+        <div class="promo-field" data-show-types="buy_x_get_pct">{{ form.reward_discount_percent.errors }}{{ form.reward_discount_percent.label_tag }}{{ form.reward_discount_percent }}</div>
+        <div class="promo-field" data-show-types="buy_x_get_y,buy_x_get_pct">{{ form.max_redemptions_per_order.errors }}{{ form.max_redemptions_per_order.label_tag }}{{ form.max_redemptions_per_order }}</div>
+        <div class="promo-field promo-field--wide promo-toggle">
+          {{ form.is_automatic }}
+          <span><label for="{{ form.is_automatic.id_for_label }}">Apply automatically</label><span class="promo-toggle__hint">Use eligibility and timing rules; no customer code is needed.</span></span>
+        </div>
+        <div class="promo-field promo-field--wide" data-coupon-field>{{ form.coupon_code.errors }}{{ form.coupon_code.label_tag }}{{ form.coupon_code }}<small>Customers enter this code during checkout.</small></div>
+      </div>
+    </section>
+
+    <section class="promo-panel" aria-labelledby="promo-schedule-title">
+      <div class="promo-panel__heading">
+        <h3 id="promo-schedule-title"><i class="ph ph-calendar-check" aria-hidden="true"></i>Schedule and status</h3>
+        <p>Set the availability window before publishing the offer.</p>
+      </div>
+      <div class="promo-panel__body">
+        <div class="promo-field">{{ form.status.errors }}{{ form.status.label_tag }}{{ form.status }}</div>
+        <div class="promo-field">{{ form.starts_at.errors }}{{ form.starts_at.label_tag }}{{ form.starts_at }}</div>
+        <div class="promo-field">{{ form.ends_at.errors }}{{ form.ends_at.label_tag }}{{ form.ends_at }}<small>An end date is required when the promotion is active.</small></div>
+      </div>
+    </section>
+
+    <section class="promo-panel" aria-labelledby="promo-targets-title">
+      <div class="promo-panel__heading">
+        <h3 id="promo-targets-title"><i class="ph ph-target" aria-hidden="true"></i>Who and what qualifies</h3>
+        <p>Limit the offer by order value, products, customer group, or other rules.</p>
+      </div>
+      <div class="promo-panel__body">
+        <div class="promo-field">{{ form.minimum_order_value.errors }}{{ form.minimum_order_value.label_tag }}{{ form.minimum_order_value }}</div>
+        <div class="promo-field">{{ form.minimum_quantity.errors }}{{ form.minimum_quantity.label_tag }}{{ form.minimum_quantity }}</div>
+        <div class="promo-field">{{ form.customer_scope.errors }}{{ form.customer_scope.label_tag }}{{ form.customer_scope }}</div>
+        <div class="promo-field">{{ form.priority.errors }}{{ form.priority.label_tag }}{{ form.priority }}</div>
+        <div class="promo-field promo-field--wide">{{ form.target_categories.errors }}{{ form.target_categories.label_tag }}{{ form.target_categories }}<small>Use Ctrl or Command to select more than one category.</small></div>
+        <div class="promo-field promo-field--wide">{{ form.target_products.errors }}{{ form.target_products.label_tag }}{{ form.target_products }}<small>Leave products empty when the offer covers every product in its selected scope.</small></div>
+        <div class="promo-field promo-field--wide">{{ form.target_variants.errors }}{{ form.target_variants.label_tag }}{{ form.target_variants }}</div>
+        <div class="promo-field promo-field--wide promo-toggle">{{ form.eligible_all }}<span><label for="{{ form.eligible_all.id_for_label }}">Eligible across the full catalog</label><span class="promo-toggle__hint">Turn off to limit the offer to selected products, categories, or variants.</span></span></div>
+        <div class="promo-field promo-toggle">{{ form.sale_only }}<span><label for="{{ form.sale_only.id_for_label }}">Sale items only</label></span></div>
+        <div class="promo-field promo-toggle">{{ form.new_only }}<span><label for="{{ form.new_only.id_for_label }}">New arrivals only</label></span></div>
+      </div>
+    </section>
+
+    <details class="promo-details">
+      <summary><i class="ph ph-sliders-horizontal" aria-hidden="true"></i>Redemption and stacking rules</summary>
+      <div class="promo-details__body">
+        <div class="promo-field">{{ form.usage_limit.errors }}{{ form.usage_limit.label_tag }}{{ form.usage_limit }}</div>
+        <div class="promo-field">{{ form.usage_limit_per_customer.errors }}{{ form.usage_limit_per_customer.label_tag }}{{ form.usage_limit_per_customer }}</div>
+        <div class="promo-field promo-field--wide promo-toggle">{{ form.stackable }}<span><label for="{{ form.stackable.id_for_label }}">Allow stacking</label><span class="promo-toggle__hint">Combine this promotion with other eligible promotions.</span></span></div>
+      </div>
+    </details>
+
+    <div class="promo-panel promo-actions">
+      <a class="btn btn-secondary" href="/admin/dashboard/promotions/">Cancel</a>
+      <button class="btn btn-primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i> {{ submit_label }}</button>
+    </div>
+  </form>
 </div>
+
 <script>
   (() => {
     const type = document.getElementById("id_promotion_type");
     const automatic = document.getElementById("id_is_automatic");
+    const coupon = document.querySelector("[data-coupon-field]");
+    if (!type || !automatic || !coupon) return;
     const updateFields = () => {
-      document.querySelectorAll("[data-discount-field]").forEach((field) => {
-        field.hidden = !field.dataset.discountField.includes(type.value);
+      document.querySelectorAll("[data-show-types]").forEach((field) => {
+        const allowed = field.dataset.showTypes.split(",");
+        field.hidden = !allowed.includes(type.value);
       });
-      document.querySelector("[data-coupon-field]").hidden = automatic.checked;
+      coupon.hidden = automatic.checked;
     };
     type.addEventListener("change", updateFields);
     automatic.addEventListener("change", updateFields);
