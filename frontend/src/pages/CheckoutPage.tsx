@@ -4,7 +4,7 @@ import { useOrders } from '../context/OrdersContext';
 import { useRouter } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
 import { audit } from '../lib/logger';
-import { listCustomerAddresses } from '../services/addressService';
+import { listCustomerAddresses, saveCustomerAddress } from '../services/addressService';
 import type { SavedAddress } from '../utils/addressBook';
 import type { PaymentMethod } from '../types';
 import { Price } from '../components/ui/Price';
@@ -200,8 +200,12 @@ export const CheckoutPage: React.FC = () => {
   const [couponMessage, setCouponMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [isLoadingSavedAddresses, setIsLoadingSavedAddresses] = useState(false);
+  const [savedAddressError, setSavedAddressError] = useState('');
+  const [addressLoadAttempt, setAddressLoadAttempt] = useState(0);
+  const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const addressPrefillUserId = useRef<string | null>(null);
+  const addressFieldsTouched = useRef(false);
 
   useEffect(() => {
     if (appliedPromo?.code) setCouponCodeInput(appliedPromo.code);
@@ -221,7 +225,8 @@ export const CheckoutPage: React.FC = () => {
     setIsApplyingCoupon(false);
   };
 
-  const applySavedAddress = useCallback((address: SavedAddress) => {
+  const applySavedAddress = useCallback((address: SavedAddress, markFieldsTouched = true) => {
+    if (markFieldsTouched) addressFieldsTouched.current = true;
     setFormData((prev) => ({
       ...prev,
       firstName: address.firstName,
@@ -233,33 +238,42 @@ export const CheckoutPage: React.FC = () => {
       subcounty: address.subcounty,
       city: address.city,
       postalCode: address.postalCode,
+      country: address.country || 'Kenya',
     }));
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      addressPrefillUserId.current = null;
+    const userId = user?.id;
+    let active = true;
+    if (!userId) {
       setSavedAddresses([]);
       setSelectedAddressId('');
+      setIsLoadingSavedAddresses(false);
+      setSavedAddressError('');
+      addressFieldsTouched.current = false;
       return;
     }
-    if (addressPrefillUserId.current === user.id) return;
-    addressPrefillUserId.current = user.id;
     setSavedAddresses([]);
-    let active = true;
-    void listCustomerAddresses(user.id).then((loaded) => {
+    setIsLoadingSavedAddresses(true);
+    setSavedAddressError('');
+    void listCustomerAddresses(userId).then((loaded) => {
       if (!active) return;
       setSavedAddresses(loaded);
       const defaultAddress = loaded.find((address) => address.isDefault) ?? loaded[0];
-      if (defaultAddress) {
+      if (defaultAddress && !addressFieldsTouched.current) {
         setSelectedAddressId(defaultAddress.id);
-        applySavedAddress(defaultAddress);
+        applySavedAddress(defaultAddress, false);
       }
     }).catch(() => {
-      if (active) setSavedAddresses([]);
+      if (active) {
+        setSavedAddresses([]);
+        setSavedAddressError('Saved addresses could not be loaded. Check your connection and try again.');
+      }
+    }).finally(() => {
+      if (active) setIsLoadingSavedAddresses(false);
     });
     return () => { active = false; };
-  }, [user, applySavedAddress]);
+  }, [user?.id, addressLoadAttempt, applySavedAddress]);
 
   useEffect(() => {
     if (!user) return;
@@ -297,10 +311,10 @@ export const CheckoutPage: React.FC = () => {
 
     setFormData((prev) => ({
       ...prev,
-      email: user.email || prev.email,
-      phone: phone || prev.phone,
-      firstName: firstNameMeta || fallbackFirstName || prev.firstName,
-      lastName: lastNameMeta || fallbackLastName || prev.lastName,
+      email: prev.email || user.email || '',
+      phone: prev.phone || phone,
+      firstName: prev.firstName || firstNameMeta || fallbackFirstName,
+      lastName: prev.lastName || lastNameMeta || fallbackLastName,
     }));
   }, [user]);
 
@@ -335,6 +349,9 @@ export const CheckoutPage: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (['firstName', 'lastName', 'phone', 'address', 'apartment', 'county', 'subcounty', 'city', 'postalCode'].includes(name)) {
+      addressFieldsTouched.current = true;
+    }
     setFormData((prev) => {
       const next = { ...prev, [name]: value };
       if (name === 'county') {
@@ -373,6 +390,32 @@ export const CheckoutPage: React.FC = () => {
         }
       } else if (!checkoutCouponCode && appliedPromo?.code) {
         await removePromoCode(deliveryMethod);
+      }
+      if (user && saveAddressForNextTime) {
+        try {
+          const refreshedAddresses = await saveCustomerAddress({
+            label: 'Checkout address',
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+            addressLine1: formData.address,
+            addressLine2: formData.apartment,
+            county: formData.county,
+            subcounty: formData.subcounty,
+            city: formData.city,
+            postalCode: formData.postalCode,
+            country: formData.country,
+            isDefault: !isLoadingSavedAddresses && !savedAddressError && savedAddresses.length === 0,
+          });
+          setSavedAddresses(refreshedAddresses);
+          setSavedAddressError('');
+          const saved = refreshedAddresses.find((address) =>
+            address.addressLine1.trim().toLowerCase() === formData.address.trim().toLowerCase()
+            && address.city.trim().toLowerCase() === formData.city.trim().toLowerCase());
+          if (saved) setSelectedAddressId(saved.id);
+        } catch {
+          setSavedAddressError('Your order can continue, but this address could not be saved to your account. You can retry in Account → Addresses.');
+        }
       }
       void audit(
         'checkout_started',
@@ -602,7 +645,12 @@ export const CheckoutPage: React.FC = () => {
                       name="saved-address"
                       label="Choose a saved address"
                       value={selectedAddressId}
-                      onChange={(event) => setSelectedAddressId(event.target.value)}
+                      onChange={(event) => {
+                        const addressId = event.target.value;
+                        setSelectedAddressId(addressId);
+                        const address = savedAddresses.find((savedAddress) => savedAddress.id === addressId);
+                        if (address) applySavedAddress(address);
+                      }}
                       options={savedAddresses.map((address) => ({
                         value: address.id,
                         label: `${address.label || 'Saved address'} - ${address.addressLine1}, ${address.city}`,
@@ -610,21 +658,45 @@ export const CheckoutPage: React.FC = () => {
                       placeholder="Choose a saved address"
                       className="text-sm"
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={!selectedAddressId || checkoutBusy}
-                      onClick={() => {
-                        const address = savedAddresses.find((savedAddress) => savedAddress.id === selectedAddressId);
-                        if (address) applySavedAddress(address);
-                      }}
-                      className="shrink-0"
-                    >
-                      Apply
-                    </Button>
                   </div>
                 </Card>
+              )}
+              {isLoadingSavedAddresses && (
+                <p className="mb-4 text-xs text-[#827E77]" role="status">Loading your saved delivery addresses…</p>
+              )}
+              {savedAddressError && (
+                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] p-3 text-xs text-[#9B1C1C] sm:flex-row sm:items-center sm:justify-between">
+                  <p role="alert">{savedAddressError}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoadingSavedAddresses}
+                    onClick={() => setAddressLoadAttempt((attempt) => attempt + 1)}
+                    className="shrink-0"
+                  >
+                    Retry loading addresses
+                  </Button>
+                </div>
+              )}
+              {user && !isLoadingSavedAddresses && !savedAddressError && savedAddresses.length === 0 && (
+                <p className="mb-4 text-xs text-[#827E77]">
+                  No saved addresses yet. Save this address below to use it on your other signed-in devices.
+                </p>
+              )}
+              {user && (
+                <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] p-3.5">
+                  <Checkbox
+                    id="save-address-for-next-time"
+                    checked={saveAddressForNextTime}
+                    onCheckedChange={(checked) => setSaveAddressForNextTime(checked === true)}
+                    disabled={checkoutBusy}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="save-address-for-next-time" className="cursor-pointer text-xs leading-relaxed text-[#63605A]">
+                    Save this delivery address to my account for faster checkout on my other signed-in devices.
+                  </label>
+                </div>
               )}
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

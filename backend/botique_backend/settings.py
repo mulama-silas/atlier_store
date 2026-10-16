@@ -79,7 +79,11 @@ MPESA_CALLBACK_SECRET = os.getenv(
 # or verification can authoritatively settle payments.
 # ---------------------------------------------------------------------------
 MPESA_ENV = (os.getenv('MPESA_ENV', 'sandbox') or 'sandbox').strip().lower()
-PAYMENT_SANDBOX = _env_flag('PAYMENT_SANDBOX', MPESA_ENV != 'production')
+# Default mock settlement on for local development, but fail closed in
+# production even when a manually configured Render service omits this var.
+# An explicit true value in production is still rejected below.
+PAYMENT_SANDBOX = _env_flag(
+    'PAYMENT_SANDBOX', DEBUG and MPESA_ENV != 'production')
 if not DEBUG and PAYMENT_SANDBOX:
     raise ImproperlyConfigured(
         'PAYMENT_SANDBOX must be disabled when DEBUG is false.')

@@ -40,8 +40,14 @@ export async function saveCustomerAddress(
   address: Omit<SavedAddress, 'id'> & { id?: string },
 ): Promise<SavedAddress[]> {
   const { id, ...payload } = address;
-  if (id) await api.updateAddress(id, payload);
-  else await api.createAddress(payload);
+  if (id) {
+    await api.updateAddress(id, payload);
+  } else {
+    const existing = await api.getAddresses();
+    if (!existing.some((saved) => sameAddress(payload as SavedAddress, saved))) {
+      await api.createAddress({ ...payload, isDefault: payload.isDefault || existing.length === 0 });
+    }
+  }
   return listCustomerAddressesFromServer();
 }
 
