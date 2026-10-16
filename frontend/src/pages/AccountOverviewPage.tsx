@@ -61,12 +61,12 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon, href, hint }) =
 
 export const AccountOverviewPage: React.FC = () => {
   const { navigate } = useRouter();
-  const { user } = useAuth();
+  const { user, profile, profileLoading, profileError, refreshProfile } = useAuth();
   const { orders } = useOrders();
   const { wishlistCount } = useWishlist();
   const { notifications, unreadCount, markAsRead } = useNotifications();
 
-  const firstName = (user?.user_metadata?.full_name || '').split(' ')[0];
+  const firstName = (profile?.fullName || user?.user_metadata?.full_name || '').split(' ')[0];
   const recentOrders = [...orders]
     .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
     .slice(0, 3);
@@ -74,8 +74,10 @@ export const AccountOverviewPage: React.FC = () => {
   const activeOrders = orders.filter((order) => isActiveOrder(order.status)).length;
   const receivedOrders = orders.filter((order) => order.status === 'received').length;
   const cancelledOrders = orders.filter((order) => order.status === 'cancelled').length;
-  const profileComplete = Boolean(user?.user_metadata?.full_name && user?.user_metadata?.phone);
-  const profileProgress = [user?.user_metadata?.full_name, user?.user_metadata?.phone].filter(Boolean).length * 50;
+  const profileComplete = Boolean(profile?.isComplete);
+  const profileProgress = profileLoading
+    ? 0
+    : [profile?.fullName, profile?.phone].filter(Boolean).length * 50;
 
   return (
     <section className="w-full space-y-8 sm:space-y-9">
@@ -91,41 +93,43 @@ export const AccountOverviewPage: React.FC = () => {
         </Badge>
       </div>
 
-      <Card className={`overflow-hidden shadow-none ${profileComplete ? 'border-[#C8D8CA] bg-[#F8FBF8]' : 'border-[#E7D8B3] bg-[#FFFDF8]'}`}>
+      <Card className={`overflow-hidden shadow-none ${profileComplete ? 'border-[#C8D8CA] bg-[#F8FBF8]' : profileError ? 'border-[#E8E5DF] bg-[#FAF9F6]' : 'border-[#E7D8B3] bg-[#FFFDF8]'}`}>
         <CardContent className="p-5 sm:p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={profileComplete ? 'success' : 'warning'} size="sm" className="gap-1.5">
+                <Badge variant={profileComplete ? 'success' : profileError ? 'default' : 'warning'} size="sm" className="gap-1.5">
                   {profileComplete ? <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> : <UserRound className="h-3 w-3" aria-hidden="true" />}
-                  {profileComplete ? 'Profile ready' : 'Profile setup'}
+                  {profileComplete ? 'Profile ready' : profileError ? 'Profile unavailable' : 'Profile setup'}
                 </Badge>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#827E77]">{profileProgress}% complete</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#827E77]">{profileError ? 'Status unknown' : `${profileProgress}% complete`}</span>
               </div>
               <h2 className="mt-3 font-serif text-2xl tracking-tight text-[#181716] sm:text-3xl">
-                {profileComplete ? 'Your details are ready to shop.' : 'Make checkout feel like yours.'}
+                {profileError ? 'Your saved profile could not be checked.' : profileComplete ? 'Your details are ready to shop.' : 'Make checkout feel like yours.'}
               </h2>
               <p className="mt-1.5 max-w-xl text-sm leading-6 text-[#63605A]">
-                {profileComplete
+                {profileError
+                  ? 'Try loading your account details again to check whether setup is complete.'
+                  : profileComplete
                   ? 'Your name and phone are saved for a faster, more personal MODEZA experience.'
                   : 'Add your name and phone number once, then keep your orders and delivery details together.'}
               </p>
             </div>
             <Button
               type="button"
-              variant={profileComplete ? 'outline' : 'primary'}
+              variant={profileComplete || profileError ? 'outline' : 'primary'}
               size="sm"
-              onClick={() => navigate(profileComplete ? '/account/profile' : '/account/complete-profile')}
+              onClick={() => profileError ? void refreshProfile() : navigate(profileComplete ? '/account/profile' : '/account/complete-profile')}
               className="w-full shrink-0 justify-center gap-2 sm:w-auto"
             >
-              {profileComplete ? 'View profile' : 'Complete profile'}
+              {profileError ? 'Retry' : profileComplete ? 'View profile' : 'Complete profile'}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
           </div>
           <div className="mt-5 flex items-center gap-3">
             <Progress value={profileProgress} className="h-2" aria-label="Profile completion" />
             <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#827E77]">
-              {profileComplete ? 'Complete' : '2 steps'}
+              {profileError ? 'Check connection' : profileComplete ? 'Complete' : profileLoading ? 'Loading' : '2 steps'}
             </span>
           </div>
         </CardContent>

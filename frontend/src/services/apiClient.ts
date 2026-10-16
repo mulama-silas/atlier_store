@@ -11,6 +11,7 @@ import {
   ReceiptDTO,
   PaginatedProductsResponse,
   CustomerAddressDTO,
+  CustomerProfileDTO,
   ProductReviewDTO,
 } from '../types/api';
 import { CustomerNotification } from '../types';
@@ -158,6 +159,18 @@ async function downloadBlob(endpoint: string, requireAuth = true): Promise<Blob>
 }
 
 export const api = {
+  // Authenticated customer profile (Django is authoritative for name/phone).
+  async getProfile(): Promise<CustomerProfileDTO> {
+    return request<CustomerProfileDTO>('/api/auth/me', {}, true, true);
+  },
+
+  async updateProfile(payload: { fullName: string; phone: string }): Promise<CustomerProfileDTO> {
+    return request<CustomerProfileDTO>('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }, true, true);
+  },
+
   // Products
   async getProducts(params: {
     page?: number;

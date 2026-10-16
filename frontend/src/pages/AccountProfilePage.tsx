@@ -26,17 +26,17 @@ import { Input } from '../components/modeza/Input';
 type ProfileMessage = { type: 'success' | 'error'; text: string };
 
 export const AccountProfilePage: React.FC = () => {
-  const { user, isConfigured, updateProfile } = useAuth();
-  const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
-  const [phone, setPhone] = useState(user?.user_metadata?.phone || '');
+  const { user, profile, profileLoading, profileError, isConfigured, updateProfile, refreshProfile } = useAuth();
+  const [fullName, setFullName] = useState(profile?.fullName || '');
+  const [phone, setPhone] = useState(profile?.phone || '');
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<ProfileMessage | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    setFullName(user.user_metadata?.full_name || '');
-    setPhone(user.user_metadata?.phone || '');
-  }, [user]);
+    if (!profile) return;
+    setFullName(profile.fullName || '');
+    setPhone(profile.phone || '');
+  }, [profile]);
 
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -67,7 +67,11 @@ export const AccountProfilePage: React.FC = () => {
     ? 'Profile updates are unavailable in preview mode.'
     : !user
       ? 'Sign in to update your personal information.'
-      : 'Your name and phone are used for order updates and correspondence.';
+      : profileLoading
+        ? 'Loading your saved profile details.'
+        : profileError
+          ? profileError
+          : 'Your name and phone are used for order updates and correspondence.';
 
   return (
     <section className="w-full space-y-6 sm:space-y-7" aria-label="Personal information settings">
@@ -165,7 +169,7 @@ export const AccountProfilePage: React.FC = () => {
                   type="email"
                   disabled
                   readOnly
-                  value={user?.email || ''}
+                  value={profile?.email || user?.email || ''}
                   autoComplete="email"
                   helperText="Contact support to change the email used to sign in."
                   icon={<Mail className="h-4 w-4" aria-hidden="true" />}
@@ -197,14 +201,21 @@ export const AccountProfilePage: React.FC = () => {
                   <span>{message.text}</span>
                 </div>
               ) : (
-                <p className="text-xs leading-5 text-[#63605A]">{saveNote}</p>
+                <div>
+                  <p className="text-xs leading-5 text-[#63605A]">{saveNote}</p>
+                  {profileError && (
+                    <button type="button" onClick={() => void refreshProfile()} className="mt-1 text-xs font-medium text-[#A2574F] underline underline-offset-2">
+                      Retry loading profile
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             <Button
               type="submit"
               size="md"
               isLoading={isSaving}
-              disabled={!isConfigured || !user}
+                disabled={!isConfigured || !user || profileLoading}
               aria-describedby="profile-save-feedback"
               aria-label={isSaving ? 'Saving profile details' : 'Save profile details'}
               className="w-full gap-2 sm:w-auto"

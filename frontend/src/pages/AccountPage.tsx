@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bell,
   CheckCircle2,
+  KeyRound,
   Heart,
   History,
   Info,
@@ -209,7 +210,7 @@ const AccountNavigation: React.FC<AccountNavigationProps> = ({
   </nav>
 );
 
-type AuthMode = "signIn" | "signUp";
+type AuthMode = "signIn" | "signUp" | "forgotPassword";
 type AuthMessage = { type: "error" | "info" | "success"; text: string };
 
 const AuthFeedback: React.FC<{ message: AuthMessage | null }> = ({
@@ -243,10 +244,14 @@ export const AccountPage: React.FC = () => {
   const { navigate, route } = useRouter();
   const {
     user,
+    profile,
     isLoading,
     isConfigured,
     signIn,
     signUp,
+    requestPasswordReset,
+    isPasswordRecovery,
+    updateRecoveredPassword,
     signInWithGoogle,
     signOut,
   } = useAuth();
@@ -255,10 +260,16 @@ export const AccountPage: React.FC = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryPasswordConfirm, setRecoveryPasswordConfirm] = useState("");
+  const [isRecoverySubmitting, setIsRecoverySubmitting] = useState(false);
+  const [recoveryComplete, setRecoveryComplete] = useState(false);
   const [message, setMessage] = useState<AuthMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -270,6 +281,8 @@ export const AccountPage: React.FC = () => {
     if (isSubmitting) return;
     setMode(nextMode);
     setMessage(null);
+    setPassword("");
+    setPasswordConfirm("");
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -279,11 +292,28 @@ export const AccountPage: React.FC = () => {
     setMessage(null);
     setIsSubmitting(true);
 
+    if (mode === "signUp" && password !== passwordConfirm) {
+      setMessage({ type: "error", text: "The password confirmation does not match." });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      const result =
+      const result: { error?: string; needsVerification?: boolean } =
         mode === "signIn"
           ? await signIn(email, password)
-          : await signUp(email, password, { fullName, phone });
+          : mode === "signUp"
+            ? await signUp(email, password, { fullName, phone })
+            : await requestPasswordReset(email);
+
+      if (mode === "forgotPassword" && !result.error) {
+        setMessage({
+          type: "success",
+          text: "If an account exists for that email, we’ve sent a secure password reset link.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
 
       if (!result.error && !result.needsVerification) {
         const destination = consumePostAuthDestination();
@@ -306,6 +336,37 @@ export const AccountPage: React.FC = () => {
         text: "We could not complete that request. Please try again.",
       });
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRecoverySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isRecoverySubmitting) return;
+    if (recoveryPassword.length < 8) {
+      setMessage({ type: "error", text: "Choose a password with at least 8 characters." });
+      return;
+    }
+    if (recoveryPassword !== recoveryPasswordConfirm) {
+      setMessage({ type: "error", text: "The password confirmation does not match." });
+      return;
+    }
+
+    setMessage(null);
+    setIsRecoverySubmitting(true);
+    try {
+      const result = await updateRecoveredPassword(recoveryPassword);
+      if (result.error) {
+        setMessage({ type: "error", text: result.error });
+        return;
+      }
+      setRecoveryPassword("");
+      setRecoveryPasswordConfirm("");
+      setRecoveryComplete(true);
+      setMessage({ type: "success", text: "Your password has been reset. Your account is ready to use." });
+    } catch {
+      setMessage({ type: "error", text: "We could not reset your password. Request a new reset link and try again." });
+    } finally {
+      setIsRecoverySubmitting(false);
     }
   };
 
@@ -333,8 +394,12 @@ export const AccountPage: React.FC = () => {
   const handleSignOut = async () => {
     if (isSigningOut) return;
     setIsSigningOut(true);
+    setSignOutError('');
     try {
-      await signOut();
+      const result = await signOut();
+      if (result.error) setSignOutError(result.error);
+    } catch {
+      setSignOutError('We could not sign you out. Check your connection and try again.');
     } finally {
       setIsSigningOut(false);
     }
@@ -371,9 +436,39 @@ export const AccountPage: React.FC = () => {
     );
   }
 
+  if ((isPasswordRecovery || recoveryComplete) && user) {
+    return (
+      <main className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center px-4 py-10 sm:px-6">
+        <Card className="mx-auto w-full max-w-lg overflow-hidden shadow-[0_24px_70px_rgba(24,23,22,0.10)]">
+          <div className="h-1.5 bg-gradient-to-r from-[#A2574F] via-[#C0857B] to-[#E68057]" />
+          <div className="p-6 sm:p-10">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F4ECE9] text-[#A2574F] ring-1 ring-[#E8E5DF]">
+              <KeyRound className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <header className="mt-5 space-y-2 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">Account recovery</p>
+              <h1 className="font-serif text-3xl tracking-tight text-[#181716]">{recoveryComplete ? "Password updated" : "Choose a new password"}</h1>
+              <p className="text-sm leading-6 text-[#63605A]">{recoveryComplete ? "Your MODEZA account is secure and ready to use." : "Set a new password to secure your MODEZA account."}</p>
+            </header>
+            <AuthFeedback message={message} />
+            {recoveryComplete ? (
+              <Button type="button" fullWidth size="lg" className="mt-6" onClick={() => { setRecoveryComplete(false); navigate("/account"); }}>Continue to your account</Button>
+            ) : <form onSubmit={handleRecoverySubmit} className="mt-6" aria-busy={isRecoverySubmitting}>
+              <fieldset disabled={isRecoverySubmitting} className="space-y-4">
+                <Input id="recovery-password" label="New password" type="password" required minLength={8} autoComplete="new-password" value={recoveryPassword} onChange={(event) => setRecoveryPassword(event.target.value)} helperText="Use at least 8 characters." icon={<Lock className="h-4 w-4" />} />
+                <Input id="recovery-password-confirm" label="Confirm new password" type="password" required minLength={8} autoComplete="new-password" value={recoveryPasswordConfirm} onChange={(event) => setRecoveryPasswordConfirm(event.target.value)} icon={<Lock className="h-4 w-4" />} />
+                <Button type="submit" fullWidth size="lg" isLoading={isRecoverySubmitting}>Reset password</Button>
+              </fieldset>
+            </form>}
+          </div>
+        </Card>
+      </main>
+    );
+  }
+
   if (!user) {
     return (
-      <main className="mx-auto w-full max-w-xl px-4 py-8 sm:px-6 sm:py-14">
+      <main className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 sm:py-12">
         <Button
           type="button"
           variant="ghost"
@@ -385,11 +480,29 @@ export const AccountPage: React.FC = () => {
           Return to storefront
         </Button>
 
-        <Card className="mt-6 overflow-hidden shadow-[0_20px_60px_rgba(24,23,22,0.05)]">
-          <div className="h-1.5 bg-gradient-to-r from-[#A2574F] via-[#C0857B] to-[#E68057]" />
-          <div className="p-6 sm:p-10">
+        <div className="mt-5 grid items-stretch gap-4 lg:grid-cols-[0.92fr_1.08fr] lg:gap-5">
+          <section className="relative hidden min-h-[610px] overflow-hidden rounded-[28px] bg-[#281715] p-9 text-[#FAF7F2] lg:flex lg:flex-col lg:justify-between xl:p-11" aria-label="MODEZA member benefits">
+            <div className="pointer-events-none absolute -right-24 -top-20 h-80 w-80 rounded-full border border-white/10" />
+            <div className="pointer-events-none absolute -right-8 top-8 h-48 w-48 rounded-full border border-[#C0857B]/30" />
+            <div className="pointer-events-none absolute -bottom-36 -left-24 h-80 w-80 rounded-full bg-[#A2574F]/20 blur-3xl" />
+            <div className="relative">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#D6A39A]">MODEZA <span className="px-1 text-white/30">/</span> THE MEMBER EDIT</p>
+              <p className="mt-16 max-w-sm font-serif text-5xl leading-[1.08] tracking-tight xl:text-6xl">Style that feels like <span className="italic text-[#D6A39A]">you.</span></p>
+              <p className="mt-5 max-w-sm text-sm leading-7 text-white/65">A more personal way to discover pieces you love and keep every order close at hand.</p>
+            </div>
+            <div className="relative space-y-4 border-t border-white/15 pt-6">
+              <div className="flex items-center gap-3 text-sm text-white/80"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[#E2B6AF]"><Package className="h-4 w-4" /></span>Order updates, all in one place</div>
+              <div className="flex items-center gap-3 text-sm text-white/80"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[#E2B6AF]"><Heart className="h-4 w-4" /></span>Save your favourites for later</div>
+              <div className="flex items-center gap-3 text-sm text-white/80"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-[#E2B6AF]"><ShieldCheck className="h-4 w-4" /></span>Your account, protected by Supabase</div>
+              <p className="pt-4 text-[10px] uppercase tracking-[0.2em] text-white/35">Thoughtfully chosen. Made to be yours.</p>
+            </div>
+          </section>
+
+        <Card className="overflow-hidden rounded-[28px] border-[#E8E5DF] shadow-[0_24px_70px_rgba(24,23,22,0.08)]">
+          <div className="h-1.5 bg-gradient-to-r from-[#A2574F] via-[#C0857B] to-[#E68057] lg:hidden" />
+          <div className="p-6 sm:p-9 lg:p-10">
             <header className="space-y-3 text-center">
-              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FAF9F6] ring-1 ring-[#E8E5DF]">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F4ECE9] ring-1 ring-[#E8E5DF]">
                 <UserRound
                   className="h-6 w-6 text-[#A2574F]"
                   aria-hidden="true"
@@ -399,12 +512,14 @@ export const AccountPage: React.FC = () => {
                 MODEZA member
               </Badge>
               <h1 className="font-serif text-3xl tracking-tight text-[#181716] sm:text-4xl">
-                {mode === "signIn" ? "Welcome back" : "Join the MODEZA"}
+                {mode === "signIn" ? "Welcome back" : mode === "signUp" ? "Join MODEZA" : "Reset your password"}
               </h1>
               <p className="mx-auto max-w-sm text-sm leading-6 text-[#63605A]">
                 {mode === "signIn"
                   ? "Sign in to follow your orders and save your details."
-                  : "Save your details and follow every order in one place."}
+                  : mode === "signUp"
+                    ? "Save your details and follow every order in one place."
+                    : "Enter your email and we’ll send a secure reset link if an account exists."}
               </p>
             </header>
 
@@ -437,9 +552,9 @@ export const AccountPage: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <div
+                  {mode !== "forgotPassword" && <div
                     className="grid grid-cols-2 gap-1 rounded-full border border-[#E8E5DF] bg-[#FAF9F6] p-1"
-                    role="tablist"
+                    role="group"
                     aria-label="Account access mode"
                   >
                     {(["signIn", "signUp"] as const).map((itemMode) => {
@@ -448,8 +563,7 @@ export const AccountPage: React.FC = () => {
                         <button
                           key={itemMode}
                           type="button"
-                          role="tab"
-                          aria-selected={selected}
+                          aria-pressed={selected}
                           disabled={isSubmitting}
                           onClick={() => switchMode(itemMode)}
                           className={`rounded-full px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -462,7 +576,7 @@ export const AccountPage: React.FC = () => {
                         </button>
                       );
                     })}
-                  </div>
+                  </div>}
 
                   <AuthFeedback message={message} />
 
@@ -511,7 +625,7 @@ export const AccountPage: React.FC = () => {
                         autoComplete="email"
                         icon={<Mail className="h-4 w-4" />}
                       />
-                      <Input
+                      {mode !== "forgotPassword" && <Input
                         id="auth-password"
                         label="Password"
                         type="password"
@@ -531,8 +645,25 @@ export const AccountPage: React.FC = () => {
                             : undefined
                         }
                         icon={<Lock className="h-4 w-4" />}
-                      />
-                      <Button
+                      />}
+                      {mode === "signUp" && <Input
+                        id="auth-password-confirm"
+                        label="Confirm password"
+                        type="password"
+                        required
+                        minLength={8}
+                        placeholder="Re-enter your password"
+                        value={passwordConfirm}
+                        onChange={(event) => setPasswordConfirm(event.target.value)}
+                        autoComplete="new-password"
+                        icon={<Lock className="h-4 w-4" />}
+                      />}
+                      {mode === "signIn" && <button
+                        type="button"
+                        onClick={() => switchMode("forgotPassword")}
+                        className="-mt-2 block text-xs font-medium text-[#A2574F] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+                      >Forgot password?</button>}
+                      {mode !== "forgotPassword" && <Button
                         type="button"
                         variant="outline"
                         fullWidth
@@ -542,22 +673,22 @@ export const AccountPage: React.FC = () => {
                       >
                         <GoogleMark />
                         <span>Continue with Google</span>
-                      </Button>
-                      <div className="relative py-1" aria-hidden="true">
+                      </Button>}
+                      {mode !== "forgotPassword" && <div className="relative py-1" aria-hidden="true">
                         <div className="absolute inset-0 flex items-center">
                           <div className="w-full border-t border-[#E8E5DF]" />
                         </div>
                         <div className="relative flex justify-center text-xs uppercase tracking-[0.14em] text-[#827E77]">
                           <span className="bg-white px-2">or use email</span>
                         </div>
-                      </div>
+                      </div>}
                       <Button
                         type="submit"
                         fullWidth
                         size="lg"
                         isLoading={isSubmitting}
                       >
-                        {mode === "signIn" ? "Sign in" : "Create account"}
+                        {mode === "signIn" ? "Sign in" : mode === "signUp" ? "Create account" : "Send reset link"}
                       </Button>
                     </fieldset>
                   </form>
@@ -572,13 +703,16 @@ export const AccountPage: React.FC = () => {
                   >
                     {mode === "signIn"
                       ? "New to MODEZA? Create an account"
-                      : "Already have an account? Sign in"}
+                      : mode === "signUp"
+                        ? "Already have an account? Sign in"
+                        : "Back to sign in"}
                   </button>
                 </>
               )}
             </div>
           </div>
         </Card>
+        </div>
 
         <p className="mt-6 text-center text-xs leading-5 text-[#827E77]">
           Secure access for your MODEZA orders, saved pieces and member details.
@@ -587,7 +721,7 @@ export const AccountPage: React.FC = () => {
     );
   }
 
-  const displayName: string = user.user_metadata?.full_name || "MODEZA Client";
+  const displayName: string = profile?.fullName || user.user_metadata?.full_name || "MODEZA Client";
   const userEmail = user.email || user.user_metadata?.email || "";
   const nameParts = displayName.split(/\s+/).filter(Boolean);
   const initials =
@@ -688,6 +822,11 @@ export const AccountPage: React.FC = () => {
         </aside>
 
         <main id="account-content" className="min-w-0">
+          {signOutError && (
+            <p className="mb-5 rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-4 py-3 text-sm text-[#9E332B]" role="alert">
+              {signOutError}
+            </p>
+          )}
           {accountContent}
         </main>
       </div>

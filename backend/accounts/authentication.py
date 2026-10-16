@@ -1,3 +1,5 @@
+import re
+
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -74,6 +76,7 @@ class SupabaseJWTAuthentication(BaseAuthentication):
         user.supabase_claims = claims
         self.sync_local_role(user, role)
         self.sync_local_name(user, claims)
+        self.sync_local_phone(user, claims)
         if created and role == 'customer':
             self.send_welcome(user, claims)
         return user, token
@@ -144,6 +147,10 @@ class SupabaseJWTAuthentication(BaseAuthentication):
 
     @staticmethod
     def sync_local_name(user, claims):
+        # The backend profile becomes authoritative once populated; token
+        # metadata is only an initial value for new/incomplete local records.
+        if user.first_name or user.last_name:
+            return
         metadata = claims.get('user_metadata') or claims.get(
             'raw_user_meta_data') or {}
         full_name = str(metadata.get('full_name')
@@ -163,6 +170,21 @@ class SupabaseJWTAuthentication(BaseAuthentication):
             updates.append('last_name')
         if updates:
             user.save(update_fields=updates)
+
+    @staticmethod
+    def sync_local_phone(user, claims):
+        metadata = claims.get('user_metadata') or claims.get(
+            'raw_user_meta_data') or {}
+        phone = str(metadata.get('phone') or claims.get('phone') or '').strip()
+        if not re.fullmatch(r'[\d\s+().-]{9,25}', phone):
+            return
+
+        from .models import CustomerProfile
+
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+        if not profile.phone:
+            profile.phone = phone[:25]
+            profile.save(update_fields=['phone', 'updated_at'])
 
     @staticmethod
     def get_or_create_user(subject, claims):

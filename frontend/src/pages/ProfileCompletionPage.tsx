@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Check, CheckCircle2, MapPin, Phone, Save, UserRound } from 'lucide-react';
 import { useRouter } from '../router/RouterContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader } from '../components/mo
 import { Input, Select as InputSelect } from '../components/modeza/Input';
 import { Progress } from '../components/modeza/Progress';
 import { KENYA_COUNTIES, KENYA_COUNTY_SUBCOUNTIES } from '../data/kenyaLocations';
-import { upsertAddress } from '../utils/addressBook';
+import { saveCustomerAddress } from '../services/addressService';
+import { consumePostAuthDestination } from '../utils/postAuthRedirect';
 
 type ProfileMessage = { type: 'success' | 'error'; text: string };
 
@@ -36,14 +37,22 @@ const Message: React.FC<{ message: ProfileMessage | null }> = ({ message }) => {
 
 export const ProfileCompletionPage: React.FC = () => {
   const { navigate } = useRouter();
-  const { user, updateProfile } = useAuth();
+  const {
+    user,
+    isLoading: authLoading,
+    profile,
+    profileLoading,
+    profileError,
+    refreshProfile,
+    updateProfile,
+  } = useAuth();
 
   const [step, setStep] = useState<'profile' | 'address'>('profile');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<ProfileMessage | null>(null);
 
-  const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
-  const [phone, setPhone] = useState(user?.user_metadata?.phone || '');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
 
   const [addressLine1, setAddressLine1] = useState('');
   const [addressLine2, setAddressLine2] = useState('');
@@ -52,21 +61,30 @@ export const ProfileCompletionPage: React.FC = () => {
   const [city, setCity] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [country] = useState('Kenya');
+  const profileCheckUserId = useRef<string | null>(null);
 
   const counties = KENYA_COUNTIES;
   const subcounties = county ? KENYA_COUNTY_SUBCOUNTIES[county] || [] : [];
   const completionValue = step === 'profile' ? 50 : 100;
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) {
       navigate('/account');
       return;
     }
+    if (profileLoading || profileCheckUserId.current === user.id) return;
+    if (profileError || !profile) return;
 
-    if (user.user_metadata?.full_name && user.user_metadata?.phone) {
-      setStep('address');
+    profileCheckUserId.current = user.id;
+    setFullName(profile.fullName || user.user_metadata?.full_name || '');
+    setPhone(profile.phone || user.user_metadata?.phone || '');
+    if (profile.isComplete) {
+      navigate(consumePostAuthDestination() || '/');
+      return;
     }
-  }, [user, navigate]);
+    setStep('profile');
+  }, [authLoading, user, profile, profileLoading, profileError, navigate]);
 
   const handleProfileSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -125,10 +143,10 @@ export const ProfileCompletionPage: React.FC = () => {
     };
 
     try {
-      upsertAddress(user.id, addressData);
+      await saveCustomerAddress({ ...addressData, isDefault: true });
       setMessage({ type: 'success', text: 'Profile completed successfully!' });
       setTimeout(() => {
-        navigate('/');
+        navigate(consumePostAuthDestination() || '/');
       }, 1500);
     } catch {
       setMessage({ type: 'error', text: 'Failed to save address. Please try again.' });
@@ -138,10 +156,10 @@ export const ProfileCompletionPage: React.FC = () => {
 
   const handleSkipAddress = () => {
     if (isLoading) return;
-    navigate('/');
+    navigate(consumePostAuthDestination() || '/');
   };
 
-  if (!user) {
+  if (authLoading || (user && (profileLoading || (!profile && !profileError)))) {
     return (
       <main className="mx-auto flex min-h-[55vh] max-w-2xl items-center justify-center px-4 py-16 sm:px-6">
         <Card className="w-full max-w-md p-8 text-center shadow-sm" aria-busy="true">
@@ -152,6 +170,26 @@ export const ProfileCompletionPage: React.FC = () => {
         </Card>
       </main>
     );
+  }
+
+  if (user && (profileError || !profile)) {
+    return (
+      <main className="mx-auto flex min-h-[55vh] w-full max-w-2xl items-center justify-center px-4 py-10 sm:px-6">
+        <Card className="w-full max-w-lg p-7 text-center sm:p-9">
+          <AlertCircle className="mx-auto h-8 w-8 text-[#A2574F]" aria-hidden="true" />
+          <h1 className="mt-4 font-serif text-2xl text-[#181716]">We couldn’t load your profile</h1>
+          <p className="mt-2 text-sm leading-6 text-[#63605A]">{profileError || 'Your saved profile is not available right now. Please try again.'}</p>
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button type="button" onClick={() => void refreshProfile()}>Try again</Button>
+            <Button type="button" variant="outline" onClick={() => navigate('/')}>Continue shopping</Button>
+          </div>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (

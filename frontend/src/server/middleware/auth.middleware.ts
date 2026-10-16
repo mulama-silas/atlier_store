@@ -3,6 +3,12 @@ import { UnauthorizedError } from '../errors/app-error';
 import { config, isSupabaseConfigured } from '../config';
 import { getSupabaseAdminClient } from '../supabase';
 
+export function hasPrivilegedAppRole(appMetadata: unknown): boolean {
+  if (!appMetadata || typeof appMetadata !== 'object') return false;
+  const role = (appMetadata as Record<string, unknown>).role;
+  return ['staff', 'admin'].includes(String(role ?? ''));
+}
+
 export async function requireAdminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
 
@@ -16,8 +22,9 @@ export async function requireAdminAuth(req: Request, res: Response, next: NextFu
   if (isSupabaseConfigured) {
     try {
       const { data, error } = await getSupabaseAdminClient().auth.getUser(token);
-      const role = data.user?.app_metadata?.role || data.user?.user_metadata?.role;
-      if (error || !data.user || !['staff', 'admin'].includes(String(role))) {
+      // Only app_metadata is controlled by trusted server-side admin flows.
+      // user_metadata is editable by the account owner and must never grant access.
+      if (error || !data.user || !hasPrivilegedAppRole(data.user.app_metadata)) {
         next(new UnauthorizedError('Invalid or unauthorized staff credentials.'));
         return;
       }

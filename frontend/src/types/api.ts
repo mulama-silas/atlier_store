@@ -83,6 +83,15 @@ export interface CustomerAddressDTO {
   isDefault: boolean;
 }
 
+export interface CustomerProfileDTO {
+  id: string;
+  email: string;
+  role: 'customer' | 'staff' | 'admin';
+  fullName: string;
+  phone: string;
+  isComplete: boolean;
+}
+
 export interface ProductReviewDTO {
   id: string;
   rating: number;

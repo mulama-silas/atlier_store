@@ -7,6 +7,7 @@ from django.utils import timezone as django_timezone
 from rest_framework.test import APIClient
 
 from admin_ui.models import CustomerNotification
+from accounts.models import CustomerProfile
 
 
 @override_settings(
@@ -17,7 +18,8 @@ class SupabaseAuthenticationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    def token(self, role='customer', subject='user-123', full_name=None):
+    def token(self, role='customer', subject='user-123', full_name=None, phone=None,
+              user_role=None):
         now = datetime.now(timezone.utc)
         claims = {
             'sub': subject,
@@ -27,8 +29,15 @@ class SupabaseAuthenticationTests(TestCase):
             'exp': now + timedelta(minutes=5),
             'app_metadata': {'role': role},
         }
+        metadata = {}
         if full_name:
-            claims['user_metadata'] = {'full_name': full_name}
+            metadata['full_name'] = full_name
+        if phone:
+            metadata['phone'] = phone
+        if user_role:
+            metadata['role'] = user_role
+        if metadata:
+            claims['user_metadata'] = metadata
         return jwt.encode(
             claims, 'test-secret-that-is-at-least-32-bytes', algorithm='HS256')
 
@@ -83,6 +92,16 @@ class SupabaseAuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.wsgi_request.user.is_staff)
 
+    def test_user_editable_metadata_cannot_grant_staff_role(self):
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {self.token(subject="role-escalation", user_role="admin")}')
+
+        response = self.client.get('/api/auth/me')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['role'], 'customer')
+        self.assertFalse(response.wsgi_request.user.is_staff)
+
     def test_supabase_full_name_syncs_to_local_user(self):
         self.client.credentials(
             HTTP_AUTHORIZATION=f'Bearer {self.token(subject="named-user", full_name="Ada Lovelace")}')
@@ -92,6 +111,93 @@ class SupabaseAuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         user = response.wsgi_request.user
         self.assertEqual(user.get_full_name(), 'Ada Lovelace')
+
+    def test_profile_get_returns_incomplete_for_google_user_without_phone(self):
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {self.token(subject="google-user", full_name="Ada Lovelace")}')
+
+        response = self.client.get('/api/auth/me')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['fullName'], 'Ada Lovelace')
+        self.assertEqual(response.json()['phone'], '')
+        self.assertFalse(response.json()['isComplete'])
+
+    def test_profile_patch_persists_and_get_returns_updated_values(self):
+        self.auth(subject='profile-user')
+
+        response = self.client.patch('/api/auth/me', {
+            'fullName': '  Ada   Lovelace  ', 'phone': '+254 700 123 456',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['fullName'], 'Ada Lovelace')
+        self.assertEqual(response.json()['phone'], '+254 700 123 456')
+        self.assertTrue(response.json()['isComplete'])
+        user = get_user_model().objects.get(username='supabase_profile-user')
+        self.assertEqual(user.get_full_name(), 'Ada Lovelace')
+        self.assertEqual(CustomerProfile.objects.get(user=user).phone, '+254 700 123 456')
+
+        refreshed = self.client.get('/api/auth/me')
+        self.assertEqual(refreshed.status_code, 200)
+        self.assertEqual(refreshed.json()['fullName'], 'Ada Lovelace')
+        self.assertTrue(refreshed.json()['isComplete'])
+
+    def test_profile_update_is_user_scoped_and_does_not_trust_client_user_id(self):
+        User = get_user_model()
+        other_user = User.objects.create_user(
+            username='supabase-other-user', password='test-password',
+            first_name='Other', last_name='Customer')
+        CustomerProfile.objects.create(user=other_user, phone='+254 711 111 111')
+        self.auth(subject='profile-user')
+
+        response = self.client.patch('/api/auth/me', {
+            'user_id': other_user.pk,
+            'fullName': 'Current Customer', 'phone': '+254 700 222 222',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        other_user.refresh_from_db()
+        self.assertEqual(other_user.get_full_name(), 'Other Customer')
+        self.assertEqual(CustomerProfile.objects.get(user=other_user).phone, '+254 711 111 111')
+
+    def test_invalid_profile_update_does_not_change_saved_values(self):
+        self.auth(subject='profile-user')
+        self.client.patch('/api/auth/me', {
+            'fullName': 'Saved Customer', 'phone': '+254 700 222 222',
+        }, format='json')
+
+        response = self.client.patch('/api/auth/me', {
+            'fullName': ' ', 'phone': 'not a phone',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 400)
+        user = get_user_model().objects.get(username='supabase_profile-user')
+        self.assertEqual(user.get_full_name(), 'Saved Customer')
+        self.assertEqual(CustomerProfile.objects.get(user=user).phone, '+254 700 222 222')
+
+    def test_profile_patch_requires_authentication(self):
+        response = self.client.patch('/api/auth/me', {
+            'fullName': 'Ada Lovelace', 'phone': '+254 700 123 456',
+        }, format='json')
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_backend_profile_wins_over_stale_google_metadata_on_later_requests(self):
+        self.auth(subject='google-user')
+        self.client.patch('/api/auth/me', {
+            'fullName': 'Updated Name', 'phone': '+254 700 123 456',
+        }, format='json')
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f'Bearer {self.token(subject="google-user", full_name="Old Google Name", phone="+254 700 000 000")}')
+
+        response = self.client.get('/api/auth/me')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['fullName'], 'Updated Name')
+        self.assertEqual(response.json()['phone'], '+254 700 123 456')
+        self.assertEqual(get_user_model().objects.filter(username='supabase_google-user').count(), 1)
+        self.assertEqual(CustomerProfile.objects.filter(user__username='supabase_google-user').count(), 1)
 
     def test_invalid_token_is_rejected(self):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer invalid-token')

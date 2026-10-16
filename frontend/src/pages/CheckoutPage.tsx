@@ -185,7 +185,7 @@ export const CheckoutPage: React.FC = () => {
   } = useCart();
   const { createOrder } = useOrders();
   const { navigate } = useRouter();
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user, profile, isLoading: isAuthLoading } = useAuth();
 
   const [restoredPayment] = useState(readActivePayment);
   const [deliveryMethod, setDeliveryMethod] = useState<'standard' | 'express'>('standard');
@@ -343,7 +343,7 @@ export const CheckoutPage: React.FC = () => {
       (meta.surname as string | undefined) ||
       (meta.family_name as string | undefined) ||
       '';
-    const fullName =
+    const metadataFullName =
       (meta.full_name as string | undefined) ||
       (meta.name as string | undefined) ||
       (user.identities?.[0]?.identity_data?.full_name as string | undefined) ||
@@ -360,6 +360,7 @@ export const CheckoutPage: React.FC = () => {
       return normalized.length >= 9 && normalized.length <= 18 && !/[a-z]/i.test(candidate);
     }) || '';
 
+    const fullName = profile?.fullName || metadataFullName;
     const tokens = fullName.trim().split(/\s+/).filter(Boolean);
     const fallbackFirstName = tokens.shift() || '';
     const fallbackLastName = tokens.join(' ');
@@ -367,11 +368,15 @@ export const CheckoutPage: React.FC = () => {
     setFormData((prev) => ({
       ...prev,
       email: prev.email || user.email || '',
-      phone: prev.phone || phone,
-      firstName: prev.firstName || firstNameMeta || fallbackFirstName,
-      lastName: prev.lastName || lastNameMeta || fallbackLastName,
+      phone: !addressFieldsTouched.current && profile?.phone ? profile.phone : (prev.phone || phone),
+      firstName: !addressFieldsTouched.current && profile?.fullName
+        ? fallbackFirstName
+        : (prev.firstName || firstNameMeta || fallbackFirstName),
+      lastName: !addressFieldsTouched.current && profile?.fullName
+        ? fallbackLastName
+        : (prev.lastName || lastNameMeta || fallbackLastName),
     }));
-  }, [user]);
+  }, [user, profile]);
 
   const standardDeliveryCost = subtotal === 0 || subtotal >= FREE_SHIPPING_THRESHOLD
     ? 0

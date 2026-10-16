@@ -1,6 +1,7 @@
 import { createExpressApp } from '../app';
 import { db } from '../db/database';
 import { AddressInfo } from 'net';
+import { hasPrivilegedAppRole } from '../middleware/auth.middleware';
 
 interface TestResult {
   suite: string;
@@ -338,6 +339,14 @@ async function run() {
       assert(tamperDeleteRes.status === 404, `Expected 404 Not Found for unauthorized cart deletion, got ${tamperDeleteRes.status}`);
     });
 
+    await test('Security', 'Admin authorization reads privileged roles only from trusted app metadata', async () => {
+      assert(!hasPrivilegedAppRole(undefined), 'A role in user-editable metadata must not grant admin access');
+      assert(!hasPrivilegedAppRole(null), 'Missing app metadata must not grant admin access');
+      assert(!hasPrivilegedAppRole({ role: 'customer' }), 'Customer app metadata must not grant admin access');
+      assert(hasPrivilegedAppRole({ role: 'staff' }), 'Trusted staff role should be accepted');
+      assert(hasPrivilegedAppRole({ role: 'admin' }), 'Trusted admin role should be accepted');
+    });
+
     await test('Security', 'Admin operations reject unauthenticated or invalid bearer tokens with 401 Unauthorized', async () => {
       const resNoAuth = await fetch(`${baseUrl}/api/admin/products`, {
         method: 'POST',
@@ -370,26 +379,34 @@ async function run() {
     });
 
     await test('Security', 'Admin can create product when authorized with valid Bearer token', async () => {
-      const res = await fetch(`${baseUrl}/api/admin/products`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer modeza-staff-jwt-token-2026',
-        },
-        body: JSON.stringify({
-          name: 'The Organic Linen Oversized Shirt',
-          slug: 'the-organic-linen-oversized-shirt',
-          description: 'Breathable 100% Normandy flax linen tailored with dropped shoulder silhouette.',
-          price: 16500,
-          categoryId: 'cat-tops',
-          status: 'ACTIVE',
-        }),
-      });
+      const previousToken = process.env.ADMIN_API_TOKEN;
+      const testToken = `test-admin-token-${Date.now()}-${Math.random()}`;
+      process.env.ADMIN_API_TOKEN = testToken;
+      try {
+        const res = await fetch(`${baseUrl}/api/admin/products`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${testToken}`,
+          },
+          body: JSON.stringify({
+            name: 'The Organic Linen Oversized Shirt',
+            slug: 'the-organic-linen-oversized-shirt',
+            description: 'Breathable 100% Normandy flax linen tailored with dropped shoulder silhouette.',
+            price: 16500,
+            categoryId: 'cat-tops',
+            status: 'ACTIVE',
+          }),
+        });
 
-      assert(res.status === 201, `Expected 201, got ${res.status}`);
-      const created = await res.json();
-      assert(created.name === 'The Organic Linen Oversized Shirt', 'Expected correct product name');
-      assert(created.price === 16500, 'Expected correct price');
+        assert(res.status === 201, `Expected 201, got ${res.status}`);
+        const created = await res.json();
+        assert(created.name === 'The Organic Linen Oversized Shirt', 'Expected correct product name');
+        assert(created.price === 16500, 'Expected correct price');
+      } finally {
+        if (previousToken === undefined) delete process.env.ADMIN_API_TOKEN;
+        else process.env.ADMIN_API_TOKEN = previousToken;
+      }
     });
 
     // ==========================================

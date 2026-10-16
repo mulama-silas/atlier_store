@@ -1,411 +1,743 @@
-{% extends "admin_ui/base_admin.html" %} {% block title %}Backup to Supabase |
-MODEZA Admin{% endblock %} {% block breadcrumbs %}
+{% extends "admin_ui/base_admin.html" %}
+{% block title %}Backup & Supabase Replica | MODEZA Admin{% endblock %}
+
+{% block breadcrumbs %}
 <li>MODEZA</li>
 <li><i class="ph ph-caret-right"></i></li>
-<li class="active">Backup to Supabase</li>
-{% endblock %} {% block extra_css %}
+<li class="active">Database Replica</li>
+{% endblock %}
+
+{% block extra_css %}
 <style>
+  /* -------------------------------------------------------------
+     Modern Replica Dashboard Styling
+     ------------------------------------------------------------- */
+  .replica-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .replica-hero-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.02em;
+  }
+
+  .replica-hero-title i {
+    color: #0284c7;
+    background: rgba(2, 132, 199, 0.1);
+    padding: 8px;
+    border-radius: 10px;
+    font-size: 22px;
+  }
+
+  .replica-hero-subtitle {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 620px;
+    line-height: 1.5;
+  }
+
+  /* Metric Status Cards Grid */
   .replica-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 16px;
+    margin-bottom: 24px;
   }
-  .replica-card {
-    min-width: 0;
-    padding: 16px;
+
+  .replica-stat-card {
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 14px;
+    padding: 18px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    justify-content: space-between;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   }
-  .replica-card-head {
+
+  .replica-stat-card:hover {
+    border-color: rgba(2, 132, 199, 0.3);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+  }
+
+  .replica-stat-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
+    margin-bottom: 12px;
   }
-  .replica-name {
+
+  .replica-stat-title {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    font-size: 13px;
     font-weight: 600;
-    font-size: 14px;
+    color: var(--text-secondary);
   }
-  .replica-name i {
-    font-size: 18px;
+
+  .replica-stat-title i {
+    font-size: 17px;
     color: var(--accent);
   }
-  .replica-detail {
+
+  .replica-stat-main {
+    margin-bottom: 10px;
+  }
+
+  .replica-stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+    margin: 0 0 4px 0;
+  }
+
+  .replica-stat-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    margin: 0;
+  }
+
+  .replica-stat-desc code {
+    background: var(--surface-secondary, rgba(0,0,0,0.04));
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+
+  /* Alerts / Notices */
+  .replica-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    line-height: 1.55;
+    border: 1px solid transparent;
+  }
+
+  .replica-notice-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .replica-notice-error {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+  }
+
+  .replica-notice-warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+    color: #92400e;
+  }
+
+  .replica-notice-info {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #166534;
+  }
+
+  /* Live Data Sync Card */
+  .replica-card {
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+
+  .replica-card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color, #f1f5f9);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--surface, #ffffff);
+  }
+
+  .replica-card-header-left h3 {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .replica-card-header-left p {
+    margin: 0;
     font-size: 13px;
     color: var(--text-secondary);
-    line-height: 1.5;
-    overflow-wrap: anywhere;
   }
+
+  .replica-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+  }
+
+  .replica-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+    animation: replica-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes replica-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.9); }
+  }
+
+  /* Modernized Counts Table */
+  .replica-table-container {
+    overflow-x: auto;
+  }
+
+  .replica-counts-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+
+  .replica-counts-table th {
+    padding: 12px 20px;
+    background: var(--surface-secondary, #f8fafc);
+    color: var(--text-secondary, #64748b);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    text-align: left;
+  }
+
+  .replica-counts-table td {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color, #f1f5f9);
+    color: var(--text-primary, #1e293b);
+  }
+
+  .replica-counts-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+
+  .replica-counts-table tbody tr:hover {
+    background: rgba(2, 132, 199, 0.025);
+  }
+
+  .replica-counts-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .replica-table-name {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 13px;
+  }
+
+  .replica-num-cell {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    text-align: right;
+  }
+
+  .replica-delta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 50px;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .replica-delta.is-zero {
+    color: #15803d;
+    background: #dcfce7;
+  }
+
+  .replica-delta.is-positive {
+    color: #b45309;
+    background: #fef3c7;
+  }
+
+  .replica-delta.is-negative {
+    color: #b91c1c;
+    background: #fee2e2;
+  }
+
+  /* Trigger Actions Card */
+  .replica-actions-box {
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    margin-bottom: 24px;
+  }
+
+  .replica-actions-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 6px 0;
+    color: var(--text-primary);
+  }
+
+  .replica-actions-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-top: 18px;
+    padding: 16px;
+    background: var(--surface-secondary, #f8fafc);
+    border-radius: 12px;
+    border: 1px solid var(--border-color, #e2e8f0);
+  }
+
+  .replica-form-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .replica-form-input {
+    width: 90px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    font-size: 13px;
+    background: #ffffff;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  .replica-form-input:focus {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+  }
+
+  .replica-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #0284c7;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(2, 132, 199, 0.2);
+    transition: background-color 0.15s ease, transform 0.1s ease;
+  }
+
+  .replica-btn-primary:hover {
+    background: #0369a1;
+  }
+
+  .replica-btn-primary:active {
+    transform: scale(0.99);
+  }
+
+  /* Info / Arch Card */
+  .replica-footer-note {
+    background: transparent;
+    border: 1px dashed var(--border-color, #cbd5e1);
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .replica-footer-note i {
+    font-size: 18px;
+    color: #64748b;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
   @media (max-width: 1050px) {
     .replica-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  @media (max-width: 620px) {
+
+  @media (max-width: 640px) {
     .replica-grid {
       grid-template-columns: minmax(0, 1fr);
     }
-  }
-  .replica-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  .replica-table th,
-  .replica-table td {
-    padding: 9px 12px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-  }
-  .replica-table th {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-secondary);
-    font-weight: 600;
-  }
-  .replica-table td.num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-  .replica-counts-card .card-body {
-    padding: 22px;
-  }
-  .replica-counts-heading {
-    margin-bottom: 6px;
-  }
-  .replica-counts-heading h3 {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    font-size: 16px;
-    font-weight: 700;
-  }
-  .replica-counts-heading h3 i {
-    color: var(--accent);
-    font-size: 19px;
-  }
-  .replica-live-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-    font-size: 12px;
-  }
-  .replica-live-dot {
-    width: 8px;
-    height: 8px;
-    flex: 0 0 8px;
-    border-radius: 50%;
-    background: #16a36a;
-    box-shadow: 0 0 0 3px rgba(22, 163, 106, 0.12);
-  }
-  .replica-counts-description {
-    margin: 0 0 18px;
-    max-width: 780px;
-  }
-  .replica-counts-scroll {
-    overflow-x: auto;
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-  }
-  .replica-table.replica-counts-table {
-    border-collapse: separate;
-    border-spacing: 0;
-    min-width: 680px;
-    font-size: 13px;
-  }
-  .replica-counts-table th,
-  .replica-counts-table td {
-    padding: 13px 16px;
-    border-bottom: 1px solid var(--border-color);
-  }
-  .replica-counts-table th {
-    background: var(--surface-secondary, rgba(127, 127, 127, 0.07));
-    font-size: 10px;
-    letter-spacing: 0.08em;
-  }
-  .replica-counts-table thead th:first-child {
-    border-top-left-radius: 11px;
-  }
-  .replica-counts-table thead th:last-child {
-    border-top-right-radius: 11px;
-  }
-  .replica-counts-table tbody tr:last-child td {
-    border-bottom: 0;
-  }
-  .replica-counts-table tbody tr {
-    transition: background-color 140ms ease;
-  }
-  .replica-counts-table tbody tr:hover {
-    background: rgba(127, 127, 127, 0.045);
-  }
-  .replica-counts-table .replica-table-name {
-    color: var(--text-primary);
-    font-weight: 600;
-  }
-  .replica-counts-table td.num {
-    color: var(--text-primary);
-    font-weight: 600;
-  }
-  .replica-delta {
-    display: inline-flex;
-    min-width: 48px;
-    justify-content: center;
-    padding: 4px 8px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-  }
-  .replica-delta.is-zero {
-    color: #087443;
-    background: rgba(22, 163, 106, 0.11);
-  }
-  .replica-delta.is-positive {
-    color: #a45c00;
-    background: rgba(245, 158, 11, 0.14);
-  }
-  .replica-delta.is-negative {
-    color: #b42318;
-    background: rgba(220, 38, 38, 0.1);
-  }
-  .replica-count-error {
-    margin: 12px 2px 0;
-    color: #b42318;
-  }
-  @media (max-width: 640px) {
-    .replica-counts-card .card-body {
-      padding: 16px;
-    }
-    .replica-counts-heading {
-      align-items: flex-start;
+    .replica-hero {
       flex-direction: column;
-      gap: 8px;
     }
-  }
-  .replica-alert {
-    padding: 14px 18px;
-    border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.5;
-    margin-bottom: 18px;
-    border: 1px solid transparent;
-  }
-  .replica-alert-error {
-    background: rgba(220, 38, 38, 0.08);
-    border-color: rgba(220, 38, 38, 0.3);
-    color: #b91c1c;
-  }
-  .replica-alert-warn {
-    background: rgba(234, 179, 8, 0.1);
-    border-color: rgba(234, 179, 8, 0.35);
-    color: #a16207;
-  }
-  .replica-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
+    .replica-actions-form {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .replica-btn-primary {
+      justify-content: center;
+    }
   }
 </style>
-{% endblock %} {% block content %}
-<div class="page-header">
+{% endblock %}
+
+{% block content %}
+<!-- Top Header -->
+<div class="replica-hero">
   <div>
-    <h2 class="page-title">Backup to Supabase</h2>
-    <p class="page-subtitle">
-      Analytics replica status, catalogue snapshot history and the image mirror.
+    <h1 class="replica-hero-title">
+      <i class="ph ph-database"></i> Database Replica
+    </h1>
+    <p class="replica-hero-subtitle">
+      Automated synchronization between Django's primary database and the Supabase analytics replica, catalogue snapshot history, and storage image mirroring.
     </p>
   </div>
 </div>
 
+<!-- Alerts / Warnings -->
 {% if not configured %}
-<div class="replica-alert replica-alert-error">
-  <i class="ph ph-warning-circle"></i>
-  <strong>Not configured.</strong>
-  <code>SUPABASE_DB_URL</code> is not set on this deployment, so the replica is
-  unreachable and no sync has run. Add it in the Render dashboard (<em
-    >Settings &rarr; Environment</em
-  >) as the direct Postgres connection string from Supabase &rarr; Project
-  Settings &rarr; Database, then redeploy.
+<div class="replica-notice replica-notice-error">
+  <i class="ph ph-warning-circle replica-notice-icon"></i>
+  <div>
+    <strong>Replica Not Configured.</strong>
+    <code>SUPABASE_DB_URL</code> is missing on this deployment. Add the direct Postgres connection string from your Supabase Dashboard (<em>Project Settings &rarr; Database</em>) to your environment variables and redeploy.
+  </div>
 </div>
 {% elif configured and pending %}
-<div class="replica-alert replica-alert-warn">
-  <i class="ph ph-timer"></i>
-  <strong>Queued.</strong>
-  Run #{{ pending.id }} was requested {{ pending.started_at|date:"j M Y, H:i" }}
-  T and is waiting for
-  {% if auto_sync_enabled %}the next automatic sync check (within {{ auto_sync_interval_seconds }} seconds).{% else %}the scheduled job (<code>REPLICA_SYNC_MODE={{ sync_mode }}</code>).{% endif %}
+<div class="replica-notice replica-notice-warn">
+  <i class="ph ph-clock-countdown replica-notice-icon"></i>
+  <div>
+    <strong>Manual Sync Queued.</strong>
+    Run #{{ pending.id }} was requested {{ pending.started_at|date:"j M Y, H:i" }} T and is waiting for
+    {% if auto_sync_enabled %}the next automatic background cycle (within {{ auto_sync_interval_seconds }}s).{% else %}the scheduled worker (<code>REPLICA_SYNC_MODE={{ sync_mode }}</code>).{% endif %}
+  </div>
 </div>
 {% elif run_error %}
-<div class="replica-alert replica-alert-error">
-  <i class="ph ph-warning-circle"></i>
-  <strong>Status unavailable.</strong> {{ run_error }}
+<div class="replica-notice replica-notice-error">
+  <i class="ph ph-warning-circle replica-notice-icon"></i>
+  <div>
+    <strong>Status unavailable.</strong> {{ run_error }}
+  </div>
 </div>
 {% elif configured and not run and not pending %}
-<div class="replica-alert replica-alert-warn">
-  <i class="ph ph-info"></i>
-  The replica is reachable but has <strong>no sync runs recorded</strong> yet.
-  Run the first backup below, or hit the cron endpoint directly.
+<div class="replica-notice replica-notice-warn">
+  <i class="ph ph-info replica-notice-icon"></i>
+  <div>
+    The Supabase replica is reachable, but has <strong>no sync runs recorded yet</strong>. You can trigger the first backup below.
+  </div>
 </div>
-{% endif %} {% if run %} {% if run.status == 'failure' %}
-<div class="replica-alert replica-alert-error">
-  <i class="ph ph-warning-circle"></i>
-  <strong>The last run failed.</strong>
-  {% if run.error %}<br />{{ run.error }}{% endif %} <br />Counts below are from
-  the last run that got far enough to record them.
-</div>
-{% elif stale %}
-<div class="replica-alert replica-alert-warn">
-  <i class="ph ph-clock"></i>
-  <strong>Overdue.</strong>
-  The last successful run finished {{ age_hours }} hours ago, past the {{
-  stale_after_hours }}-hour window. Either the cron has stopped or a run is
-  failing silently.
-</div>
-{% endif %} {% endif %}
+{% endif %}
 
+{% if run %}
+  {% if run.status == 'failure' %}
+  <div class="replica-notice replica-notice-error">
+    <i class="ph ph-x-circle replica-notice-icon"></i>
+    <div>
+      <strong>The last synchronization run failed.</strong>
+      {% if run.error %}<br><span style="font-family: monospace; font-size: 12px;">{{ run.error }}</span>{% endif %}
+      <br><span style="font-size: 12px; opacity: 0.85;">Counts below represent the last state recorded before termination.</span>
+    </div>
+  </div>
+  {% elif stale %}
+  <div class="replica-notice replica-notice-warn">
+    <i class="ph ph-hourglass-simple-medium replica-notice-icon"></i>
+    <div>
+      <strong>Synchronization Overdue.</strong>
+      The last successful sync completed {{ age_hours }}h ago, exceeding the expected {{ stale_after_hours }}-hour threshold.
+    </div>
+  </div>
+  {% endif %}
+{% endif %}
+
+<!-- Key Metrics Grid -->
 <div class="replica-grid">
-  <div class="card replica-card">
-    <div class="replica-card-head">
-      <div class="replica-name"><i class="ph ph-database"></i> Replica</div>
-      {% if not configured %}
-      <span class="status-badge status-danger">Unreachable</span>
-      {% elif run_error %}
-      <span class="status-badge status-danger">Unreachable</span>
-      {% elif not run %}
-      <span class="status-badge status-neutral">Never run</span>
-      {% elif run.status == 'success' and not stale %}
-      <span class="status-badge status-success">Current</span>
-      {% elif run.status == 'success' and stale %}
-      <span class="status-badge status-warning">Stale</span>
-      {% elif run.status == 'running' %}
-      <span class="status-badge status-neutral">Syncing</span>
-      {% else %}
-      <span class="status-badge status-danger">Failed</span>
-      {% endif %}
-    </div>
-    <div class="replica-detail">
-      {% if run %} Last run #{{ run.id }} &middot; triggered by {{
-      run.triggered_by }}<br />
-      Finished {{ run.finished_at|date:"j M Y, H:i" }} T {% if age_hours %}({{
-      age_hours }}h ago){% endif %} {% endif %} {% if not run %}No run history
-      yet.{% endif %}
-    </div>
-  </div>
-
-  <div class="card replica-card">
-    <div class="replica-card-head">
-      <div class="replica-name"><i class="ph ph-images"></i> Image mirror</div>
-      {% if run and run.storage and run.storage.status == 'ok' %}
-      <span class="status-badge status-success">Mirrored</span>
-      {% elif run and run.storage and run.storage.status == 'failed' %}
-      <span class="status-badge status-danger">Failed</span>
-      {% else %}
-      <span class="status-badge status-neutral">Unknown</span>
-      {% endif %}
-    </div>
-    <div class="replica-detail">
-      {% if run and run.storage and run.storage.status == 'ok' %} {{
-      run.storage.objects_copied }} object{{
-      run.storage.objects_copied|pluralize }} copied to
-      <code>{{ backup_bucket }}</code> ({{ run.storage.bytes_copied }} bytes) {%
-      elif run and run.storage and run.storage.status == 'failed' %} {{
-      run.storage.error }} {% else %} No mirror result recorded yet.<br />
-      Database backups do <strong>not</strong> include Storage objects, so
-      images need this copy of their own. {% endif %}
+  <!-- Card 1: Connection & Replica Status -->
+  <div class="replica-stat-card">
+    <div>
+      <div class="replica-stat-head">
+        <span class="replica-stat-title"><i class="ph ph-hard-drives"></i> Replica Target</span>
+        {% if not configured or run_error %}
+        <span class="status-badge status-danger">Unreachable</span>
+        {% elif not run %}
+        <span class="status-badge status-neutral">Pending</span>
+        {% elif run.status == 'success' and not stale %}
+        <span class="status-badge status-success">Healthy</span>
+        {% elif run.status == 'success' and stale %}
+        <span class="status-badge status-warning">Stale</span>
+        {% elif run.status == 'running' %}
+        <span class="status-badge status-neutral">Syncing</span>
+        {% else %}
+        <span class="status-badge status-danger">Failed</span>
+        {% endif %}
+      </div>
+      <div class="replica-stat-main">
+        <div class="replica-stat-value">
+          {% if not configured %}Off-line{% elif run %}#{{ run.id }}{% else %}Awaiting{% endif %}
+        </div>
+        <p class="replica-stat-desc">
+          {% if run %}
+            Finished {{ run.finished_at|date:"j M Y, H:i" }} T {% if age_hours %}({{ age_hours }}h ago){% endif %}<br>
+            Triggered by <span style="text-transform: capitalize; font-weight: 600;">{{ run.triggered_by }}</span>
+          {% else %}
+            No prior runs recorded in the database.
+          {% endif %}
+        </p>
+      </div>
     </div>
   </div>
 
-  <div class="card replica-card">
-    <div class="replica-card-head">
-      <div class="replica-name"><i class="ph ph-arrows-clockwise"></i> Automatic database sync</div>
-      {% if auto_sync_enabled and configured %}
-      <span class="status-badge status-success">Every {{ auto_sync_interval_seconds }}s</span>
-      {% else %}
-      <span class="status-badge status-warning">Disabled</span>
-      {% endif %}
-    </div>
-    <div class="replica-detail">
-      {% if auto_sync_enabled and configured %}
-      The backend checks for changes every {{ auto_sync_interval_seconds }} seconds. Only changed database rows create a successful sync record. Image files are not copied by this frequent check.
-      {% else %}
-      Enable <code>REPLICA_AUTO_SYNC_ENABLED</code> on the backend to run the built-in sync loop.
-      {% endif %}
+  <!-- Card 2: Image Mirroring -->
+  <div class="replica-stat-card">
+    <div>
+      <div class="replica-stat-head">
+        <span class="replica-stat-title"><i class="ph ph-image"></i> Storage Mirror</span>
+        {% if run and run.storage and run.storage.status == 'ok' %}
+        <span class="status-badge status-success">Mirrored</span>
+        {% elif run and run.storage and run.storage.status == 'failed' %}
+        <span class="status-badge status-danger">Failed</span>
+        {% else %}
+        <span class="status-badge status-neutral">Idle</span>
+        {% endif %}
+      </div>
+      <div class="replica-stat-main">
+        <div class="replica-stat-value">
+          {% if run and run.storage and run.storage.status == 'ok' %}
+            {{ run.storage.objects_copied }} <span style="font-size: 13px; font-weight: normal; color: var(--text-secondary);">files</span>
+          {% else %}
+            Storage
+          {% endif %}
+        </div>
+        <p class="replica-stat-desc">
+          {% if run and run.storage and run.storage.status == 'ok' %}
+            Target: <code>{{ backup_bucket }}</code><br>({{ run.storage.bytes_copied }} bytes synced)
+          {% elif run and run.storage and run.storage.status == 'failed' %}
+            {{ run.storage.error|truncatechars:70 }}
+          {% else %}
+            Storage objects exist independently of PostgreSQL tables and sync during manual runs.
+          {% endif %}
+        </p>
+      </div>
     </div>
   </div>
 
-  <div class="card replica-card">
-    <div class="replica-card-head">
-      <div class="replica-name"><i class="ph ph-timer"></i> External cron (optional)</div>
-      {% if cron_configured %}
-      <span class="status-badge status-success">Armed</span>
-      {% else %}
-      <span class="status-badge status-warning">Not configured</span>
-      {% endif %}
+  <!-- Card 3: Automatic Database Loop -->
+  <div class="replica-stat-card">
+    <div>
+      <div class="replica-stat-head">
+        <span class="replica-stat-title"><i class="ph ph-arrows-clockwise"></i> Auto Sync</span>
+        {% if auto_sync_enabled and configured %}
+        <span class="status-badge status-success">{{ auto_sync_interval_seconds }}s Cycle</span>
+        {% else %}
+        <span class="status-badge status-warning">Disabled</span>
+        {% endif %}
+      </div>
+      <div class="replica-stat-main">
+        <div class="replica-stat-value">
+          {% if auto_sync_enabled and configured %}Active{% else %}Inactive{% endif %}
+        </div>
+        <p class="replica-stat-desc">
+          {% if auto_sync_enabled and configured %}
+            Continuous daemon monitoring table differences every {{ auto_sync_interval_seconds }}s.
+          {% else %}
+            Set <code>REPLICA_AUTO_SYNC_ENABLED=true</code> to activate the background loop.
+          {% endif %}
+        </p>
+      </div>
     </div>
-    <div class="replica-detail">
-      {% if cron_configured %} A cron can call
-      <code>POST /api/admin/replica/sync</code> with the
-      <code>x-replica-token</code> header. The built-in automatic loop works
-      independently of this optional endpoint. {% else %}
-      <code>REPLICA_SYNC_TOKEN</code> is unset, so the sync endpoint returns
-      404. The built-in automatic loop does not require this token. {% endif %}
+  </div>
+
+  <!-- Card 4: External Cron API -->
+  <div class="replica-stat-card">
+    <div>
+      <div class="replica-stat-head">
+        <span class="replica-stat-title"><i class="ph ph-broadcast"></i> Cron Webhook</span>
+        {% if cron_configured %}
+        <span class="status-badge status-success">Armed</span>
+        {% else %}
+        <span class="status-badge status-warning">Not Set</span>
+        {% endif %}
+      </div>
+      <div class="replica-stat-main">
+        <div class="replica-stat-value">
+          {% if cron_configured %}Ready{% else %}Unset{% endif %}
+        </div>
+        <p class="replica-stat-desc">
+          {% if cron_configured %}
+            API endpoint <code>/api/admin/replica/sync</code> is active with token verification.
+          {% else %}
+            <code>REPLICA_SYNC_TOKEN</code> is not set. External crons cannot invoke sync.
+          {% endif %}
+        </p>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="card replica-counts-card" style="margin-bottom: 20px">
-  <div class="card-body">
-    <div class="replica-card-head replica-counts-heading">
-      <h3 style="margin: 0"><i class="ph ph-chart-bar"></i> Live row counts</h3>
-      {% if configured %}<span class="replica-detail replica-live-status"><span class="replica-live-dot" aria-hidden="true"></span><span id="replica-count-updated">{% if counts_checked_at %}Updated {{ counts_checked_at|date:"j M Y, H:i:s" }} T{% else %}Checking counts...{% endif %}</span></span>{% endif %}
+<!-- Live Row Counts Section -->
+<div class="replica-card">
+  <div class="replica-card-header">
+    <div class="replica-card-header-left">
+      <h3><i class="ph ph-chart-line-up"></i> Live Table Reconciliation</h3>
+      <p>Comparing live database records in Django vs Supabase. Positive difference indicates pending updates.</p>
     </div>
-    <p class="replica-detail replica-counts-description">
-      Compare the live Django and Supabase totals. Difference is Django minus Supabase; a positive value means those rows have not
-      reached the replica yet. Counts update automatically every 5 seconds.
-    </p>
     {% if configured %}
-    <div class="replica-counts-scroll">
-    <table class="replica-table replica-counts-table">
+    <div>
+      <span class="replica-live-badge">
+        <span class="replica-live-dot"></span>
+        <span id="replica-count-updated">
+          {% if counts_checked_at %}Updated {{ counts_checked_at|date:"H:i:s" }} T{% else %}Polling...{% endif %}
+        </span>
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if configured %}
+  <div class="replica-table-container">
+    <table class="replica-counts-table">
       <thead>
         <tr>
-          <th>Table</th>
-          <th style="text-align: right">Django</th>
-          <th style="text-align: right">Supabase</th>
+          <th>Table Name</th>
+          <th style="text-align: right">Django (Source)</th>
+          <th style="text-align: right">Supabase (Replica)</th>
           <th style="text-align: right">Difference</th>
-          <th>Status</th>
+          <th>Sync Health</th>
         </tr>
       </thead>
       <tbody id="replica-row-counts" aria-live="polite">
         {% for row in counts %}
         <tr>
           <td class="replica-table-name">{{ row.table }}</td>
-          <td class="num">{{ row.source }}</td>
-          <td class="num">{{ row.replica }}</td>
-          <td class="num"><span class="replica-delta {% if row.difference == 0 %}is-zero{% elif row.difference > 0 %}is-positive{% else %}is-negative{% endif %}">{% if row.difference > 0 %}+{% endif %}{{ row.difference }}</span></td>
+          <td class="replica-num-cell">{{ row.source }}</td>
+          <td class="replica-num-cell">{{ row.replica }}</td>
+          <td class="replica-num-cell">
+            <span class="replica-delta {% if row.difference == 0 %}is-zero{% elif row.difference > 0 %}is-positive{% else %}is-negative{% endif %}">
+              {% if row.difference > 0 %}+{% endif %}{{ row.difference }}
+            </span>
+          </td>
           <td>
             {% if row.matched %}
             <span class="status-badge status-success">In sync</span>
             {% elif row.difference > 0 %}
-            <span class="status-badge status-warning">{{ row.difference_abs }} missing in Supabase</span>
+            <span class="status-badge status-warning">{{ row.difference_abs }} behind</span>
             {% else %}
-            <span class="status-badge status-danger">{{ row.difference_abs }} extra in Supabase</span>
+            <span class="status-badge status-danger">{{ row.difference_abs }} surplus</span>
             {% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-    </div>
-    <p id="replica-count-error" class="replica-detail replica-count-error" role="status" {% if not counts_error %}hidden{% endif %}>{% if counts_error %}Live row counts are unavailable: {{ counts_error }}{% endif %}</p>
-    {% elif not configured %}
-    <p class="replica-detail">Configure the Supabase connection to compare Django and Supabase row counts.</p>
-    {% endif %}
+  </div>
+  <p id="replica-count-error" style="padding: 12px 20px; margin: 0; color: #b91c1c; font-size: 12px;" {% if not counts_error %}hidden{% endif %}>
+    {% if counts_error %}<i class="ph ph-warning"></i> Count polling issue: {{ counts_error }}{% endif %}
+  </p>
+  {% else %}
+  <div style="padding: 24px; text-align: center; color: var(--text-secondary); font-size: 13px;">
+    Configure <code>SUPABASE_DB_URL</code> to inspect live table row counts.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Manual Trigger Section -->
+<div class="replica-actions-box">
+  <h3 class="replica-actions-title"><i class="ph ph-lightning"></i> Manual Synchronization</h3>
+  <p class="replica-stat-desc">
+    Trigger an instant relational upsert across all catalogue, order, and customer tables, along with today's snapshot entry.
+  </p>
+
+  {% if can_sync %}
+  <form method="post" action="{% url 'admin-replica-sync-action' %}" class="replica-actions-form">
+    {% csrf_token %}
+    <button type="submit" class="replica-btn-primary">
+      <i class="ph ph-arrows-clockwise"></i>
+      {% if sync_mode == 'deferred' %}Queue Full Backup{% else %}Execute Backup Now{% endif %}
+    </button>
+
+    <label class="replica-form-label">
+      <input type="checkbox" name="skip_storage" checked style="border-radius: 4px; accent-color: #0284c7;" />
+      Skip image mirror (recommended for faster sync)
+    </label>
+
+    <label class="replica-form-label">
+      Limit to
+      <input
+        type="number"
+        name="storage_limit"
+        min="1"
+        step="1"
+        placeholder="all"
+        class="replica-form-input"
+      />
+      images
+    </label>
+  </form>
+
+  {% if sync_mode == 'deferred' %}
+  <p class="replica-stat-desc" style="margin-top: 10px;">
+    <i class="ph ph-info"></i> Deferred mode is active: Requests are placed onto the worker queue to avoid HTTP proxy timeouts.
+  </p>
+  {% endif %}
+  {% else %}
+  <p class="replica-stat-desc" style="margin-top: 12px; color: #b45309;">
+    <i class="ph ph-lock"></i> Manual backups require the <code>replica.sync</code> permission. Please reach out to an administrator.
+  </p>
+  {% endif %}
+</div>
+
+<!-- Footnote / Architecture Note -->
+<div class="replica-footer-note">
+  <i class="ph ph-shield-check"></i>
+  <div>
+    <strong>Security & Architecture Isolation:</strong> The replica serves as an analytical warehouse and snapshot archive. The <code>replica</code> schema is explicitly omitted from Supabase's public API configuration (<code>db-schemas</code>), preventing direct exposure to storefront public anon keys.
   </div>
 </div>
 
@@ -423,6 +755,7 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
     tbody.replaceChildren();
     counts.forEach(function (row) {
       var tr = document.createElement('tr');
+      
       var tableCell = document.createElement('td');
       tableCell.className = 'replica-table-name';
       tableCell.textContent = row.table;
@@ -430,13 +763,13 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
 
       [row.source, row.replica].forEach(function (value) {
         var cell = document.createElement('td');
-        cell.className = 'num';
+        cell.className = 'replica-num-cell';
         cell.textContent = String(value);
         tr.appendChild(cell);
       });
 
       var differenceCell = document.createElement('td');
-      differenceCell.className = 'num';
+      differenceCell.className = 'replica-num-cell';
       var difference = document.createElement('span');
       difference.className = 'replica-delta ' + (row.difference === 0
         ? 'is-zero'
@@ -457,8 +790,8 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
       badge.textContent = row.matched
         ? 'In sync'
         : row.difference > 0
-          ? row.difference_abs + ' missing in Supabase'
-          : row.difference_abs + ' extra in Supabase';
+          ? row.difference_abs + ' behind'
+          : row.difference_abs + ' surplus';
       statusCell.appendChild(badge);
       tr.appendChild(statusCell);
       tbody.appendChild(tr);
@@ -495,106 +828,4 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
 }());
 </script>
 {% endif %}
-
-<div class="card">
-  <div class="card-body">
-    <h3 style="margin-bottom: 6px; font-size: 15px">Run a backup now</h3>
-    <p class="replica-detail" style="margin-bottom: 14px">
-      Useful after a bulk import, or to confirm the replica is readable. A run
-      upserts every table and appends today's catalogue snapshot.
-    </p>
-    {% if can_sync %}
-    <form
-      method="post"
-      action="{% url 'admin-replica-sync-action' %}"
-      class="replica-actions"
-    >
-      {% csrf_token %}
-      <button type="submit" class="btn btn-primary">
-        <i class="ph ph-cloud-arrow-up"></i>
-        {% if sync_mode == 'deferred' %}Queue backup{% else %}Back up to
-        Supabase{% endif %}
-      </button>
-      <label
-        style="
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          font-size: 13px;
-          color: var(--text-secondary);
-        "
-      >
-        <input type="checkbox" name="skip_storage" checked />
-        Skip the image mirror (unchanged images do not need re-copying)
-      </label>
-      <label
-        style="
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          font-size: 13px;
-          color: var(--text-secondary);
-        "
-      >
-        Copy at most
-        <input
-          type="number"
-          name="storage_limit"
-          min="1"
-          step="1"
-          placeholder="all"
-          style="
-            width: 88px;
-            padding: 6px 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-          "
-        />
-        image(s)
-      </label>
-    </form>
-    {% if sync_mode == 'deferred' %}
-    <p class="replica-detail" style="margin-top: 10px">
-      <i class="ph ph-info"></i>
-      Deferred mode: this queues the run and returns immediately, so a long sync
-      cannot time out mid-request. The scheduled job does the work.
-    </p>
-    {% endif %} {% else %}
-    <p class="replica-detail">
-      <i class="ph ph-lock"></i>
-      Your role cannot run backups. Ask an administrator for the
-      <code>replica.sync</code> permission.
-    </p>
-    {% endif %}
-  </div>
-</div>
-
-<div
-  class="card"
-  style="
-    margin-top: 20px;
-    background: transparent;
-    box-shadow: none;
-    border-style: dashed;
-  "
->
-  <div
-    class="card-body"
-    style="
-      color: var(--text-secondary);
-      font-size: 12px;
-      display: flex;
-      gap: 8px;
-    "
-  >
-    <i class="ph ph-info"></i>
-    <span>
-      The replica is an analytics copy, not a disaster-recovery target: Django
-      cannot be pointed at it. The <code>replica</code> schema is deliberately
-      excluded from Supabase's <code>db-schemas</code>, so the anonymous key in
-      the public storefront bundle cannot read it &mdash; query it from the
-      Supabase SQL editor or with the service-role key.
-    </span>
-  </div>
-</div>
 {% endblock %}

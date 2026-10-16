@@ -1,14 +1,15 @@
 import logging
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
+from rest_framework import serializers
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from admin_ui.models import CustomerNotification
-from .models import CustomerAddress
-from rest_framework import serializers
+from .models import CustomerAddress, CustomerProfile
 
 from .permissions import IsAdmin, IsAuthenticatedSupabaseUser, IsStaffOrAdmin
 
@@ -30,6 +31,17 @@ class CustomerAddressSerializer(serializers.ModelSerializer):
                   'addressLine2', 'county', 'subcounty', 'city', 'postalCode',
                   'country', 'isDefault')
         read_only_fields = ('id',)
+
+
+class CustomerProfileUpdateSerializer(serializers.Serializer):
+    fullName = serializers.CharField(max_length=150, trim_whitespace=True)
+    phone = serializers.RegexField(regex=r'^[\d\s+().-]{9,25}$')
+
+    def validate_fullName(self, value):
+        normalized = ' '.join(value.split())
+        if not normalized:
+            raise serializers.ValidationError('Enter your full name.')
+        return normalized
 
 
 class CustomerAddressesView(APIView):
@@ -95,11 +107,45 @@ class CurrentUserView(APIView):
     permission_classes = [IsAuthenticatedSupabaseUser]
 
     def get(self, request):
-        return Response({
-            'id': request.user.username.removeprefix('supabase_'),
-            'email': request.user.email,
-            'role': getattr(request.user, 'supabase_role', 'customer'),
-        })
+        return Response(self.profile_data(request.user))
+
+    def patch(self, request):
+        serializer = CustomerProfileUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        full_name = serializer.validated_data['fullName']
+        phone = serializer.validated_data['phone'].strip()
+        name_parts = full_name.split(' ', 1)
+
+        with transaction.atomic():
+            user = get_user_model().objects.select_for_update().get(
+                pk=request.user.pk)
+            user.first_name = name_parts[0]
+            user.last_name = name_parts[1] if len(name_parts) > 1 else ''
+            user.save(update_fields=['first_name', 'last_name'])
+            CustomerProfile.objects.update_or_create(
+                user=user,
+                defaults={'phone': phone},
+            )
+
+        return Response(self.profile_data(user))
+
+    @staticmethod
+    def profile_data(user):
+        full_name = ' '.join(user.get_full_name().split())
+        profile = CustomerProfile.objects.filter(user=user).first()
+        phone = profile.phone if profile else ''
+        if not phone:
+            default_address = CustomerAddress.objects.filter(
+                user=user, is_default=True).first()
+            phone = default_address.phone if default_address else ''
+        return {
+            'id': user.username.removeprefix('supabase_'),
+            'email': user.email,
+            'role': getattr(user, 'supabase_role', 'customer'),
+            'fullName': full_name,
+            'phone': phone,
+            'isComplete': bool(full_name and phone),
+        }
 
 
 class AdminAccessView(APIView):
