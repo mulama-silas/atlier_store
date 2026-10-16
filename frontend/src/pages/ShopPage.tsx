@@ -531,7 +531,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             {hasActiveFilters && <Button type="button" variant="ghost" size="sm" fullWidth onClick={clearFilters} className="text-[#9E332B] hover:bg-[#FDF2F2]">Clear all filters</Button>}
           </Card>
         </aside>
-        <div className="min-w-0 space-y-6">
+        <div
+          className="min-w-0 space-y-6 lg:h-[calc(100dvh-13rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-2"
+          role="region"
+          tabIndex={0}
+          aria-label="Scrollable product results"
+        >
       <div className="flex flex-col gap-3 border-b border-[#E8E5DF] pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
