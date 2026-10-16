@@ -508,6 +508,13 @@ REPLICA_SYNC_TOKEN = os.getenv('REPLICA_SYNC_TOKEN', '')
 REPLICA_SYNC_MODE = os.getenv('REPLICA_SYNC_MODE', 'inline').strip().lower()
 if REPLICA_SYNC_MODE not in {'inline', 'deferred'}:
     REPLICA_SYNC_MODE = 'inline'
+REPLICA_AUTO_SYNC_ENABLED = os.getenv(
+    'REPLICA_AUTO_SYNC_ENABLED', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+try:
+    REPLICA_AUTO_SYNC_INTERVAL_SECONDS = max(
+        10, int(os.getenv('REPLICA_AUTO_SYNC_INTERVAL_SECONDS', '10')))
+except ValueError:
+    REPLICA_AUTO_SYNC_INTERVAL_SECONDS = 10
 
 # --- One-shot demo-data reset (see maintenance/management/commands) ----------
 # Gates the destructive admin page and `manage.py reset_demo_data`. While this

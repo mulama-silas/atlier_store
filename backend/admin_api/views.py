@@ -632,12 +632,4 @@ class ReplicaSyncView(APIView):
             return Response({'detail': f'Replica sync failed: {exc}'},
                             status=500)
 
-        AuditLogService.log(
-            'admin_action',
-            category='replica',
-            result='success',
-            metadata={'counts': summary.get('counts', {})},
-            path=request.path,
-            description='Cron replica sync completed.',
-        )
         return Response(summary)

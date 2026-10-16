@@ -451,22 +451,37 @@ def _sync_table(conn, table, extractor, key_col, key_is_uuid):
     """
     rows = extractor()
     columns = list(rows[0].keys()) if rows else []
+    changes = 0
 
     try:
         with conn.cursor() as cur:
             if rows:
+                update_columns = [c for c in columns if c != key_col]
                 updates = ', '.join(
-                    f'{c} = EXCLUDED.{c}' for c in columns if c != key_col
+                    f'{c} = EXCLUDED.{c}' for c in update_columns
+                )
+                changed_target = ', '.join(
+                    f'target.{c}' for c in update_columns
+                )
+                changed_source = ', '.join(
+                    f'EXCLUDED.{c}' for c in update_columns
                 )
                 sql = (
-                    f'INSERT INTO replica.{table} ({", ".join(columns)}) '
+                    f'INSERT INTO replica.{table} AS target '
+                    f'({", ".join(columns)}) '
                     f'VALUES %s '
-                    f'ON CONFLICT ({key_col}) DO UPDATE SET {updates}'
+                    f'ON CONFLICT ({key_col}) DO UPDATE SET {updates} '
+                    f'WHERE ROW({changed_target}) '
+                    f'IS DISTINCT FROM ROW({changed_source})'
                 )
                 values = [
                     tuple(_adapter(row[c], c) for c in columns) for row in rows
                 ]
-                execute_values(cur, sql, values, page_size=500)
+                for start in range(0, len(values), 500):
+                    execute_values(
+                        cur, sql, values[start:start + 500], page_size=500)
+                    if isinstance(cur.rowcount, int):
+                        changes += cur.rowcount
 
                 # Drop replica rows whose Django counterpart is gone.
                 ids = [row[key_col] for row in rows]
@@ -478,10 +493,14 @@ def _sync_table(conn, table, extractor, key_col, key_is_uuid):
                     f'WHERE v = t.{key_col})',
                     (ids,),
                 )
+                if isinstance(cur.rowcount, int):
+                    changes += cur.rowcount
             else:
                 # Django has no rows at all: clear the replica table rather than
                 # leaving orphaned data behind.
                 cur.execute(f'DELETE FROM replica.{table}')
+                if isinstance(cur.rowcount, int):
+                    changes += cur.rowcount
 
             cur.execute(f'SELECT count(*) FROM replica.{table}')
             replica_count = cur.fetchone()[0]
@@ -491,7 +510,7 @@ def _sync_table(conn, table, extractor, key_col, key_is_uuid):
         conn.rollback()
         raise
 
-    return {'source': len(rows), 'replica': replica_count}
+    return {'source': len(rows), 'replica': replica_count, 'changes': changes}
 
 
 def _write_snapshots(conn):
@@ -508,21 +527,32 @@ def _write_snapshots(conn):
 
     with conn.cursor() as cur:
         if payload:
-            execute_values(
-                cur,
-                'INSERT INTO replica.catalogue_snapshots '
+            sql = (
+                'INSERT INTO replica.catalogue_snapshots AS target '
                 '(entity, entity_id, snapshot_date, payload) '
                 'VALUES %s '
                 'ON CONFLICT (entity, entity_id, snapshot_date) '
-                'DO UPDATE SET payload = EXCLUDED.payload, '
-                'synced_at = now()',
-                payload,
-                template='(%s, %s, %s, %s::jsonb)',
+                'DO UPDATE SET payload = EXCLUDED.payload, synced_at = now() '
+                'WHERE target.payload '
+                'IS DISTINCT FROM EXCLUDED.payload'
             )
+            snapshot_changes = 0
+            for start in range(0, len(payload), 500):
+                execute_values(
+                    cur, sql, payload[start:start + 500], page_size=500,
+                    template='(%s, %s, %s, %s::jsonb)',
+                )
+                if isinstance(cur.rowcount, int):
+                    snapshot_changes += cur.rowcount
+        else:
+            snapshot_changes = 0
         cur.execute('SELECT count(*) FROM replica.catalogue_snapshots')
         total = cur.fetchone()[0]
     conn.commit()
-    return {'snapshot_rows': len(payload), 'snapshot_total': total}
+    return {
+        'snapshot_rows': len(payload), 'snapshot_total': total,
+        'changes': snapshot_changes,
+    }
 
 
 def _acquire_lock(conn):
@@ -690,6 +720,12 @@ def sync_replica(triggered_by='manual', include_storage=True):
                 'Row counts did not reconcile: ' + '; '.join(mismatches)
             )
 
+        change_count = sum(
+            values.get('changes', 0)
+            for values in counts.values()
+            if isinstance(values, dict)
+        )
+
         if include_storage:
             from replica.services.storage_mirror import mirror_bucket
             try:
@@ -700,14 +736,42 @@ def sync_replica(triggered_by='manual', include_storage=True):
                 storage_info = {'status': 'failed', 'error': str(exc)}
                 logger.warning('Storage mirror failed.', exc_info=True)
 
-        if run_id is not None:
+        if run_id is not None and change_count:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM replica.sync_runs "
+                    "WHERE status = 'requested' AND id < %s",
+                    (run_id,),
+                )
             _finish_run(conn, run_id, 'success', counts, storage_info)
+        elif run_id is not None:
+            # The scheduler polls regularly, but keep sync history focused on
+            # successful runs that actually changed replica data.
+            with conn.cursor() as cur:
+                cur.execute('DELETE FROM replica.sync_runs WHERE id = %s',
+                            (run_id,))
+                cur.execute(
+                    "DELETE FROM replica.sync_runs "
+                    "WHERE status = 'requested' AND id < %s",
+                    (run_id,),
+                )
+            conn.commit()
+
+        if change_count:
+            logger.info(
+                'Replica sync completed with data changes.',
+                extra={
+                    'sync_changes': change_count,
+                    'triggered_by': triggered_by,
+                },
+            )
 
         return {
-            'status': 'success',
+            'status': 'success' if change_count else 'unchanged',
             'counts': counts,
             'storage': storage_info,
             'started_by': triggered_by,
+            'changes': change_count,
         }
     except Exception as exc:  # noqa: BLE001
         logger.exception('Replica sync failed.')

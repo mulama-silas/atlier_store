@@ -47,11 +47,17 @@ services:
       - key: REPLICA_BACKUP_BUCKET
         value: "product-images-backup"
       # inline   = the admin button runs the sync inside the request.
-      # deferred = the button only queues a run; the cron does the work.
+      # deferred = the admin button queues a run for background processing.
       # Preferred on a free instance, where a long sync can outrun the proxy
       # timeout and an operator retrying would start a second concurrent sync.
       - key: REPLICA_SYNC_MODE
         value: "deferred"
+      # The in-container Python loop checks for Django changes without Celery
+      # or an external cron. It records only sync runs that change replica data.
+      - key: REPLICA_AUTO_SYNC_ENABLED
+        value: "true"
+      - key: REPLICA_AUTO_SYNC_INTERVAL_SECONDS
+        value: "10"
 
       # ---- Background work: Celery + Redis (see backend/docs/CELERY.md) ----
       # REDIS_URL is injected automatically by Render once the Redis resource

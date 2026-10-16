@@ -27,4 +27,4 @@ EXPOSE 8000
 # is idempotent, and re-promotes the account on every boot. With those variables
 # unset it falls back to prompting, so it is chained with `|| true` and must
 # never be able to stop the container from serving.
-CMD ["sh", "-c", "python manage.py migrate --noinput && (echo y | python manage.py ensure_superuser --noinput 2>/dev/null || true) && gunicorn botique_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --threads 4 --timeout 120 --max-requests 1000 --max-requests-jitter 100 --access-logfile -"]
+CMD ["sh", "start.sh"]

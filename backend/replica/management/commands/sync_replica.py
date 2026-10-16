@@ -67,7 +67,12 @@ class Command(BaseCommand):
         except RuntimeError as exc:
             raise CommandError(str(exc)) from exc
 
-        self.stdout.write(self.style.SUCCESS('Replica sync finished.'))
+        if summary.get('changes', 0):
+            self.stdout.write(self.style.SUCCESS(
+                'Replica sync finished with '
+                f'{summary["changes"]} data change(s).'))
+        else:
+            self.stdout.write('No replica data changes; no success run was logged.')
         for table, counts in summary['counts'].items():
             if not isinstance(counts, dict) or 'source' not in counts:
                 continue

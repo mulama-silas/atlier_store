@@ -10,6 +10,7 @@ import {
   Truck,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useAuth } from "../context/AuthContext";
 import { useStore } from "../context/StoreContext";
 import { ProductCard } from "../components/ProductCard";
 import { Button } from "../components/modeza/Button";
@@ -23,6 +24,7 @@ export interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
   const { navigate } = useRouter();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { products, categories } = useStore();
   const markedArrivals = products.filter((product) => product.isNewArrival);
   const newArrivals = (
@@ -87,15 +89,38 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
               pieces made to move with you.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Button
-                variant="modeza-sandstone"
-                size="lg"
-                onClick={() => navigate("/account")}
-                className="gap-2"
-              >
-                Get started
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
+              {!isAuthLoading && (user ? (
+                <>
+                  <Button
+                    variant="modeza-sandstone"
+                    size="lg"
+                    onClick={() => navigate("/shop")}
+                    className="gap-2"
+                  >
+                    Explore Collection
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => navigate("/shop?collection=new-arrivals")}
+                    className="gap-2 border border-white/50 text-white hover:border-white hover:bg-white/10"
+                  >
+                    New Arrivals
+                    <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="modeza-sandstone"
+                  size="lg"
+                  onClick={() => navigate("/account")}
+                  className="gap-2"
+                >
+                  Get Started
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              ))}
             </div>
           </motion.div>
 

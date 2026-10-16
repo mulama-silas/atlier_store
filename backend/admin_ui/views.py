@@ -3750,6 +3750,13 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
             except ReplicaStatusUnavailable as exc:
                 counts_error = str(exc)
 
+        auto_sync_enabled = getattr(
+            settings, 'REPLICA_AUTO_SYNC_ENABLED', False)
+        counts_in_sync = bool(live_counts) and all(
+            values['source'] == values['replica']
+            for values in live_counts.values()
+        )
+
         stale = False
         age_hours = None
         if run and run.get('finished_at'):
@@ -3757,6 +3764,10 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
                 (timezone.now() - run['finished_at']).total_seconds() / 3600, 1
             )
             stale = age_hours > REPLICA_STALE_AFTER.total_seconds() / 3600
+            if auto_sync_enabled and counts_in_sync and run['status'] == 'success':
+                # No-op polls are deliberately absent from run history. A
+                # quiet but reconciled replica should not be called stale.
+                stale = False
 
         counts = []
         for table, values in live_counts.items():
@@ -3794,8 +3805,44 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
             'cron_configured': bool(
                 (getattr(settings, 'REPLICA_SYNC_TOKEN', '') or '').strip()),
             'sync_mode': getattr(settings, 'REPLICA_SYNC_MODE', 'inline'),
+            'auto_sync_enabled': auto_sync_enabled,
+            'auto_sync_interval_seconds': getattr(
+                settings, 'REPLICA_AUTO_SYNC_INTERVAL_SECONDS', 10),
             'pending': pending_request() if configured else None,
         })
+
+
+@permission_required('replica.view')
+class ReplicaCountsRefreshView(StaffRequiredMixin, View):
+    """Read-only live count endpoint used by the replica status page."""
+
+    def get(self, request):
+        if not replica_configured():
+            return JsonResponse(
+                {'error': 'Supabase replica is not configured.'}, status=503)
+        try:
+            live_counts = current_row_counts()
+        except ReplicaStatusUnavailable as exc:
+            return JsonResponse({'error': str(exc)}, status=503)
+
+        rows = []
+        for table, values in live_counts.items():
+            difference = values['source'] - values['replica']
+            rows.append({
+                'table': table.replace('_', ' ').title(),
+                'source': values['source'],
+                'replica': values['replica'],
+                'difference': difference,
+                'difference_abs': abs(difference),
+                'matched': difference == 0,
+            })
+
+        response = JsonResponse({
+            'counts': rows,
+            'checked_at': timezone.localtime().strftime('%d %b %Y, %H:%M:%S'),
+        })
+        response['Cache-Control'] = 'no-store'
+        return response
 
 
 @permission_required('replica.sync')
@@ -3856,8 +3903,12 @@ class ReplicaSyncActionView(StaffRequiredMixin, View):
                 return redirect('admin-replica')
             messages.success(
                 request,
-                f'Backup queued (run #{run_id}). The scheduled job will pick it '
-                'up -- watch this page for the result.'
+                f'Backup queued (run #{run_id}). '
+                + (
+                    'The automatic sync loop will pick it up shortly.'
+                    if getattr(settings, 'REPLICA_AUTO_SYNC_ENABLED', False)
+                    else 'The scheduled job will pick it up; watch this page for the result.'
+                )
             )
             return redirect('admin-replica')
 
@@ -3879,20 +3930,29 @@ class ReplicaSyncActionView(StaffRequiredMixin, View):
             messages.error(request, f'Replica sync failed: {exc}')
             return redirect('admin-replica')
 
-        AuditLogService.log(
-            'admin_action',
-            actor=request.user,
-            category='replica',
-            result='success',
-            metadata={'counts': summary.get('counts', {})},
-            path=request.path,
-            description='Manual replica sync completed.',
-        )
-        messages.success(
-            request,
-            f'Replica sync finished. '
-            f'{len(summary.get("counts", {}))} tables written.'
-        )
+        if summary.get('changes', 0):
+            AuditLogService.log(
+                'admin_action',
+                actor=request.user,
+                category='replica',
+                result='success',
+                metadata={
+                    'changes': summary['changes'],
+                    'counts': summary.get('counts', {}),
+                },
+                path=request.path,
+                description='Manual replica sync completed with data changes.',
+            )
+            messages.success(
+                request,
+                f'Replica sync finished with {summary["changes"]} data '
+                'change(s).'
+            )
+        else:
+            messages.info(
+                request,
+                'Supabase is already up to date. No sync success was logged.'
+            )
         return redirect('admin-replica')
 
 

@@ -51,6 +51,7 @@ from .views import (
     ProductImportTemplateDownloadView,
     ProfileSettingsPageView,
     RequestTracePageView,
+    ReplicaCountsRefreshView,
     ReplicaStatusPageView,
     ReplicaSyncActionView,
     SecurityCenterPageView,
@@ -72,6 +73,8 @@ urlpatterns = [
     path('activity/', ActivityOverviewPageView.as_view(), name='admin-activity'),
     # Supabase replica: status page (read) and POST-only manual sync trigger.
     path('replica/', ReplicaStatusPageView.as_view(), name='admin-replica'),
+    path('replica/counts/', ReplicaCountsRefreshView.as_view(),
+         name='admin-replica-counts-refresh'),
     path('replica/sync/', ReplicaSyncActionView.as_view(),
          name='admin-replica-sync-action'),
     # Demo-data reset. Inert unless ENABLE_DATA_RESET is on -- the views answer

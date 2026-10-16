@@ -61,6 +61,121 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
+  .replica-counts-card .card-body {
+    padding: 22px;
+  }
+  .replica-counts-heading {
+    margin-bottom: 6px;
+  }
+  .replica-counts-heading h3 {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .replica-counts-heading h3 i {
+    color: var(--accent);
+    font-size: 19px;
+  }
+  .replica-live-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .replica-live-dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border-radius: 50%;
+    background: #16a36a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 106, 0.12);
+  }
+  .replica-counts-description {
+    margin: 0 0 18px;
+    max-width: 780px;
+  }
+  .replica-counts-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+  }
+  .replica-table.replica-counts-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 680px;
+    font-size: 13px;
+  }
+  .replica-counts-table th,
+  .replica-counts-table td {
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .replica-counts-table th {
+    background: var(--surface-secondary, rgba(127, 127, 127, 0.07));
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+  .replica-counts-table thead th:first-child {
+    border-top-left-radius: 11px;
+  }
+  .replica-counts-table thead th:last-child {
+    border-top-right-radius: 11px;
+  }
+  .replica-counts-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .replica-counts-table tbody tr {
+    transition: background-color 140ms ease;
+  }
+  .replica-counts-table tbody tr:hover {
+    background: rgba(127, 127, 127, 0.045);
+  }
+  .replica-counts-table .replica-table-name {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .replica-counts-table td.num {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .replica-delta {
+    display: inline-flex;
+    min-width: 48px;
+    justify-content: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .replica-delta.is-zero {
+    color: #087443;
+    background: rgba(22, 163, 106, 0.11);
+  }
+  .replica-delta.is-positive {
+    color: #a45c00;
+    background: rgba(245, 158, 11, 0.14);
+  }
+  .replica-delta.is-negative {
+    color: #b42318;
+    background: rgba(220, 38, 38, 0.1);
+  }
+  .replica-count-error {
+    margin: 12px 2px 0;
+    color: #b42318;
+  }
+  @media (max-width: 640px) {
+    .replica-counts-card .card-body {
+      padding: 16px;
+    }
+    .replica-counts-heading {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 8px;
+    }
+  }
   .replica-alert {
     padding: 14px 18px;
     border-radius: 8px;
@@ -111,9 +226,8 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
   <i class="ph ph-timer"></i>
   <strong>Queued.</strong>
   Run #{{ pending.id }} was requested {{ pending.started_at|date:"j M Y, H:i" }}
-  T and is waiting for the scheduled job (<code
-    >REPLICA_SYNC_MODE={{ sync_mode }}</code
-  >). It will start on the next cron tick.
+  T and is waiting for
+  {% if auto_sync_enabled %}the next automatic sync check (within {{ auto_sync_interval_seconds }} seconds).{% else %}the scheduled job (<code>REPLICA_SYNC_MODE={{ sync_mode }}</code>).{% endif %}
 </div>
 {% elif run_error %}
 <div class="replica-alert replica-alert-error">
@@ -157,6 +271,8 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
       <span class="status-badge status-success">Current</span>
       {% elif run.status == 'success' and stale %}
       <span class="status-badge status-warning">Stale</span>
+      {% elif run.status == 'running' %}
+      <span class="status-badge status-neutral">Syncing</span>
       {% else %}
       <span class="status-badge status-danger">Failed</span>
       {% endif %}
@@ -195,7 +311,25 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
 
   <div class="card replica-card">
     <div class="replica-card-head">
-      <div class="replica-name"><i class="ph ph-timer"></i> Scheduled cron</div>
+      <div class="replica-name"><i class="ph ph-arrows-clockwise"></i> Automatic database sync</div>
+      {% if auto_sync_enabled and configured %}
+      <span class="status-badge status-success">Every {{ auto_sync_interval_seconds }}s</span>
+      {% else %}
+      <span class="status-badge status-warning">Disabled</span>
+      {% endif %}
+    </div>
+    <div class="replica-detail">
+      {% if auto_sync_enabled and configured %}
+      The backend checks for changes every {{ auto_sync_interval_seconds }} seconds. Only changed database rows create a successful sync record. Image files are not copied by this frequent check.
+      {% else %}
+      Enable <code>REPLICA_AUTO_SYNC_ENABLED</code> on the backend to run the built-in sync loop.
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card replica-card">
+    <div class="replica-card-head">
+      <div class="replica-name"><i class="ph ph-timer"></i> External cron (optional)</div>
       {% if cron_configured %}
       <span class="status-badge status-success">Armed</span>
       {% else %}
@@ -205,31 +339,27 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
     <div class="replica-detail">
       {% if cron_configured %} A cron can call
       <code>POST /api/admin/replica/sync</code> with the
-      <code>x-replica-token</code> header. {% if not can_sync %} <br />Without a
-      scheduled job, nothing runs unless someone presses the button below
-      &mdash; which is not a backup policy. {% endif %} {% else %}
+      <code>x-replica-token</code> header. The built-in automatic loop works
+      independently of this optional endpoint. {% else %}
       <code>REPLICA_SYNC_TOKEN</code> is unset, so the sync endpoint returns
-      404. Set it as a secret in Render to arm the scheduled backup. {% endif %}
+      404. The built-in automatic loop does not require this token. {% endif %}
     </div>
   </div>
 </div>
 
-<div class="card" style="margin-bottom: 20px">
+<div class="card replica-counts-card" style="margin-bottom: 20px">
   <div class="card-body">
-    <div class="replica-card-head" style="margin-bottom: 8px">
-      <h3 style="margin: 0; font-size: 15px">Live row counts</h3>
-      <a href="{% url 'admin-replica' %}" class="btn btn-secondary">
-        <i class="ph ph-arrows-clockwise"></i> Refresh counts
-      </a>
+    <div class="replica-card-head replica-counts-heading">
+      <h3 style="margin: 0"><i class="ph ph-chart-bar"></i> Live row counts</h3>
+      {% if configured %}<span class="replica-detail replica-live-status"><span class="replica-live-dot" aria-hidden="true"></span><span id="replica-count-updated">{% if counts_checked_at %}Updated {{ counts_checked_at|date:"j M Y, H:i:s" }} T{% else %}Checking counts...{% endif %}</span></span>{% endif %}
     </div>
-    <p class="replica-detail" style="margin-bottom: 12px">
-      Counts are read from Django and Supabase when this page loads. Difference
-      is Django minus Supabase; a positive value means those rows have not
-      reached the replica yet.
-      {% if counts_checked_at %}<br />Checked {{ counts_checked_at|date:"j M Y, H:i:s" }} T.{% endif %}
+    <p class="replica-detail replica-counts-description">
+      Compare the live Django and Supabase totals. Difference is Django minus Supabase; a positive value means those rows have not
+      reached the replica yet. Counts update automatically every 5 seconds.
     </p>
-    {% if counts %}
-    <table class="replica-table">
+    {% if configured %}
+    <div class="replica-counts-scroll">
+    <table class="replica-table replica-counts-table">
       <thead>
         <tr>
           <th>Table</th>
@@ -239,15 +369,13 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
           <th>Status</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="replica-row-counts" aria-live="polite">
         {% for row in counts %}
         <tr>
-          <td>{{ row.table }}</td>
+          <td class="replica-table-name">{{ row.table }}</td>
           <td class="num">{{ row.source }}</td>
           <td class="num">{{ row.replica }}</td>
-          <td class="num">
-            {% if row.difference > 0 %}+{% endif %}{{ row.difference }}
-          </td>
+          <td class="num"><span class="replica-delta {% if row.difference == 0 %}is-zero{% elif row.difference > 0 %}is-positive{% else %}is-negative{% endif %}">{% if row.difference > 0 %}+{% endif %}{{ row.difference }}</span></td>
           <td>
             {% if row.matched %}
             <span class="status-badge status-success">In sync</span>
@@ -261,15 +389,100 @@ MODEZA Admin{% endblock %} {% block breadcrumbs %}
         {% endfor %}
       </tbody>
     </table>
-    {% elif counts_error %}
-    <p class="replica-detail" role="status">Live row counts are unavailable: {{ counts_error }}</p>
+    </div>
+    <p id="replica-count-error" class="replica-detail replica-count-error" role="status" {% if not counts_error %}hidden{% endif %}>{% if counts_error %}Live row counts are unavailable: {{ counts_error }}{% endif %}</p>
     {% elif not configured %}
     <p class="replica-detail">Configure the Supabase connection to compare Django and Supabase row counts.</p>
-    {% else %}
-    <p class="replica-detail">No live row counts are available yet.</p>
     {% endif %}
   </div>
 </div>
+
+{% if configured %}
+<script>
+(function () {
+  var tbody = document.getElementById('replica-row-counts');
+  var updated = document.getElementById('replica-count-updated');
+  var errorMessage = document.getElementById('replica-count-error');
+  if (!tbody || !updated || !errorMessage) return;
+  var endpoint = "{% url 'admin-replica-counts-refresh' %}";
+  var refreshing = false;
+
+  function renderCounts(counts) {
+    tbody.replaceChildren();
+    counts.forEach(function (row) {
+      var tr = document.createElement('tr');
+      var tableCell = document.createElement('td');
+      tableCell.className = 'replica-table-name';
+      tableCell.textContent = row.table;
+      tr.appendChild(tableCell);
+
+      [row.source, row.replica].forEach(function (value) {
+        var cell = document.createElement('td');
+        cell.className = 'num';
+        cell.textContent = String(value);
+        tr.appendChild(cell);
+      });
+
+      var differenceCell = document.createElement('td');
+      differenceCell.className = 'num';
+      var difference = document.createElement('span');
+      difference.className = 'replica-delta ' + (row.difference === 0
+        ? 'is-zero'
+        : row.difference > 0
+          ? 'is-positive'
+          : 'is-negative');
+      difference.textContent = (row.difference > 0 ? '+' : '') + row.difference;
+      differenceCell.appendChild(difference);
+      tr.appendChild(differenceCell);
+
+      var statusCell = document.createElement('td');
+      var badge = document.createElement('span');
+      badge.className = row.matched
+        ? 'status-badge status-success'
+        : row.difference > 0
+          ? 'status-badge status-warning'
+          : 'status-badge status-danger';
+      badge.textContent = row.matched
+        ? 'In sync'
+        : row.difference > 0
+          ? row.difference_abs + ' missing in Supabase'
+          : row.difference_abs + ' extra in Supabase';
+      statusCell.appendChild(badge);
+      tr.appendChild(statusCell);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function refreshCounts() {
+    if (refreshing) return;
+    refreshing = true;
+    fetch(endpoint, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error('Live count request failed');
+        return response.json();
+      })
+      .then(function (data) {
+        renderCounts(data.counts || []);
+        updated.textContent = 'Updated ' + data.checked_at + ' T';
+        errorMessage.hidden = true;
+        errorMessage.textContent = '';
+      })
+      .catch(function () {
+        errorMessage.textContent = 'Live row counts could not be refreshed. Retrying in 5 seconds.';
+        errorMessage.hidden = false;
+      })
+      .then(function () {
+        refreshing = false;
+      });
+  }
+
+  window.setInterval(refreshCounts, 5000);
+}());
+</script>
+{% endif %}
 
 <div class="card">
   <div class="card-body">
