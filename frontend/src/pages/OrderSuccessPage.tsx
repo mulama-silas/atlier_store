@@ -241,6 +241,25 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
               {resolvedOrder && <p className="mt-2 text-xs text-white/55">Placed {formatDate(resolvedOrder.createdAt)}</p>}
             </div>
           </div>
+          {resolvedOrder && (
+            <section className="mt-8 grid grid-cols-2 gap-5 border-t border-white/15 pt-5 sm:grid-cols-3 sm:gap-8" aria-label="Order summary">
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">Order total</p>
+                <p className="mt-1 font-serif text-2xl text-[#E4D6B8]">{formatPrice(resolvedOrder.total)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">Items</p>
+                <p className="mt-1 text-sm font-medium text-white">{resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0)} {resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'piece' : 'pieces'}</p>
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/55">Payment</p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-white">{paymentMethodLabel(resolvedOrder.paymentMethod)}</span>
+                  <PaymentStatusBadge status={resolvedOrder.paymentStatus} />
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       </header>
 
@@ -297,7 +316,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                 <ul className="divide-y divide-[#EEEAE3]">
                   {resolvedOrder.items.map((item) => (
                     <li key={item.id} className="flex items-center gap-4 py-4 sm:gap-5 sm:py-5">
-                      <ProductImage src={item.image} alt={item.productName} className="h-24 w-24 shrink-0 rounded-md bg-[#F4ECE9] sm:h-28 sm:w-28" />
+                      <ProductImage src={item.image} alt={item.productName} className="h-16 w-16 shrink-0 rounded-md bg-[#F4ECE9] sm:h-[4.5rem] sm:w-[4.5rem]" />
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 font-serif text-lg leading-snug text-[#181716] sm:text-xl">{item.productName}</p>
                         <p className="mt-1 text-sm text-[#63605A]">Order {resolvedOrder.orderNumber}</p>
@@ -331,40 +350,30 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
             </div>
 
             <aside className="space-y-5 lg:sticky lg:top-6">
-              <Card className="overflow-hidden border-[#263A30] bg-[#263A30] p-0 text-white shadow-lg">
-                <div className="p-5 sm:p-6">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#C7D3C8]">Order summary</p>
-                  <div className="mt-5 flex items-center justify-between gap-3 border-b border-white/15 pb-4 text-xs text-white/65">
-                    <span>Items</span><span>{resolvedOrder.items.reduce((sum, item) => sum + item.quantity, 0)} pieces</span>
+              <Card className="border-[#E7E1D6] bg-white p-5 shadow-sm sm:p-6">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">Payment & receipt</p>
+                    <p className="mt-1 text-sm font-medium text-[#181716]">{paymentMethodLabel(resolvedOrder.paymentMethod)}</p>
                   </div>
-                  <div className="mt-4 flex items-center justify-between gap-3 border-b border-white/15 pb-4 text-xs text-white/65">
-                    <span>Payment method</span><span className="text-right text-white">{paymentMethodLabel(resolvedOrder.paymentMethod)}</span>
-                  </div>
-                  <div className="mt-5 flex items-end justify-between gap-3">
-                    <span className="text-sm text-white/75">Total</span>
-                    <span className="font-serif text-3xl text-[#E4D6B8]">{formatPrice(resolvedOrder.total)}</span>
-                  </div>
-                  <div className="mt-4"><PaymentStatusBadge status={resolvedOrder.paymentStatus} /></div>
+                  <PaymentStatusBadge status={resolvedOrder.paymentStatus} />
                 </div>
-                <div className="border-t border-white/15 bg-white/5 px-5 py-4 sm:px-6">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C7D3C8]">Official receipt</p>
-                  <p className="mt-1 text-xs leading-5 text-white/65">
-                    {simulatedPayment
-                      ? 'A receipt will be available after a real payment is collected.'
-                      : receipt ? `Receipt ${receipt.receiptNumber} is ready to download.` : 'Your official receipt is available once payment is confirmed.'}
-                  </p>
-                  {receiptLoading ? (
-                    <Button type="button" variant="outline" size="lg" isLoading disabled className="mt-4 w-full">Checking receipt</Button>
-                  ) : receipt ? (
-                    <Button type="button" variant="outline" size="lg" isLoading={downloading} onClick={() => void handleDownloadReceipt()} className="mt-4 w-full gap-2 border-white/30 bg-white text-[#263A30] hover:bg-[#F4F1E9]">
-                      <Download className="h-4 w-4" aria-hidden="true" />{downloading ? 'Downloading' : 'Download receipt'}
-                    </Button>
-                  ) : (
-                    <Button type="button" variant="outline" size="lg" disabled className="mt-4 w-full gap-2 border-white/20 text-white/50">
-                      <Download className="h-4 w-4" aria-hidden="true" />Receipt unavailable
-                    </Button>
-                  )}
-                </div>
+                <p className="mt-4 border-t border-[#EEEAE3] pt-4 text-xs leading-5 text-[#827E77]">
+                  {simulatedPayment
+                    ? 'A receipt will be available after a real payment is collected.'
+                    : receipt ? `Receipt ${receipt.receiptNumber} is ready to download.` : 'Your official receipt is available once payment is confirmed.'}
+                </p>
+                {receiptLoading ? (
+                  <Button type="button" variant="outline" size="lg" isLoading disabled className="mt-4 w-full">Checking receipt</Button>
+                ) : receipt ? (
+                  <Button type="button" variant="outline" size="lg" isLoading={downloading} onClick={() => void handleDownloadReceipt()} className="mt-4 w-full gap-2">
+                    <Download className="h-4 w-4" aria-hidden="true" />{downloading ? 'Downloading' : 'Download receipt'}
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" size="lg" disabled className="mt-4 w-full gap-2">
+                    <Download className="h-4 w-4" aria-hidden="true" />Receipt unavailable
+                  </Button>
+                )}
               </Card>
 
               <section className="space-y-3" aria-label="Order actions">

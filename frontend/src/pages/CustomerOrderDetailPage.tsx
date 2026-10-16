@@ -635,7 +635,7 @@ export const CustomerOrderDetailPage: React.FC<
                     >
                       <OrderItemThumb
                         item={item}
-                        className="h-24 w-24 shrink-0 rounded-md bg-[#F4ECE9] sm:h-28 sm:w-28"
+                        className="h-16 w-16 shrink-0 rounded-md bg-[#F4ECE9] sm:h-[4.5rem] sm:w-[4.5rem]"
                       />
                       <div className="min-w-0 flex-1">
                         <h3 className="line-clamp-2 font-serif text-lg leading-snug text-[#181716] sm:text-xl">
