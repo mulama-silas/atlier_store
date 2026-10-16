@@ -255,7 +255,7 @@ export interface PaymentIntentDTO {
   amount: number;
   currency: string;
   method: 'mpesa' | 'card';
-  status: 'pending' | 'succeeded' | 'failed';
+  status: 'pending' | 'succeeded' | 'simulated' | 'failed';
   gatewayReference?: string;
 }
 

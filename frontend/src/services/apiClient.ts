@@ -389,7 +389,7 @@ export const api = {
     }, true, true);
   },
 
-  async getPaymentStatus(orderNumber: string, paymentIntentId: string): Promise<{ status: 'pending' | 'succeeded' | 'failed'; failureMessage?: string }> {
+  async getPaymentStatus(orderNumber: string, paymentIntentId: string): Promise<{ status: 'pending' | 'succeeded' | 'simulated' | 'failed'; simulated?: boolean; failureMessage?: string }> {
     const query = new URLSearchParams({ orderNumber, paymentIntentId });
     return request(`/api/payments/status?${query.toString()}`, {}, true, false);
   },

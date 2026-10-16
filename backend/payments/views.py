@@ -64,6 +64,7 @@ class PaymentStatusView(APIView):
             return Response({'detail': 'Payment attempt was not found.'}, status=404)
         return Response({
             'status': intent.status,
+            'simulated': intent.status == PaymentIntent.Status.SIMULATED,
             'orderNumber': order.order_number,
             'failureMessage': intent.failure_message if intent.status == PaymentIntent.Status.FAILED else '',
         })

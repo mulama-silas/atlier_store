@@ -70,11 +70,16 @@ ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS + ['testserver']))
 PAYMENT_WEBHOOK_SECRET = os.getenv(
     'PAYMENT_WEBHOOK_SECRET', 'local-development-payment-secret' if DEBUG else '')
 # ---------------------------------------------------------------------------
-# Payment mode.
+# Payment mode. Unit tests use the provider path with mocked requests even when
+# a developer's local .env selects the sandbox simulation flow.
 #
-# Daraja configuration is server-only. Mock settlement is never permitted.
+# Daraja configuration is server-only. Simulation is explicitly sandbox-only.
 # ---------------------------------------------------------------------------
 MPESA_ENVIRONMENT = (os.getenv('MPESA_ENVIRONMENT', os.getenv('MPESA_ENV', 'sandbox')) or 'sandbox').strip().lower()
+MPESA_PAYMENT_MODE = (
+    'daraja' if TESTING
+    else (os.getenv('MPESA_PAYMENT_MODE', 'daraja') or 'daraja').strip().lower()
+)
 MPESA_CONSUMER_KEY = os.getenv('MPESA_CONSUMER_KEY', '').strip()
 MPESA_CONSUMER_SECRET = os.getenv('MPESA_CONSUMER_SECRET', '').strip()
 MPESA_SHORTCODE = os.getenv('MPESA_SHORTCODE', '').strip()

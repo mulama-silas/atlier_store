@@ -13,6 +13,7 @@ class PaymentIntent(models.Model):
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
         SUCCEEDED = 'succeeded', 'Succeeded'
+        SIMULATED = 'simulated', 'Simulated'
         FAILED = 'failed', 'Failed'
 
     id = models.CharField(primary_key=True, max_length=100)

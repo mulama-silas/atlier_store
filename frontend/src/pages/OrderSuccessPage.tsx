@@ -101,6 +101,7 @@ function formatDate(value: string): string {
 }
 
 export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber }) => {
+  const simulatedPayment = new URLSearchParams(window.location.search).get('simulation') === '1';
   const { navigate } = useRouter();
   const { getOrder, orders } = useOrders();
   const [order, setOrder] = useState<Order | null>(() => {
@@ -161,6 +162,12 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
   }, [receipt]);
 
   useEffect(() => {
+    if (simulatedPayment) {
+      setReceipt(null);
+      setReceiptError('');
+      setReceiptLoading(false);
+      return;
+    }
     if (!order || order.paymentStatus !== 'paid') {
       setReceipt(null);
       setReceiptError('');
@@ -198,7 +205,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
     return () => {
       cancelled = true;
     };
-  }, [order]);
+  }, [order, simulatedPayment]);
 
   const resolvedOrder = order;
   const refCode = resolvedOrder ? resolvedOrder.orderNumber : (orderNumber || '');
@@ -224,6 +231,11 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
             <p className="mt-4 max-w-xl text-sm leading-7 text-white/70 sm:text-base">
               Thank you for choosing MODEZA. Your order is confirmed, and we’ll keep you updated at every step.
             </p>
+            {simulatedPayment && (
+              <p className="mt-3 max-w-xl rounded-xl border border-amber-200/20 bg-amber-100/10 px-4 py-3 text-xs leading-5 text-amber-50" role="status">
+                Demo checkout: your order was placed, but no M-PESA request was sent and no payment was collected.
+              </p>
+            )}
             <div className="mt-7 inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs text-white/90">
               <span className="text-white/60">Order reference</span>
               <span className="break-all font-mono font-medium">{refCode || 'Awaiting reference'}</span>
@@ -365,7 +377,9 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                 <div className="mt-5 border-t border-[#F3F1ED] pt-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">Official receipt</p>
                   <p className="mt-1 text-xs leading-5 text-[#827E77]">
-                    {receipt ? `Receipt ${receipt.receiptNumber} is ready to download.` : 'Your official receipt is available once payment is confirmed.'}
+                    {simulatedPayment
+                      ? 'A receipt will be available after a real payment is collected.'
+                      : receipt ? `Receipt ${receipt.receiptNumber} is ready to download.` : 'Your official receipt is available once payment is confirmed.'}
                   </p>
                   {receiptLoading ? (
                     <Button type="button" variant="outline" size="lg" isLoading disabled className="mt-4 w-full">

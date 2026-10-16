@@ -163,7 +163,7 @@ const LabeledSelect: React.FC<LabeledSelectProps> = ({
 );
 
 const PAYMENT_OPTIONS: Array<{ id: PaymentMethod; label: string; detail: string; unavailable?: boolean }> = [
-  { id: 'mpesa', label: 'M-Pesa', detail: 'Pay securely with an M-Pesa prompt' },
+  { id: 'mpesa', label: 'M-Pesa', detail: 'Demo simulation or Daraja STK Push, depending on store setup' },
   { id: 'card', label: 'Card', detail: 'Online payments are being prepared', unavailable: true },
   { id: 'pay_on_delivery', label: 'Pay on delivery', detail: 'Pay when your order arrives' },
 ];
@@ -235,12 +235,13 @@ export const CheckoutPage: React.FC = () => {
       try {
         const status = await api.getPaymentStatus(activePaymentOrder.orderNumber, activePaymentIntentId);
         if (!active) return;
-        if (status.status === 'succeeded' && !paymentCompleted.current) {
+        if ((status.status === 'succeeded' || status.status === 'simulated' || status.simulated) && !paymentCompleted.current) {
           paymentCompleted.current = true;
           setPaymentProgress('idle');
           sessionStorage.removeItem(ACTIVE_PAYMENT_KEY);
           await clearCart();
-          navigate(`/order/success?order=${activePaymentOrder.orderNumber}`);
+          const simulationQuery = status.status === 'simulated' || status.simulated ? '&simulation=1' : '';
+          navigate(`/order/success?order=${activePaymentOrder.orderNumber}${simulationQuery}`);
         } else if (status.status === 'failed') {
           setPaymentProgress('failed');
           setPaymentTimedOut(false);

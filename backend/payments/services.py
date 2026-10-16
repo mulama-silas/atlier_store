@@ -87,6 +87,11 @@ def _queue_payment_email(email_type, order, subject, body_text, notification):
 
 def create_intent(order_number, method, phone_number, cart_key, user=None):
     order = get_order_for_cart(order_number, cart_key, user)
+    mode = getattr(settings, 'MPESA_PAYMENT_MODE', 'daraja')
+    if mode not in {'simulation', 'daraja'}:
+        raise ValidationError({'payment': 'MPESA_PAYMENT_MODE must be simulation or daraja.'})
+    if mode == 'simulation' and settings.MPESA_ENVIRONMENT != 'sandbox':
+        raise ValidationError({'payment': 'Payment simulation is only allowed in the sandbox environment.'})
     try:
         phone = normalize_ke_phone(phone_number or (order.customer or {}).get('phone', ''))
     except DarajaError as exc:
@@ -100,7 +105,10 @@ def create_intent(order_number, method, phone_number, cart_key, user=None):
             raise ValidationError({'order': 'Order is already paid.'})
         if order.status == Order.Status.CANCELLED:
             raise ValidationError({'order': 'Order was cancelled and cannot be paid.'})
-        existing = PaymentIntent.objects.filter(order=order, status=PaymentIntent.Status.PENDING).first()
+        existing = PaymentIntent.objects.filter(
+            order=order,
+            status__in=[PaymentIntent.Status.PENDING, PaymentIntent.Status.SIMULATED],
+        ).first()
         if existing:
             return existing
         intent = PaymentIntent.objects.create(
@@ -111,11 +119,24 @@ def create_intent(order_number, method, phone_number, cart_key, user=None):
         order.payment_intent_id = intent.id
         order.save(update_fields=['payment_intent_id', 'updated_at'])
     AuditLogService.log(
-        'payment_initiated', object_type='payment_intent', object_id=intent.id,
+        'payment_simulated' if mode == 'simulation' else 'payment_initiated',
+        object_type='payment_intent', object_id=intent.id,
         object_repr=order.order_number, category='payments',
-        metadata={'method': method, 'order_number': order.order_number}, status_code=201,
-        description=f'Payment initiated for order {order.order_number}.',
+        metadata={'method': method, 'mode': mode, 'order_number': order.order_number}, status_code=201,
+        description=(f'Demo checkout simulated for order {order.order_number}.' if mode == 'simulation'
+                     else f'Payment initiated for order {order.order_number}.'),
     )
+    if mode == 'simulation':
+        intent.status = PaymentIntent.Status.SIMULATED
+        intent.gateway_reference = f'SIM-{uuid.uuid4().hex[:12].upper()}'
+        intent.initiated_at = timezone.now()
+        intent.confirmed_at = intent.initiated_at
+        intent.metadata = {**intent.metadata, 'simulation': True}
+        intent.save(update_fields=[
+            'status', 'gateway_reference', 'initiated_at', 'confirmed_at',
+            'metadata', 'updated_at',
+        ])
+        return intent
     try:
         response = initiate_stk_push(phone, intent.amount_minor, order.order_number,
                                      f'MODEZA {order.order_number}')

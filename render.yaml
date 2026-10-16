@@ -34,6 +34,8 @@ services:
         value: "https://atlier-boutique.vercel.app"
       - key: MPESA_ENVIRONMENT
         value: "sandbox"
+      - key: MPESA_PAYMENT_MODE
+        value: "simulation"
       - key: MPESA_TRANSACTION_TYPE
         value: "CustomerPayBillOnline"
       - key: SUPABASE_URL
@@ -80,7 +82,7 @@ services:
         value: "deferred"
       - key: EMAIL_TIMEOUT
         value: "10"
-      # Mock payment gateway can settle intents in local development.
+      # Simulation mode lets the deployed demo place orders without collecting payment.
       # ---- AI shopping assistant (server-side Gemini, see PROJECT.md) ------
       # Model used by backend/assistant; must support the Interactions API.
       - key: GEMINI_MODEL
@@ -142,16 +144,8 @@ services:
         sync: false
       - key: PAYMENT_WEBHOOK_SECRET
         sync: false
-      - key: MPESA_CONSUMER_KEY
-        sync: false
-      - key: MPESA_CONSUMER_SECRET
-        sync: false
-      - key: MPESA_SHORTCODE
-        sync: false
-      - key: MPESA_PASSKEY
-        sync: false
-      - key: MPESA_CALLBACK_URL
-        sync: false
+      # Add Daraja credentials manually in the Render dashboard only when
+      # switching MPESA_PAYMENT_MODE to "daraja".
 
 # ---------------------------------------------------------------------------
 # Worker service — DISABLED on the free plan.
