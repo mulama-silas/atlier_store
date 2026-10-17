@@ -225,6 +225,12 @@
   async function request(path, options) {
     const config = Object.assign({ credentials: 'same-origin', headers: { 'X-CSRFToken': csrf } }, options || {});
     config.headers = Object.assign({}, config.headers, { 'Accept': 'application/json' });
+    // fetch labels a raw JSON string as text/plain unless told otherwise;
+    // DRF's JSONParser correctly rejects that media type. Leave FormData
+    // untouched so the browser supplies its multipart boundary.
+    if (typeof config.body === 'string' && !config.headers['Content-Type']) {
+      config.headers['Content-Type'] = 'application/json';
+    }
     const response = await fetch(apiUrl(path), config);
     let data = null;
     try { data = await response.json(); } catch (error) { data = {}; }
