@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUpRight,
   Bell,
   CheckCircle2,
   KeyRound,
@@ -21,7 +22,6 @@ import {
 } from "lucide-react";
 import { useRouter } from "../router/RouterContext";
 import { useAuth } from "../context/AuthContext";
-import { CollapsibleGroup } from "../components/CollapsibleGroup";
 import { consumePostAuthDestination } from "../utils/postAuthRedirect";
 import { Badge } from "../components/modeza/Badge";
 import { Button } from "../components/modeza/Button";
@@ -50,7 +50,6 @@ interface NavigationItem {
 
 interface AccountNavigationProps {
   activePath: string;
-  mobile?: boolean;
   onNavigate: (path: string) => void;
 }
 
@@ -152,58 +151,38 @@ const MemberAvatar: React.FC<{ initials: string; className?: string }> = ({
 
 const AccountNavigation: React.FC<AccountNavigationProps> = ({
   activePath,
-  mobile = false,
   onNavigate,
 }) => (
-  <nav
-    className={mobile ? "space-y-2" : "space-y-6"}
-    aria-label="Account navigation"
-  >
+  <nav className="space-y-6" aria-label="Account navigation">
     {NAV_GROUPS.map((group) => {
-      const groupActive = group.items.some(({ href }) => href === activePath);
-      const items = (
-        <div className="space-y-1">
-          {group.items.map(({ label, href, icon }) => {
-            const active = activePath === href;
-            return (
-              <button
-                key={href}
-                type="button"
-                onClick={() => onNavigate(href)}
-                aria-current={active ? "page" : undefined}
-                className={`flex w-full items-center rounded-xl text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${
-                  mobile
-                    ? `gap-3 px-4 py-3 text-sm ${active ? "bg-[#A2574F] font-medium text-[#FAF9F6] shadow-sm" : "text-[#63605A] hover:bg-[#F4ECE9] hover:text-[#181716]"}`
-                    : `gap-3 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] ${active ? "bg-[#A2574F] text-[#FAF9F6] shadow-xs" : "text-[#63605A] hover:bg-[#FAF9F6] hover:text-[#181716]"}`
-                }`}
-              >
-                <span className={active ? "text-[#FAF9F6]" : "text-[#A2574F]"}>
-                  {icon}
-                </span>
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      );
-      if (mobile) {
-        return (
-          <CollapsibleGroup
-            key={group.label}
-            title={group.label}
-            defaultOpen={groupActive}
-            active={groupActive}
-          >
-            {items}
-          </CollapsibleGroup>
-        );
-      }
       return (
         <div key={group.label}>
-          <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#827E77]">
+          <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[#6B6B6B]">
             {group.label}
           </p>
-          {items}
+          <div className="space-y-1">
+            {group.items.map(({ label, href, icon }) => {
+              const active = activePath === href;
+              return (
+                <button
+                  key={href}
+                  type="button"
+                  onClick={() => onNavigate(href)}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4A5D4E] focus-visible:ring-offset-1 ${
+                    active
+                      ? "bg-[#EEF1ED] font-semibold text-[#4A5D4E]"
+                      : "font-medium text-[#6B6B6B] hover:bg-black/[0.03] hover:text-[#181818]"
+                  }`}
+                >
+                  <span className={active ? "text-[#4A5D4E]" : "text-[#6B6B6B]"}>
+                    {icon}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       );
     })}
@@ -805,7 +784,15 @@ export const AccountPage: React.FC = () => {
                 onNavigate={navigate}
               />
             </div>
-            <div className="shrink-0 border-t border-[#F3F1ED] p-4">
+            <div className="flex shrink-0 flex-col gap-1 border-t border-[#F3F1ED] p-4">
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] font-medium text-[#6B6B6B] transition-colors hover:bg-black/[0.03] hover:text-[#181818] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4A5D4E]"
+              >
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                View Store
+              </button>
               <Button
                 type="button"
                 variant="ghost"
@@ -860,11 +847,18 @@ export const AccountPage: React.FC = () => {
               </div>
               <AccountNavigation
                 activePath={route.path}
-                mobile
                 onNavigate={navigateAndCloseMobile}
               />
             </div>
-            <div className="border-t border-[#E8E5DF] bg-white p-5 sm:px-6">
+            <div className="flex flex-col gap-1 border-t border-[#E8E5DF] bg-white p-5 sm:px-6">
+              <button
+                type="button"
+                onClick={() => navigateAndCloseMobile('/')}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-[13px] font-medium text-[#6B6B6B] transition-colors hover:bg-black/[0.03] hover:text-[#181818] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4A5D4E]"
+              >
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                View Store
+              </button>
               <Button
                 type="button"
                 variant="ghost"

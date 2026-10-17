@@ -181,7 +181,7 @@ label {
 /* Keep long customer account menus scrollable without hiding the scrollbar. */
 .account-sidebar-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #C8A19B #F3F1ED;
+  scrollbar-color: #AEB6AE #F3F1ED;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
@@ -196,13 +196,13 @@ label {
 }
 
 .account-sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #C8A19B;
+  background: #AEB6AE;
   border: 2px solid #F3F1ED;
   border-radius: 9999px;
 }
 
 .account-sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: #A2574F;
+  background: #4A5D4E;
 }
 
 .font-serif {
