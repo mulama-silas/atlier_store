@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  Check,
+  Copy,
   Clock,
   MapPin,
   PackageCheck,
@@ -144,6 +146,7 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
   const [isSearching, setIsSearching] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingOrderAction | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [referenceCopied, setReferenceCopied] = useState(false);
 
   useEffect(() => {
     if (propOrderNum) {
@@ -216,6 +219,17 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
   const completedSteps = activeOrder?.timeline.filter((step) => step.completed).length || 0;
   const totalSteps = activeOrder?.timeline.length || 0;
   const pendingActionIsCancellation = pendingAction?.type === 'cancel';
+
+  const copyOrderReference = async () => {
+    if (!activeOrder) return;
+    try {
+      await navigator.clipboard.writeText(activeOrder.orderNumber);
+      setReferenceCopied(true);
+      window.setTimeout(() => setReferenceCopied(false), 1800);
+    } catch {
+      setErrorMsg('Order reference could not be copied. Please select it and copy manually.');
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
@@ -353,6 +367,46 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
       {activeOrder && (
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.85fr)]">
           <div className="min-w-0 space-y-5">
+            <Card className="overflow-hidden p-0 shadow-sm">
+              <div className="relative h-44 overflow-hidden bg-[#F4ECE9] sm:h-56 lg:h-64">
+                <svg className="absolute inset-0 h-full w-full" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Illustration of your order's journey to your delivery address">
+                  <rect width="900" height="320" fill="#F4ECE9" />
+                  <path d="M-30 75 220 10l130 70 180-45 140 75 260-35v245H-30Z" fill="#EAE2D9" />
+                  <path d="M-20 160 130 130l110 55 140-80 155 45 140-50 250 35M-10 270l165-55 125 35 160-55 170 42 145-55 170 35M105-20l45 90-55 95 70 75-30 110M340-15l-35 95 70 80-28 80 50 90M600-20l-25 90 75 55-45 95 65 100M800-15l-65 95 70 75-35 95 60 70" fill="none" stroke="#fff" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M-20 160 130 130l110 55 140-80 155 45 140-50 250 35M-10 270l165-55 125 35 160-55 170 42 145-55 170 35M105-20l45 90-55 95 70 75-30 110M340-15l-35 95 70 80-28 80 50 90M600-20l-25 90 75 55-45 95 65 100M800-15l-65 95 70 75-35 95 60 70" fill="none" stroke="#D8CFC5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M166 202C278 114 342 227 456 164s164-41 277 12" fill="none" stroke="#A2574F" strokeWidth="5" strokeDasharray="10 12" strokeLinecap="round" />
+                  <circle cx="166" cy="202" r="15" fill="#fff" stroke="#A2574F" strokeWidth="6" />
+                  <circle cx="733" cy="176" r="20" fill="#A2574F" stroke="#fff" strokeWidth="7" />
+                </svg>
+                <div className="absolute left-4 top-4 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#83443D] shadow-sm sm:left-6 sm:top-5">
+                  MODEZA delivery route
+                </div>
+                <div className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] items-center gap-2 rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-xs text-[#181716] shadow-sm sm:bottom-5 sm:left-6 sm:px-4">
+                  <MapPin className="h-4 w-4 shrink-0 text-[#A2574F]" aria-hidden="true" />
+                  <span className="truncate">{activeOrder.customer.city || 'Your delivery address'}</span>
+                </div>
+                <div className="absolute bottom-4 right-4 hidden rounded-xl border border-white/70 bg-white/95 px-3 py-2 text-[10px] font-medium text-[#63605A] shadow-sm sm:bottom-5 sm:right-6 sm:block sm:text-xs">
+                  Milestone based tracking
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F4ECE9] text-[#A2574F]"><Truck className="h-5 w-5" aria-hidden="true" /></span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#181716]">MODEZA order delivery</p>
+                    <p className="text-xs text-[#827E77]">Reference: <span className="break-all font-mono">{activeOrder.orderNumber}</span></p>
+                  </div>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => void copyOrderReference()} className="w-full shrink-0 gap-2 sm:w-auto">
+                  {referenceCopied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {referenceCopied ? 'Copied' : 'Copy reference'}
+                </Button>
+              </div>
+              <p className="border-t border-[#F3F1ED] px-4 py-3 text-[11px] leading-5 text-[#827E77] sm:px-6">
+                This route is an illustration. Delivery updates below reflect the latest order milestones; live courier location is not available.
+              </p>
+            </Card>
+
             <Card className="overflow-hidden p-0 shadow-sm">
               <div className="border-b border-[#F3F1ED] p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">

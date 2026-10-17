@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -48,25 +48,13 @@ function getTimelineRank(status: OrderStatus): number {
   }
 }
 
-function getEstimatedDeliveryDate(createdAtStr?: string): string {
-  const baseDate = createdAtStr ? new Date(createdAtStr) : new Date();
-  const validDate = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
-  const estDate = new Date(validDate);
-  estDate.setDate(estDate.getDate() + 4);
-  return estDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
 function getPaymentMethodDisplay(method?: string) {
   const m = (method || 'card').toLowerCase();
   if (m === 'card') {
     return {
       type: 'card',
-      label: 'Visa ending in 4321',
-      badge: 'VISA',
+      label: 'Card payment',
+      badge: 'CARD',
     };
   }
   if (m === 'mpesa') {
@@ -194,22 +182,21 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
   const refCode = resolvedOrder ? resolvedOrder.orderNumber : (orderNumber || '');
   const customerName = resolvedOrder?.customer?.firstName || 'there';
   const currentRank = resolvedOrder ? getTimelineRank(resolvedOrder.status) : 1;
-  const estDeliveryStr = getEstimatedDeliveryDate(resolvedOrder?.createdAt);
   const paymentInfo = getPaymentMethodDisplay(resolvedOrder?.paymentMethod);
 
   return (
-    <div className="min-h-screen bg-[#FDFDFE] text-[#1E2024] antialiased">
+    <div className="min-h-screen bg-[#FAF9F6] text-[#181716] antialiased">
       {/* Top Mobile Bar */}
-      <div className="flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:hidden">
+      <div className="flex items-center justify-between border-b border-[#F3F1ED] bg-white px-4 py-3 sm:hidden">
         <button
           type="button"
           onClick={() => navigate('/shop')}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-gray-700 hover:bg-gray-100"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-[#3C3934] hover:bg-[#F3F1ED]"
           aria-label="Back to store"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <span className="text-sm font-semibold text-gray-900">Order Status</span>
+        <span className="text-sm font-semibold text-[#181716]">Order Status</span>
         <div className="w-9" />
       </div>
 
@@ -217,7 +204,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
         {/* Main Heading */}
         <div className="mb-6 flex min-w-0 items-start gap-2.5 sm:mb-8 sm:items-center sm:gap-3">
           <span className="mt-0.5 shrink-0 text-2xl sm:mt-0 sm:text-3xl" role="img" aria-label="Celebration">🎉</span>
-          <h1 className="min-w-0 flex-1 break-words text-xl font-bold leading-tight tracking-tight text-gray-900 sm:text-3xl md:text-4xl">
+          <h1 className="min-w-0 flex-1 break-words text-xl font-bold leading-tight tracking-tight text-[#181716] sm:text-3xl md:text-4xl">
             Thank you for your order, {customerName}!
           </h1>
         </div>
@@ -232,7 +219,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12 lg:gap-8">
             {/* Left Column: Confirmation + Timeline + Address + Actions */}
             <div className="space-y-6 lg:col-span-7">
-              <div className="overflow-hidden rounded-2xl border border-gray-150 bg-white p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] sm:p-7">
+              <div className="overflow-hidden rounded-2xl border border-[#E8E5DF] bg-white p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] sm:p-7">
                 {/* Badge + Header Section */}
                 <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
                   {/* Scalloped Green Celebration Badge with Checkmark & Confetti */}
@@ -258,7 +245,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                     </svg>
 
                     {/* Scalloped Stamp Badge */}
-                    <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/20 sm:h-16 sm:w-16">
+                    <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-[#2E5A44] text-white shadow-md shadow-emerald-500/20 sm:h-16 sm:w-16">
                       <svg
                         className="h-full w-full fill-current text-emerald-500"
                         viewBox="0 0 24 24"
@@ -271,27 +258,27 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
 
                   {/* Order Confirmation Details */}
                   <div className="w-full min-w-0 text-center sm:flex-1 sm:text-left">
-                    <h2 className="text-lg font-bold text-gray-900 sm:text-xl">
+                    <h2 className="text-lg font-bold text-[#181716] sm:text-xl">
                       Order Placed Successfully!
                     </h2>
-                    <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+                    <p className="mt-1 text-xs text-[#827E77] sm:text-sm">
                       Your order has been received and we are getting it ready to ship.
                     </p>
-                    <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-gray-700 sm:justify-start sm:text-sm">
-                      <span className="break-all">Order ID: <strong className="font-semibold text-gray-900">#{refCode}</strong></span>
-                      <span className="text-gray-300 hidden sm:inline">&bull;</span>
-                      <span className="break-words">Estimated delivery: <strong className="font-semibold text-gray-900">{estDeliveryStr}</strong></span>
+                    <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-[#3C3934] sm:justify-start sm:text-sm">
+                      <span className="break-all">Order ID: <strong className="font-semibold text-[#181716]">#{refCode}</strong></span>
+                      <span className="hidden text-[#D8D3CB] sm:inline">&bull;</span>
+                      <span className="break-words">Delivery estimate: <strong className="font-semibold text-[#181716]">To be confirmed as your order is prepared</strong></span>
                     </div>
                   </div>
                 </div>
 
                 {/* Stepper Progress Bar */}
-                <div className="mt-8 border-t border-gray-100 pt-7">
+                <div className="mt-8 border-t border-[#F3F1ED] pt-7">
                     <div className="relative mx-auto w-full max-w-lg">
                     {/* Connector Lines */}
-                    <div className="absolute top-3 left-4 right-4 -z-0 h-0.5 bg-gray-200">
+                    <div className="absolute top-3 left-4 right-4 -z-0 h-0.5 bg-[#E8E5DF]">
                       <div
-                        className="h-full bg-emerald-500 transition-all duration-300"
+                        className="h-full bg-[#2E5A44] transition-all duration-300"
                         style={{
                           width: `${Math.min(100, Math.max(0, ((currentRank - 1) / (TIMELINE_STEPS.length - 1)) * 100))}%`,
                         }}
@@ -310,15 +297,15 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                             <div
                               className={`flex h-6 w-6 items-center justify-center rounded-full text-xs transition-colors duration-200 ${
                                 isReached
-                                  ? 'bg-emerald-500 text-white shadow-sm'
-                                  : 'border-2 border-gray-200 bg-white text-transparent'
+                                  ? 'bg-[#2E5A44] text-white shadow-sm'
+                                  : 'border-2 border-[#E8E5DF] bg-white text-transparent'
                               }`}
                             >
                               {isReached ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : null}
                             </div>
                             <span
                               className={`mt-2 max-w-full break-words px-0.5 text-center text-[10px] font-medium leading-tight sm:text-xs ${
-                                isReached ? 'font-semibold text-gray-900' : 'text-gray-400'
+                                isReached ? 'font-semibold text-[#181716]' : 'text-[#A29E96]'
                               }`}
                             >
                               {step.label}
@@ -331,21 +318,21 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                 </div>
 
                 {/* Shipping To + Mini Map Card */}
-                <div className="mt-7 overflow-hidden rounded-xl border border-gray-100 bg-[#F8FAFC]">
+                <div className="mt-7 overflow-hidden rounded-xl border border-[#F3F1ED] bg-[#F8FAFC]">
                   <div className="grid grid-cols-1 sm:grid-cols-2">
                     {/* Address details */}
                     <div className="min-w-0 p-4 sm:p-5">
-                      <p className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+                      <p className="text-[11px] font-semibold tracking-wider text-[#A29E96] uppercase">
                         Shipping to:
                       </p>
-                      <p className="mt-1 text-sm font-bold text-gray-900">
+                      <p className="mt-1 text-sm font-bold text-[#181716]">
                         {resolvedOrder.customer.firstName} {resolvedOrder.customer.lastName}
                       </p>
-                      <p className="mt-1 break-words text-xs leading-relaxed text-gray-600">
+                      <p className="mt-1 break-words text-xs leading-relaxed text-[#63605A]">
                         {resolvedOrder.customer.addressLine1}
                         {resolvedOrder.customer.addressLine2 ? `, ${resolvedOrder.customer.addressLine2}` : ''}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-[#827E77]">
                         {[resolvedOrder.customer.city, resolvedOrder.customer.stateOrProvince, resolvedOrder.customer.postalCode]
                           .filter(Boolean)
                           .join(', ')}
@@ -353,7 +340,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                     </div>
 
                     {/* Stylized Illustrated Mini Map */}
-                    <div className="relative h-28 w-full bg-[#EBF3ED] sm:h-auto overflow-hidden border-t sm:border-t-0 sm:border-l border-gray-100">
+                    <div className="relative h-28 w-full bg-[#EBF3ED] sm:h-auto overflow-hidden border-t sm:border-t-0 sm:border-l border-[#F3F1ED]">
                       <svg
                         className="absolute inset-0 h-full w-full object-cover opacity-75"
                         viewBox="0 0 240 120"
@@ -376,10 +363,10 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       {/* Map Pin */}
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="relative flex flex-col items-center">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white shadow-md">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#A2574F] text-white shadow-md">
                             <div className="h-2.5 w-2.5 rounded-full bg-white" />
                           </div>
-                          <div className="-mt-1 h-2 w-2 rotate-45 bg-blue-600" />
+                          <div className="-mt-1 h-2 w-2 rotate-45 bg-[#A2574F]" />
                           <div className="mt-0.5 h-1.5 w-4 rounded-full bg-black/15 blur-[1px]" />
                         </div>
                       </div>
@@ -392,7 +379,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                   <Button
                     type="button"
                     onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)}
-                    className="w-full flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 active:scale-[0.99]"
+                    className="w-full flex-1 rounded-xl bg-[#A2574F] py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#83443D] active:scale-[0.99]"
                   >
                     Track Your Order
                   </Button>
@@ -402,7 +389,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       type="button"
                       variant="outline"
                       disabled
-                      className="w-full flex-1 rounded-xl border-gray-200 py-2.5 text-sm font-medium text-gray-500"
+                      className="w-full flex-1 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#827E77]"
                     >
                       Checking Receipt...
                     </Button>
@@ -412,9 +399,9 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       variant="outline"
                       isLoading={downloading}
                       onClick={() => void handleDownloadReceipt()}
-                      className="w-full flex-1 gap-2 rounded-xl border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      className="w-full flex-1 gap-2 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716]"
                     >
-                      <Download className="h-4 w-4 text-gray-500" />
+                      <Download className="h-4 w-4 text-[#827E77]" />
                       {downloading ? 'Downloading...' : 'Download Receipt'}
                     </Button>
                   ) : (
@@ -422,9 +409,9 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       type="button"
                       variant="outline"
                       disabled
-                      className="w-full flex-1 gap-2 rounded-xl border-gray-200 py-2.5 text-sm font-medium text-gray-400"
+                      className="w-full flex-1 gap-2 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#A29E96]"
                     >
-                      <Download className="h-4 w-4 text-gray-400" />
+                      <Download className="h-4 w-4 text-[#A29E96]" />
                       Download Receipt
                     </Button>
                   )}
@@ -433,7 +420,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                     type="button"
                     variant="outline"
                     onClick={() => navigate('/shop')}
-                    className="w-full flex-1 rounded-xl border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                    className="w-full flex-1 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716]"
                   >
                     Continue Shopping
                   </Button>
@@ -449,16 +436,16 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
 
             {/* Right Column: Order Summary Card */}
             <div className="lg:col-span-5">
-              <div className="overflow-hidden rounded-2xl border border-gray-150 bg-white p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] sm:p-7">
-                <h2 className="text-base font-bold text-gray-900 sm:text-lg">
+              <div className="overflow-hidden rounded-2xl border border-[#E8E5DF] bg-white p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] sm:p-7">
+                <h2 className="text-base font-bold text-[#181716] sm:text-lg">
                   Order Summary
                 </h2>
 
                 {/* Items List */}
-                <div className="mt-4 divide-y divide-gray-100">
+                <div className="mt-4 divide-y divide-[#F3F1ED]">
                   {resolvedOrder.items.map((item) => (
                     <div key={item.id} className="flex min-w-0 items-center gap-2.5 py-3.5 sm:gap-3.5">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-gray-50 p-1 sm:h-16 sm:w-16">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#F3F1ED] bg-[#FAF9F6] p-1 sm:h-16 sm:w-16">
                         <ProductImage
                           src={item.image}
                           alt={item.productName}
@@ -466,20 +453,20 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                         />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h3 className="line-clamp-2 break-words text-xs font-semibold leading-4 text-gray-900 sm:text-sm sm:leading-5">
+                        <h3 className="line-clamp-2 break-words text-xs font-semibold leading-4 text-[#181716] sm:text-sm sm:leading-5">
                           {item.productName}
                         </h3>
                         {item.variantDetails && (
-                          <p className="mt-0.5 text-xs text-gray-400">
+                          <p className="mt-0.5 text-xs text-[#A29E96]">
                             Size: {item.variantDetails}
                           </p>
                         )}
-                        <p className="mt-0.5 text-xs text-gray-500">
+                        <p className="mt-0.5 text-xs text-[#827E77]">
                           Qty: {item.quantity}
                         </p>
                       </div>
                       <div className="max-w-[5.5rem] shrink-0 break-words text-right sm:max-w-none">
-                        <span className="text-xs font-semibold text-gray-900 sm:text-sm">
+                        <span className="text-xs font-semibold text-[#181716] sm:text-sm">
                           {formatPrice(item.subtotal)}
                         </span>
                       </div>
@@ -488,41 +475,41 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                 </div>
 
                 {/* Pricing Breakdown */}
-                <div className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-xs sm:text-sm text-gray-600">
+                <div className="mt-4 space-y-2 border-t border-[#F3F1ED] pt-4 text-xs sm:text-sm text-[#63605A]">
                   <div className="flex justify-between gap-3">
                     <span>Subtotal</span>
-                    <span className="font-medium text-gray-900">{formatPrice(resolvedOrder.subtotal)}</span>
+                    <span className="font-medium text-[#181716]">{formatPrice(resolvedOrder.subtotal)}</span>
                   </div>
                   {resolvedOrder.discount && resolvedOrder.discount.amount > 0 && (
-                  <div className="flex justify-between gap-3 text-emerald-600">
+                  <div className="flex justify-between gap-3 text-[#2E5A44]">
                       <span>Discount</span>
                       <span>-{formatPrice(resolvedOrder.discount.amount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between gap-3">
                     <span>Shipping</span>
-                    <span className="font-medium text-gray-900">
+                    <span className="font-medium text-[#181716]">
                       {resolvedOrder.shippingCost > 0 ? formatPrice(resolvedOrder.shippingCost) : 'Free'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-3">
                     <span>Tax</span>
-                    <span className="font-medium text-gray-900">
+                    <span className="font-medium text-[#181716]">
                       {formatPrice(resolvedOrder.tax)}
                     </span>
                   </div>
 
                   {/* Total Row */}
-                  <div className="flex items-baseline justify-between gap-3 border-t border-gray-100 pt-3.5">
-                    <span className="text-sm font-bold text-gray-900 sm:text-base">Total:</span>
-                    <span className="text-lg font-bold text-gray-900 sm:text-xl">
+                  <div className="flex items-baseline justify-between gap-3 border-t border-[#F3F1ED] pt-3.5">
+                    <span className="text-sm font-bold text-[#181716] sm:text-base">Total:</span>
+                    <span className="text-lg font-bold text-[#181716] sm:text-xl">
                       {formatPrice(resolvedOrder.total)}
                     </span>
                   </div>
 
                   {/* Payment Method Badge */}
-                  <div className="flex min-w-0 flex-wrap items-center gap-2 pt-2 text-xs text-gray-500">
-                    <span className="inline-flex items-center justify-center rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 pt-2 text-xs text-[#827E77]">
+                    <span className="inline-flex items-center justify-center rounded border border-[#E8E5DF] bg-[#FAF9F6] px-1.5 py-0.5 text-[10px] font-bold text-[#83443D]">
                       {paymentInfo.badge}
                     </span>
                     <span>{paymentInfo.label}</span>
@@ -533,16 +520,16 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
           </div>
         ) : (
           /* Empty or Loading State */
-          <div className="mx-auto max-w-lg rounded-2xl border border-gray-150 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <div className="mx-auto max-w-lg rounded-2xl border border-[#E8E5DF] bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F2F8F4] text-[#2E5A44]">
               <Package className="h-7 w-7" />
             </div>
-            <h2 className="mt-4 text-xl font-bold text-gray-900">Your order is safe with us</h2>
-            <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+            <h2 className="mt-4 text-xl font-bold text-[#181716]">Your order is safe with us</h2>
+            <p className="mt-2 text-xs text-[#827E77] leading-relaxed">
               We're loading your order details. Keep your reference number handy to track the delivery progress.
             </p>
             {refCode && (
-              <p className="mt-3 font-mono text-sm font-semibold text-gray-800">
+              <p className="mt-3 font-mono text-sm font-semibold text-[#292622]">
                 #{refCode}
               </p>
             )}
@@ -550,7 +537,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
               <Button
                 type="button"
                 onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)}
-                className="rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                className="rounded-xl bg-[#A2574F] py-2.5 text-sm font-semibold text-white hover:bg-[#83443D]"
               >
                 Track Your Order
               </Button>
@@ -558,7 +545,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                 type="button"
                 variant="outline"
                 onClick={() => navigate('/shop')}
-                className="rounded-xl border-gray-200 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6]"
               >
                 Continue Shopping
               </Button>
