@@ -202,7 +202,7 @@ class BulkImportPackage:
         self._file = None
 
     def _inspect(self):
-        max_archive = int(setting('BULK_IMPORT_MAX_ZIP_BYTES', 100 * 1024 * 1024))
+        max_archive = int(setting('BULK_IMPORT_MAX_ZIP_BYTES', 500 * 1024 * 1024))
         max_total = int(setting('BULK_IMPORT_MAX_EXTRACTED_BYTES', 500 * 1024 * 1024))
         max_entry = int(setting('BULK_IMPORT_MAX_ENTRY_BYTES', 25 * 1024 * 1024))
         max_images = int(setting('BULK_IMPORT_MAX_IMAGES', 10000))
@@ -1173,7 +1173,7 @@ class BulkImportExecutionService:
 
 
 class BulkProductImportService:
-    max_upload_bytes = 100 * 1024 * 1024
+    max_upload_bytes = 500 * 1024 * 1024
 
     @classmethod
     def create_job(cls, uploaded_file, actor, import_status=Product.Status.DRAFT):
@@ -1181,21 +1181,29 @@ class BulkProductImportService:
         filename = PurePosixPath(filename.replace('\\', '/')).name
         if not filename.lower().endswith('.zip'):
             raise BulkImportPackageError('Only ZIP packages are accepted.')
-        data = uploaded_file.read()
         max_upload = int(setting('BULK_IMPORT_MAX_ZIP_BYTES', cls.max_upload_bytes))
-        if len(data) > max_upload:
+        file_size = getattr(uploaded_file, 'size', None)
+        if file_size is None:
+            uploaded_file.seek(0, 2)
+            file_size = uploaded_file.tell()
+            uploaded_file.seek(0)
+        if file_size > max_upload:
             raise BulkImportPackageError('ZIP file exceeds the maximum upload size.')
+        digest = hashlib.sha256()
+        for chunk in uploaded_file.chunks():
+            digest.update(chunk)
+        uploaded_file.seek(0)
         if str(import_status).upper() == 'PUBLISHED':
             import_status = Product.Status.ACTIVE
         if import_status not in (Product.Status.DRAFT, Product.Status.ACTIVE):
             raise BulkImportPackageError('Choose Draft or Published for the import status.')
         job = ImportJob.objects.create(
-            uploaded_by=actor, filename=filename, package_size=len(data),
-            package_sha256=hashlib.sha256(data).hexdigest(), import_status=import_status,
+            uploaded_by=actor, filename=filename, package_size=file_size,
+            package_sha256=digest.hexdigest(), import_status=import_status,
         )
         key = f'imports/{job.pk}/package.zip'
         try:
-            saved_key = default_storage.save(key, ContentFile(data, name='package.zip'))
+            saved_key = default_storage.save(key, uploaded_file)
             job.package_path = saved_key
             job.save(update_fields=['package_path', 'updated_at'])
         except Exception:
@@ -1212,7 +1220,7 @@ class BulkProductImportService:
         AuditLogService.log(
             'bulk_import_started', actor=actor, category='catalog', object_type='import_job',
             object_id=job.pk, object_repr=filename, description='Bulk import package uploaded.',
-            metadata={'filename': filename, 'package_size': len(data)})
+            metadata={'filename': filename, 'package_size': file_size})
         return job
 
     @classmethod

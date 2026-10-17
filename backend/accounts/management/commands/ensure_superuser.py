@@ -7,8 +7,9 @@ from django.core.management.base import BaseCommand, CommandError
 class Command(BaseCommand):
     """Create or update a Django superuser from environment variables.
 
-    Reads DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_EMAIL and
-    DJANGO_SUPERUSER_PASSWORD.  Useful in one-off shells (e.g. Render Shell)
+    Reads DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_EMAIL,
+    DJANGO_SUPERUSER_PASSWORD, DJANGO_SUPERUSER_FIRST_NAME and
+    DJANGO_SUPERUSER_LAST_NAME. Useful in one-off shells (e.g. Render Shell)
     where interactively typing a password is inconvenient and where a plain
     ``createsuperuser`` would silently target the wrong database.
 
@@ -28,6 +29,14 @@ class Command(BaseCommand):
             help='Superuser email (defaults to the DJANGO_SUPERUSER_EMAIL env var).',
         )
         parser.add_argument(
+            '--first-name',
+            help='First name (defaults to DJANGO_SUPERUSER_FIRST_NAME).',
+        )
+        parser.add_argument(
+            '--last-name',
+            help='Last name (defaults to DJANGO_SUPERUSER_LAST_NAME).',
+        )
+        parser.add_argument(
             '--password',
             help='Superuser password (defaults to the DJANGO_SUPERUSER_PASSWORD env var; prompts if missing).',
         )
@@ -38,6 +47,10 @@ class Command(BaseCommand):
                     or self._env('DJANGO_SUPERUSER_USERNAME')
                     or 'admin')
         email = options.get('email') or self._env('DJANGO_SUPERUSER_EMAIL') or ''
+        first_name = options.get('first_name') or self._env(
+            'DJANGO_SUPERUSER_FIRST_NAME')
+        last_name = options.get('last_name') or self._env(
+            'DJANGO_SUPERUSER_LAST_NAME')
         password = options.get('password') or self._env('DJANGO_SUPERUSER_PASSWORD')
 
         if not email:
@@ -56,6 +69,8 @@ class Command(BaseCommand):
             defaults={'email': email, 'is_active': True},
         )
         user.email = email or user.email
+        user.first_name = first_name or user.first_name
+        user.last_name = last_name or user.last_name
         user.is_staff = True
         user.is_superuser = True
         user.is_active = True

@@ -336,7 +336,7 @@ class BulkUploadSessionView(AdminAPIView):
         if session_id is None:
             try:
                 size = int(request.data.get('file_size', 0))
-                max_size = int(getattr(settings, 'BULK_IMPORT_MAX_ZIP_BYTES', 100 * 1024 * 1024))
+                max_size = int(getattr(settings, 'BULK_IMPORT_MAX_ZIP_BYTES', 500 * 1024 * 1024))
                 chunk_size = int(getattr(settings, 'BULK_IMPORT_CHUNK_BYTES', 8 * 1024 * 1024))
                 name = get_valid_filename(Path(str(request.data.get('filename', ''))).name)
                 status_value = _import_status(request.data.get('import_status'))

@@ -1,7 +1,9 @@
 #!/bin/sh
 
 python manage.py migrate --noinput || exit $?
-(echo y | python manage.py ensure_superuser --noinput 2>/dev/null || true)
+if [ -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]; then
+  python manage.py ensure_superuser || exit $?
+fi
 
 # Keep the change-detecting sync loop in the same container as Django so it
 # needs no external scheduler or separately billed worker service.

@@ -353,8 +353,13 @@ if DATABASE_URL:
         )
     }
 else:
-    # Fallback to SQLite for local development when
-    # DATABASE_URL is not set (e.g., local experimentation).
+    if not DEBUG and not TESTING:
+        raise ImproperlyConfigured(
+            'DATABASE_URL must be configured for production. Set it to the '
+            'primary PostgreSQL connection string; SQLite is only a local '
+            'development fallback.'
+        )
+    # SQLite remains available for local development and isolated tests.
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -472,7 +477,7 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-BULK_IMPORT_MAX_ZIP_BYTES = int(os.getenv('BULK_IMPORT_MAX_ZIP_BYTES', 100 * 1024 * 1024))
+BULK_IMPORT_MAX_ZIP_BYTES = int(os.getenv('BULK_IMPORT_MAX_ZIP_BYTES', 500 * 1024 * 1024))
 BULK_IMPORT_MAX_EXTRACTED_BYTES = int(os.getenv('BULK_IMPORT_MAX_EXTRACTED_BYTES', 500 * 1024 * 1024))
 BULK_IMPORT_MAX_ENTRY_BYTES = int(os.getenv('BULK_IMPORT_MAX_ENTRY_BYTES', 25 * 1024 * 1024))
 BULK_IMPORT_MAX_IMAGE_BYTES = int(os.getenv('BULK_IMPORT_MAX_IMAGE_BYTES', 10 * 1024 * 1024))

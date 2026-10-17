@@ -62,7 +62,7 @@ npm run test:api              # bundled API integration tests
       `DEFAULT_FROM_EMAIL` / `SERVER_EMAIL` at that domain. Remember
       Render's free plan blocks outbound SMTP (ports 25/465/587), so mail
       leaves through the Resend HTTPS API on port 443.
-   - Add a managed **Postgres** database and paste its connection string into `DATABASE_URL`.
+   - Set `DATABASE_URL` to the verified primary PostgreSQL connection string. For the current production migration this should be the Supabase Postgres URI (direct or session pooler, with `sslmode=require`). Do not use `SUPABASE_DB_URL`: it points to the incomplete analytics replica in the `replica` schema.
 4. Migrations now run automatically on every container start (`python manage.py migrate
    --noinput` in the Dockerfile), so the schema is applied as soon as the first deploy
    boots. To apply them manually (e.g. for a one-off):

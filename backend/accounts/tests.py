@@ -1,13 +1,37 @@
 from datetime import datetime, timedelta, timezone
+from io import StringIO
+from unittest.mock import patch
 
 import jwt
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone as django_timezone
 from rest_framework.test import APIClient
 
 from admin_ui.models import CustomerNotification
 from accounts.models import CustomerProfile
+
+
+class EnsureSuperuserCommandTests(TestCase):
+    def test_creates_admin_with_names_from_environment(self):
+        env = {
+            'DJANGO_SUPERUSER_USERNAME': 'deployed-admin',
+            'DJANGO_SUPERUSER_EMAIL': 'admin@example.com',
+            'DJANGO_SUPERUSER_PASSWORD': 'a-strong-test-password',
+            'DJANGO_SUPERUSER_FIRST_NAME': 'Ada',
+            'DJANGO_SUPERUSER_LAST_NAME': 'Lovelace',
+        }
+        with patch.dict('os.environ', env):
+            call_command('ensure_superuser', stdout=StringIO())
+
+        user = get_user_model().objects.get(username='deployed-admin')
+        self.assertEqual(user.email, 'admin@example.com')
+        self.assertEqual(user.first_name, 'Ada')
+        self.assertEqual(user.last_name, 'Lovelace')
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.check_password('a-strong-test-password'))
 
 
 @override_settings(

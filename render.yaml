@@ -32,6 +32,9 @@ services:
         value: "atlier-boutique.onrender.com"
       - key: FRONTEND_ORIGIN
         value: "https://atlier-boutique.vercel.app"
+      # Max compressed ZIP accepted by the admin bulk importer (500 MiB).
+      - key: BULK_IMPORT_MAX_ZIP_BYTES
+        value: "524288000"
       - key: MPESA_ENVIRONMENT
         value: "sandbox"
       - key: MPESA_PAYMENT_MODE
@@ -118,6 +121,9 @@ services:
       # exclusively by backend/assistant; never sent to React/Vercel.
       - key: GEMINI_API_KEY
         sync: false
+      # Primary Django database connection. For production, supply the
+      # validated Supabase PostgreSQL URI here (direct or session pooler,
+      # with SSL). SUPABASE_DB_URL below is only the analytics replica.
       - key: DATABASE_URL
         sync: false
       # Optional HTTPS mail transport. When set, it takes precedence over SMTP.
