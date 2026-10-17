@@ -1,5 +1,13 @@
 import logging
+import hashlib
+import math
+import os
 import secrets
+from datetime import timedelta
+from pathlib import Path
+from django.conf import settings
+from django.db import transaction
+from django.utils.text import get_valid_filename
 
 from django.conf import settings
 from django.shortcuts import get_object_or_404
@@ -12,7 +20,7 @@ from access_control.drf_permissions import AdminPermission
 from admin_ui.models import AdminNotification
 from audit.services import AuditLogService
 from catalog.bulk_import import BulkImportError, BulkProductImportService, job_data
-from catalog.models import Category, ImportJob, Product, ProductVariant
+from catalog.models import BulkUploadSession, Category, ImportJob, Product, ProductVariant
 from catalog.serializers import CategorySerializer, ProductSerializer
 from catalog.services import BulkImportTemplateService
 from catalog.tasks import enqueue_import_job
@@ -304,6 +312,103 @@ class BulkImportUploadView(AdminAPIView):
             logger.exception('Bulk import upload failed')
             return _bulk_error('The package could not be uploaded. Please try again.', 'BULK_IMPORT_UPLOAD_FAILED', 500)
         return Response(job_data(job), 201)
+
+
+class BulkUploadSessionView(AdminAPIView):
+    """Initialize/status, receive chunks, and finalize resumable ZIP uploads."""
+    required_permissions = ['products.import']
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def _dir(self, session):
+        return Path(settings.MEDIA_ROOT) / '.bulk_uploads' / str(session.pk)
+
+    def _owned(self, request, session_id):
+        return get_object_or_404(BulkUploadSession, pk=session_id, owner=request.user, expires_at__gt=timezone.now())
+
+    def get(self, request, session_id):
+        session = self._owned(request, session_id)
+        have = sorted(int(i) for i in session.received_chunks)
+        return Response({'id': str(session.pk), 'chunk_size': session.chunk_size,
+                         'received_chunks': have, 'missing_chunks': [i for i in range(session.chunk_count) if i not in have],
+                         'chunk_count': session.chunk_count, 'expires_at': session.expires_at.isoformat()})
+
+    def post(self, request, session_id=None):
+        if session_id is None:
+            try:
+                size = int(request.data.get('file_size', 0))
+                max_size = int(getattr(settings, 'BULK_IMPORT_MAX_ZIP_BYTES', 100 * 1024 * 1024))
+                chunk_size = int(getattr(settings, 'BULK_IMPORT_CHUNK_BYTES', 8 * 1024 * 1024))
+                name = get_valid_filename(Path(str(request.data.get('filename', ''))).name)
+                status_value = _import_status(request.data.get('import_status'))
+                if not name.lower().endswith('.zip') or not 0 < size <= max_size:
+                    raise ValueError()
+            except (TypeError, ValueError, BulkImportError):
+                return _bulk_error('Provide a ZIP filename and a valid file size within the configured limit.')
+            session = BulkUploadSession.objects.create(owner=request.user, filename=name, file_size=size,
+                chunk_size=chunk_size, chunk_count=math.ceil(size / chunk_size), import_status=status_value,
+                expires_at=timezone.now() + timedelta(hours=24))
+            self._dir(session).mkdir(parents=True, exist_ok=True)
+            return Response({'id': str(session.pk), 'chunk_size': chunk_size, 'chunk_count': session.chunk_count, 'received_chunks': []}, status=201)
+        session = self._owned(request, session_id)
+        if request.data.get('finalize'):
+            have = set(int(i) for i in session.received_chunks)
+            if len(have) != session.chunk_count:
+                return _bulk_error('Upload is incomplete; resume the missing chunks.')
+            path = self._dir(session)
+            assembled = path / 'package.zip'
+            try:
+                with assembled.open('wb') as output:
+                    for index in range(session.chunk_count):
+                        with (path / str(index)).open('rb') as part:
+                            while True:
+                                block = part.read(1024 * 1024)
+                                if not block: break
+                                output.write(block)
+                if assembled.stat().st_size != session.file_size:
+                    return _bulk_error('Assembled package size does not match the upload.')
+                from django.core.files import File
+                with assembled.open('rb') as source:
+                    job = BulkProductImportService.create_job(File(source, name=session.filename), request.user,
+                        import_status=session.import_status)
+                session.delete()
+                import shutil
+                shutil.rmtree(path, ignore_errors=True)
+                return Response(job_data(job), status=201)
+            except BulkImportError as exc:
+                return _bulk_error(exc)
+            except Exception:
+                logger.exception('Bulk import chunk assembly failed')
+                return _bulk_error('The package could not be finalized. Please retry.', 'BULK_IMPORT_FINALIZE_FAILED', 500)
+        try:
+            index = int(request.data.get('index'))
+            part = request.FILES.get('chunk')
+            if part is None or index < 0 or index >= session.chunk_count:
+                raise ValueError()
+            expected = min(session.chunk_size, session.file_size - index * session.chunk_size)
+            if part.size != expected:
+                return _bulk_error('Chunk size is invalid.')
+            raw = part.read()
+            digest = hashlib.sha256(raw).hexdigest()
+            supplied = request.data.get('sha256')
+            if supplied and supplied != digest:
+                return _bulk_error('Chunk checksum verification failed.')
+            with transaction.atomic():
+                locked = BulkUploadSession.objects.select_for_update().get(pk=session.pk, owner=request.user)
+                directory = self._dir(locked)
+                directory.mkdir(parents=True, exist_ok=True)
+                target = directory / str(index)
+                if target.exists():
+                    if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                        return _bulk_error('A different chunk already exists at this index.')
+                else:
+                    temp = directory / (str(index) + '.tmp')
+                    with temp.open('wb') as output: output.write(raw)
+                    os.replace(temp, target)
+                locked.received_chunks = sorted(set(int(i) for i in locked.received_chunks) | {index})
+                locked.save(update_fields=['received_chunks'])
+            return Response({'received': index, 'sha256': digest})
+        except (TypeError, ValueError, BulkUploadSession.DoesNotExist):
+            return _bulk_error('Invalid chunk request.')
 
 
 class BulkImportValidateView(AdminAPIView):

@@ -10,7 +10,7 @@ from .views import (AdminCategoryCreateView, AdminNotificationReadView,
                     BulkImportPreviewView, BulkImportProcessView,
                     BulkImportReportView, BulkImportStatusView,
                     BulkImportTemplateView, BulkImportUploadView,
-                    BulkImportValidateView, EmailSweepView,
+                    BulkImportValidateView, BulkUploadSessionView, EmailSweepView,
                     ExpireReservationsView, ReplicaSyncView)
 
 
@@ -49,6 +49,8 @@ urlpatterns = [
          BulkImportTemplateView.as_view(), name='admin-bulk-import-template'),
     path('admin/bulk-import/upload',
          BulkImportUploadView.as_view(), name='admin-bulk-import-upload'),
+    path('admin/bulk-import/sessions', BulkUploadSessionView.as_view(), name='admin-bulk-upload-session'),
+    path('admin/bulk-import/sessions/<uuid:session_id>', BulkUploadSessionView.as_view(), name='admin-bulk-upload-session-detail'),
     path('admin/bulk-import/history',
          BulkImportHistoryView.as_view(), name='admin-bulk-import-history'),
     path('admin/bulk-import/<uuid:job_id>/validate',

@@ -143,6 +143,20 @@ class ProductImportLog(models.Model):
         return f"Import log {self.filename} ({self.rows_success}/{self.rows_total})"
 
 
+class BulkUploadSession(models.Model):
+    """Temporary, owner-bound chunks for an admin ZIP import."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.CASCADE)
+    filename = models.CharField(max_length=255)
+    file_size = models.PositiveBigIntegerField()
+    chunk_size = models.PositiveIntegerField()
+    chunk_count = models.PositiveIntegerField()
+    import_status = models.CharField(max_length=10, default='DRAFT')
+    received_chunks = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+
 class ImportJob(models.Model):
     class Status(models.TextChoices):
         UPLOADED = 'UPLOADED', 'Uploaded'

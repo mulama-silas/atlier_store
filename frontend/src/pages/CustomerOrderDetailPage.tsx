@@ -230,7 +230,10 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
 
   useEffect(() => {
     const receiptVisible =
-      order && order.status !== "pending" && order.status !== "cancelled";
+      order &&
+      ["confirmed", "processing", "shipped", "delivered", "received"].includes(
+        order.status.toLowerCase(),
+      );
     if (!receiptVisible) {
       setReceipt(null);
       setReceiptError("");
@@ -250,7 +253,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
           setReceipt(data);
           return;
         }
-        setReceiptError("The official invoice is not available yet.");
+        setReceiptError("The receipt is not available yet.");
       })
       .catch((err) => {
         if (cancelled) return;
@@ -262,11 +265,11 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
           receiptApiError.status === 404 &&
           receiptApiError.code === "RECEIPT_NOT_FOUND"
         ) {
-          setReceiptError("The official invoice is being generated.");
+          setReceiptError("The receipt is being generated.");
           return;
         }
         setReceiptError(
-          receiptApiError.message || "The official invoice could not be checked.",
+          receiptApiError.message || "The receipt could not be checked.",
         );
       })
       .finally(() => {
@@ -660,37 +663,23 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                     Track Shipment
                   </Button>
 
-                  {receiptLoading ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled
-                      className="w-full rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#827E77] gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                      Checking Invoice...
-                    </Button>
-                  ) : receipt ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      isLoading={downloading}
-                      onClick={() => void handleDownloadReceipt()}
-                      className="w-full rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716] gap-2"
-                    >
-                      <Download className="h-4 w-4 text-[#827E77]" />
-                      {downloading ? "Downloading..." : "Download Invoice"}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void handleDownloadReceipt()}
-                      className="w-full rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716] gap-2"
-                    >
-                      <Download className="h-4 w-4 text-[#827E77]" />
-                      Download Invoice
-                    </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={receiptLoading || downloading || !receipt}
+                    isLoading={receiptLoading || downloading}
+                    onClick={() => void handleDownloadReceipt()}
+                    className="w-full rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716] gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {!receiptLoading && !downloading && <Download className="h-4 w-4 text-[#827E77]" aria-hidden="true" />}
+                    {receiptLoading ? "Preparing Receipt..." : downloading ? "Downloading Receipt..." : "Download Receipt"}
+                  </Button>
+                  {!receipt && !receiptLoading && !receiptError && !["confirmed", "processing", "shipped", "delivered", "received"].includes(order.status.toLowerCase()) && (
+                    <p className="text-center text-[11px] leading-5 text-[#827E77]">
+                      {order.status.toLowerCase() === "cancelled"
+                        ? "Receipts are unavailable for cancelled orders."
+                        : "Your receipt will be available once your order is confirmed."}
+                    </p>
                   )}
 
                   <div className="pt-2 text-center">
@@ -722,7 +711,7 @@ export const CustomerOrderDetailPage: React.FC<CustomerOrderDetailPageProps> = (
                   </div>
 
                   {receiptError && (
-                    <p className="mt-2 text-center text-xs text-[#827E77]">
+                    <p role="alert" className="mt-2 text-center text-xs text-[#9E332B]">
                       {receiptError}
                     </p>
                   )}

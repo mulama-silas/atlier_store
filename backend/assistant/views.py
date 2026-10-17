@@ -29,7 +29,6 @@ def _parse_uuid(value):
     except (ValueError, TypeError, AttributeError):
         return ''
 
-
 def _session_ident(request):
     """Opaque guest identity: Django session key, else the cart id header."""
     session_key = ''
@@ -38,7 +37,6 @@ def _session_ident(request):
     except Exception:  # noqa: BLE001 - sessions are optional
         session_key = ''
     return session_key or (request.headers.get('x-cart-id') or '')
-
 
 def _tool_context(request):
     user = request.user if getattr(request.user, 'is_authenticated', False) else None
