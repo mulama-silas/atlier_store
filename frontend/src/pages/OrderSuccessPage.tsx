@@ -380,11 +380,11 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                 </div>
 
                 {/* Action Buttons Row */}
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="mt-7 grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                   <Button
                     type="button"
                     onClick={() => navigate(`/track?order=${encodeURIComponent(refCode)}`)}
-                    className="w-full flex-1 rounded-xl bg-[#A2574F] py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#83443D] active:scale-[0.99]"
+                    className="h-auto min-h-11 w-full whitespace-normal rounded-xl bg-[#A2574F] px-3 py-2.5 text-center text-xs font-semibold leading-tight text-white shadow-sm transition-all hover:bg-[#83443D] active:scale-[0.99] sm:text-sm"
                   >
                     Track Your Order
                   </Button>
@@ -394,7 +394,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       type="button"
                       variant="outline"
                       disabled
-                      className="w-full flex-1 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#827E77]"
+                      className="h-auto min-h-11 w-full whitespace-normal rounded-xl border-[#E8E5DF] px-3 py-2.5 text-center text-xs font-medium leading-tight text-[#827E77] sm:text-sm"
                     >
                       Checking Receipt...
                     </Button>
@@ -404,9 +404,9 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       variant="outline"
                       isLoading={downloading}
                       onClick={() => void handleDownloadReceipt()}
-                      className="w-full flex-1 gap-2 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716]"
+                      className="h-auto min-h-11 w-full gap-2 whitespace-normal rounded-xl border-[#E8E5DF] px-3 py-2.5 text-center text-xs font-medium leading-tight text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716] sm:text-sm"
                     >
-                      <Download className="h-4 w-4 text-[#827E77]" />
+                      <Download className="h-4 w-4 shrink-0 text-[#827E77]" />
                       {downloading ? 'Downloading...' : 'Download Receipt'}
                     </Button>
                   ) : (
@@ -414,9 +414,9 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                       type="button"
                       variant="outline"
                       disabled
-                      className="w-full flex-1 gap-2 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#A29E96]"
+                      className="h-auto min-h-11 w-full gap-2 whitespace-normal rounded-xl border-[#E8E5DF] px-3 py-2.5 text-center text-xs font-medium leading-tight text-[#A29E96] sm:text-sm"
                     >
-                      <Download className="h-4 w-4 text-[#A29E96]" />
+                      <Download className="h-4 w-4 shrink-0 text-[#A29E96]" />
                       Download Receipt
                     </Button>
                   )}
@@ -425,7 +425,7 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
                     type="button"
                     variant="outline"
                     onClick={() => navigate('/shop')}
-                    className="w-full flex-1 rounded-xl border-[#E8E5DF] py-2.5 text-sm font-medium text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716]"
+                    className="h-auto min-h-11 w-full whitespace-normal rounded-xl border-[#E8E5DF] px-3 py-2.5 text-center text-xs font-medium leading-tight text-[#3C3934] hover:bg-[#FAF9F6] hover:text-[#181716] sm:col-span-2 sm:text-sm xl:col-span-1"
                   >
                     Continue Shopping
                   </Button>
