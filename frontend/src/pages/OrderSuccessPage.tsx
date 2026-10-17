@@ -12,7 +12,7 @@ import {
 import { Button } from '../components/modeza';
 import { useOrders } from '../context/OrdersContext';
 import { useRouter } from '../router/RouterContext';
-import { ProductImage } from '../components/ui/ProductImage';
+import { OrderItemRows } from '../components/orders/OrderItemRows';
 import { api } from '../services/apiClient';
 import { formatPrice } from '../utils/currency';
 import { mapServerOrder } from '../utils/orderMapper';
@@ -183,6 +183,11 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
   const customerName = resolvedOrder?.customer?.firstName || 'there';
   const currentRank = resolvedOrder ? getTimelineRank(resolvedOrder.status) : 1;
   const paymentInfo = getPaymentMethodDisplay(resolvedOrder?.paymentMethod);
+  const orderStatusLabel = resolvedOrder?.status === 'shipped'
+    ? 'In transit'
+    : resolvedOrder?.status
+      ? `${resolvedOrder.status.charAt(0).toUpperCase()}${resolvedOrder.status.slice(1)}`
+      : '';
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-[#181716] antialiased">
@@ -437,41 +442,18 @@ export const OrderSuccessPage: React.FC<OrderSuccessPageProps> = ({ orderNumber 
             {/* Right Column: Order Summary Card */}
             <div className="lg:col-span-5">
               <div className="overflow-hidden rounded-2xl border border-[#E8E5DF] bg-white p-5 shadow-[0_2px_14px_rgba(0,0,0,0.04)] sm:p-7">
-                <h2 className="text-base font-bold text-[#181716] sm:text-lg">
-                  Order Summary
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-base font-bold text-[#181716] sm:text-lg">
+                    Order Items ({resolvedOrder.items.length})
+                  </h2>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold ${resolvedOrder.status === 'delivered' || resolvedOrder.status === 'received' ? 'border-[#C5D9CB] bg-[#F2F8F4] text-[#2E5A44]' : resolvedOrder.status === 'cancelled' ? 'border-[#F8B4B4] bg-[#FDF2F2] text-[#9E332B]' : 'border-[#D8B1A5] bg-[#F4ECE9] text-[#83443D]'}`}>
+                    {orderStatusLabel}
+                  </span>
+                </div>
 
                 {/* Items List */}
-                <div className="mt-4 divide-y divide-[#F3F1ED]">
-                  {resolvedOrder.items.map((item) => (
-                    <div key={item.id} className="flex min-w-0 items-center gap-2.5 py-3.5 sm:gap-3.5">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#F3F1ED] bg-[#FAF9F6] p-1 sm:h-16 sm:w-16">
-                        <ProductImage
-                          src={item.image}
-                          alt={item.productName}
-                          className="h-full w-full object-contain"
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="line-clamp-2 break-words text-xs font-semibold leading-4 text-[#181716] sm:text-sm sm:leading-5">
-                          {item.productName}
-                        </h3>
-                        {item.variantDetails && (
-                          <p className="mt-0.5 text-xs text-[#A29E96]">
-                            Size: {item.variantDetails}
-                          </p>
-                        )}
-                        <p className="mt-0.5 text-xs text-[#827E77]">
-                          Qty: {item.quantity}
-                        </p>
-                      </div>
-                      <div className="max-w-[5.5rem] shrink-0 break-words text-right sm:max-w-none">
-                        <span className="text-xs font-semibold text-[#181716] sm:text-sm">
-                          {formatPrice(item.subtotal)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="mt-4">
+                  <OrderItemRows order={resolvedOrder} showTrackAction={false} />
                 </div>
 
                 {/* Pricing Breakdown */}

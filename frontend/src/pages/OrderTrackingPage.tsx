@@ -34,7 +34,7 @@ import {
 } from '../components/modeza';
 import { useOrders } from '../context/OrdersContext';
 import { useRouter } from '../router/RouterContext';
-import { ProductImage } from '../components/ui/ProductImage';
+import { OrderItemRows } from '../components/orders/OrderItemRows';
 import { api } from '../services/apiClient';
 import { formatPrice } from '../utils/currency';
 import { mapServerOrder } from '../utils/orderMapper';
@@ -497,29 +497,15 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A2574F]">
                     In your parcel
                   </p>
-                  <h2 className="mt-1 font-serif text-xl text-[#181716]">Order items</h2>
+                  <h2 className="mt-1 font-serif text-xl text-[#181716]">Order Items ({activeOrder.items.length})</h2>
                 </div>
                 <Badge variant="outline" size="sm">
                   {activeOrder.items.reduce((sum, item) => sum + item.quantity, 0)} pieces
                 </Badge>
               </div>
-              <ul className="mt-4 divide-y divide-[#F3F1ED]">
-                {activeOrder.items.map((item) => (
-                  <li key={item.id} className="flex flex-wrap items-center justify-between gap-4 py-4 last:pb-0">
-                    <div className="flex min-w-0 flex-1 items-center gap-4">
-                      <ProductImage src={item.image} alt={item.productName} className="h-20 w-16 shrink-0 rounded-xl" />
-                      <div className="min-w-0">
-                        <h3 className="break-words font-serif text-sm text-[#181716]">{item.productName}</h3>
-                        <p className="mt-1 text-xs text-[#827E77]">{item.variantDetails || '—'}</p>
-                        <p className="mt-1 text-xs text-[#63605A]">
-                          Qty {item.quantity} × {formatPrice(item.unitPrice)}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-sm font-medium text-[#181716]">{formatPrice(item.subtotal)}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-4">
+                <OrderItemRows order={activeOrder} showTrackAction={false} />
+              </div>
             </Card>
           </div>
 

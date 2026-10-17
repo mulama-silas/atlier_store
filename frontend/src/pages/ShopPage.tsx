@@ -504,36 +504,46 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="grid items-start gap-7 lg:grid-cols-[14rem_minmax(0,1fr)] xl:gap-9">
+      <div className="grid items-start gap-7 lg:grid-cols-[17rem_minmax(0,1fr)] xl:gap-9">
         <aside className="hidden lg:block" aria-label="Product filters">
-          <Card
-            className="sticky top-24 h-[calc(100dvh-7rem)] space-y-6 overflow-y-auto overscroll-contain rounded-xl border-[#E8E5DF] bg-white p-4 shadow-sm"
-            role="region"
-            tabIndex={0}
-            aria-label="Scrollable product filters"
-          >
-            <section aria-labelledby="desktop-categories-heading">
-              <h2 id="desktop-categories-heading" className="mb-2 text-sm font-semibold text-[#181716]">Categories</h2>
-              <div className="space-y-1">
-                <button type="button" onClick={() => { setSelectedCategory("all"); setPage(1); }} aria-pressed={selectedCategory === "all"} className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${selectedCategory === "all" ? "bg-[#F1F0EE] font-semibold text-[#181716]" : "text-[#63605A] hover:bg-[#FAF9F6]"}`}>All products</button>
-                {shopCategories.map((category) => <button key={category.slug} type="button" onClick={() => { setSelectedCategory(category.slug); setPage(1); }} aria-pressed={selectedCategory === category.slug} className={`w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${selectedCategory === category.slug ? "bg-[#F1F0EE] font-semibold text-[#181716]" : "text-[#63605A] hover:bg-[#FAF9F6]"}`}>{category.name}</button>)}
+          <Card className="sticky top-24 flex h-[calc(100dvh-7rem)] min-h-0 flex-col overflow-hidden shadow-sm">
+            <div className="flex shrink-0 items-center gap-3 border-b border-[#F3F1ED] bg-[#FAF9F6] px-5 py-5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F4ECE9] text-[#A2574F]">
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">Collection</p>
+                <h2 className="mt-0.5 truncate font-serif text-lg leading-tight text-[#181716]">Refine pieces</h2>
               </div>
-            </section>
-            <section className="border-t border-[#EEEAE3] pt-5" aria-labelledby="desktop-price-heading">
-              <h2 id="desktop-price-heading" className="mb-3 text-sm font-semibold text-[#181716]">Price range</h2>
-              <div className="grid grid-cols-2 gap-2">
-                <Input id="filter-min-price-desktop" type="number" min="0" step="1" placeholder="Min KSh" aria-label="Minimum price in Kenyan shillings" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} className="h-9 min-w-0 bg-[#FAF9F6] px-2 text-xs" />
-                <Input id="filter-max-price-desktop" type="number" min="0" step="1" placeholder="Max KSh" aria-label="Maximum price in Kenyan shillings" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} className="h-9 min-w-0 bg-[#FAF9F6] px-2 text-xs" />
+            </div>
+            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5" role="region" tabIndex={0} aria-label="Scrollable product filters">
+              <div className="space-y-5">
+                <section aria-labelledby="desktop-categories-heading">
+                  <h3 id="desktop-categories-heading" className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">Categories</h3>
+                  <div className="space-y-1">
+                    <button type="button" onClick={() => { setSelectedCategory("all"); setPage(1); }} aria-pressed={selectedCategory === "all"} className={`w-full rounded-md px-3 py-2.5 text-left text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${selectedCategory === "all" ? "bg-[#F4ECE9] font-semibold text-[#83443D]" : "text-[#63605A] hover:bg-[#FAF9F6] hover:text-[#181716]"}`}>All products</button>
+                    {shopCategories.map((category) => <button key={category.slug} type="button" onClick={() => { setSelectedCategory(category.slug); setPage(1); }} aria-pressed={selectedCategory === category.slug} className={`w-full rounded-md px-3 py-2.5 text-left text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] ${selectedCategory === category.slug ? "bg-[#F4ECE9] font-semibold text-[#83443D]" : "text-[#63605A] hover:bg-[#FAF9F6] hover:text-[#181716]"}`}>{category.name}</button>)}
+                  </div>
+                </section>
+                <section className="border-t border-[#F3F1ED] pt-5" aria-labelledby="desktop-price-heading">
+                  <h3 id="desktop-price-heading" className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">Price range</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input id="filter-min-price-desktop" type="number" min="0" step="1" placeholder="Min KSh" aria-label="Minimum price in Kenyan shillings" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} className="h-9 min-w-0 bg-[#FAF9F6] px-2 text-xs" />
+                    <Input id="filter-max-price-desktop" type="number" min="0" step="1" placeholder="Max KSh" aria-label="Maximum price in Kenyan shillings" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} className="h-9 min-w-0 bg-[#FAF9F6] px-2 text-xs" />
+                  </div>
+                </section>
+                <section className="space-y-3 border-t border-[#F3F1ED] pt-5" aria-label="More filters">
+                  <label htmlFor="in-stock-sidebar" className="flex cursor-pointer items-center gap-2 px-2 text-[13px] text-[#63605A]">
+                    <Checkbox id="in-stock-sidebar" checked={onlyInStock} onCheckedChange={(checked) => setOnlyInStock(checked === true)} />In stock only
+                  </label>
+                  <SortSelect id="filter-size-sidebar" value={selectedSize} onChange={(event) => setSelectedSize(event.target.value)} options={[{ value: "", label: "All sizes" }, ...facets.sizes.map((size) => ({ value: size, label: size }))]} aria-label="Filter by size" className="h-9 bg-[#FAF9F6] py-0 text-xs" />
+                  <SortSelect id="filter-color-sidebar" value={selectedColor} onChange={(event) => setSelectedColor(event.target.value)} options={[{ value: "", label: "All colors" }, ...facets.colors.map((color) => ({ value: color, label: color }))]} aria-label="Filter by color" className="h-9 bg-[#FAF9F6] py-0 text-xs" />
+                </section>
               </div>
-            </section>
-            <section className="space-y-3 border-t border-[#EEEAE3] pt-5" aria-label="More filters">
-              <label htmlFor="in-stock-sidebar" className="flex cursor-pointer items-center gap-2 text-xs text-[#3F4741]">
-                <Checkbox id="in-stock-sidebar" checked={onlyInStock} onCheckedChange={(checked) => setOnlyInStock(checked === true)} />In stock only
-              </label>
-              <SortSelect id="filter-size-sidebar" value={selectedSize} onChange={(event) => setSelectedSize(event.target.value)} options={[{ value: "", label: "All sizes" }, ...facets.sizes.map((size) => ({ value: size, label: size }))]} aria-label="Filter by size" className="h-9 bg-[#FAF9F6] py-0 text-xs" />
-              <SortSelect id="filter-color-sidebar" value={selectedColor} onChange={(event) => setSelectedColor(event.target.value)} options={[{ value: "", label: "All colors" }, ...facets.colors.map((color) => ({ value: color, label: color }))]} aria-label="Filter by color" className="h-9 bg-[#FAF9F6] py-0 text-xs" />
-            </section>
-            {hasActiveFilters && <Button type="button" variant="ghost" size="sm" fullWidth onClick={clearFilters} className="text-[#9E332B] hover:bg-[#FDF2F2]">Clear all filters</Button>}
+            </div>
+            <div className="shrink-0 border-t border-[#F3F1ED] p-4">
+              <Button type="button" variant="ghost" size="sm" fullWidth disabled={!hasActiveFilters} onClick={clearFilters} className="text-[#9E332B] hover:bg-[#FDF2F2] disabled:text-[#A29E96]">Clear all filters</Button>
+            </div>
           </Card>
         </aside>
         <div

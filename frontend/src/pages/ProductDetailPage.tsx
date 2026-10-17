@@ -86,6 +86,14 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ slug, onQu
   const [isFetchingProduct, setIsFetchingProduct] = useState(false);
   const product = catalogProduct || fetchedProduct || undefined;
 
+  useEffect(() => {
+    if (!product || window.location.hash !== '#product-reviews') return;
+    const timeoutId = window.setTimeout(() => {
+      document.getElementById('product-reviews')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    return () => window.clearTimeout(timeoutId);
+  }, [product, slug]);
+
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selections, setSelections] = useState<VariantSelections>({});
   const [quantity, setQuantity] = useState(1);

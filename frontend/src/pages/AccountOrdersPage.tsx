@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, Check, Package, RefreshCw, Search, ShoppingBag, Truck, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, Package, RefreshCw, Search, ShoppingBag, X } from 'lucide-react';
 import { useOrders } from '../context/OrdersContext';
-import { useStore } from '../context/StoreContext';
 import { useRouter } from '../router/RouterContext';
 import { AccountPageHeader } from '../components/account/AccountPageHeader';
 import { Button } from '../components/modeza/Button';
@@ -21,9 +20,9 @@ import { Input } from '../components/modeza/Input';
 import { Progress } from '../components/modeza/Progress';
 import { Tabs, TabsList, TabsTrigger } from '../components/modeza/Tabs';
 import { OrderProgress } from '../components/orders/OrderProgress';
-import { OrderItemThumb } from '../components/orders/OrderItemThumb';
+import { OrderItemRows } from '../components/orders/OrderItemRows';
 import { api } from '../services/apiClient';
-import { Order, OrderItem } from '../types';
+import { Order } from '../types';
 import { formatPrice } from '../utils/currency';
 import {
   formatOrderDate,
@@ -32,7 +31,6 @@ import {
 } from '../utils/orderMapper';
 import {
   isActiveOrder,
-  isTrackable,
   canMarkReceived,
   ORDER_STATUS_META,
   STATUS_FILTER_GROUPS,
@@ -55,12 +53,8 @@ interface OrderCardProps {
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingReceived }) => {
   const { navigate } = useRouter();
-  const { getProductById } = useStore();
-
   const totalItems = totalQuantity(order);
   const items = order.items;
-  const visibleItems = items.slice(0, 4);
-  const hiddenCount = items.length - visibleItems.length;
   const isActive = isActiveOrder(order.status);
   const statusMeta = ORDER_STATUS_META[order.status];
 
@@ -82,17 +76,6 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingR
   }, [order]);
 
   const openDetails = () => navigate(`/account/orders/${encodeURIComponent(order.orderNumber)}`);
-  const openTrack = () => navigate(`/track?order=${encodeURIComponent(order.orderNumber)}`);
-
-  const openProduct = (item: OrderItem) => {
-    const product = item.productId ? getProductById(item.productId) : undefined;
-    if (product) {
-      navigate(`/product/${product.slug}`);
-    } else {
-      openDetails();
-    }
-  };
-
   return (
     <article aria-label={`Order ${order.orderNumber}`}>
       <Card className="overflow-hidden border-[#E8E5DF] shadow-xs">
@@ -134,35 +117,11 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingR
         <CardContent className="p-0">
           <div className="px-5 py-5 sm:px-6">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">Items in this order</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">Order items ({items.length})</p>
               <span className="text-[10px] uppercase tracking-[0.14em] text-[#A29E96]">{items.length} {items.length === 1 ? 'piece' : 'pieces'}</span>
             </div>
-            {visibleItems.length > 0 ? (
-              <div className="flex items-center gap-2.5 overflow-x-auto pb-1 no-scrollbar sm:gap-3" aria-label="Products in this order">
-                {visibleItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => openProduct(item)}
-                    aria-label={`View ${item.productName}`}
-                    title={item.productName}
-                    className="h-16 w-14 shrink-0 overflow-hidden rounded-lg border border-[#E8E5DF] bg-[#F4ECE9] shadow-xs transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 sm:h-20 sm:w-[4.5rem] image-zoom"
-                  >
-                    <OrderItemThumb item={item} className="h-full w-full" />
-                  </button>
-                ))}
-                {hiddenCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={openDetails}
-                    aria-label={`${hiddenCount} more ${hiddenCount === 1 ? 'item' : 'items'}`}
-                    className="flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-lg border border-[#E8E5DF] bg-[#FAF9F6] text-[#181716] transition-colors hover:bg-[#F4ECE9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F] focus-visible:ring-offset-2 sm:h-20 sm:w-[4.5rem]"
-                  >
-                    <span className="font-serif text-lg leading-none">+{hiddenCount}</span>
-                    <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-[#827E77]">more</span>
-                  </button>
-                )}
-              </div>
+            {items.length > 0 ? (
+              <OrderItemRows order={order} showSubtotal />
             ) : (
               <div className="rounded-xl border border-dashed border-[#D8D3CB] bg-[#FAF9F6] px-4 py-5 text-center text-sm text-[#63605A]">
                 No product details are available for this order.
@@ -206,7 +165,15 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingR
           </div>
         </CardContent>
 
-        <CardFooter className="flex-col gap-2.5 border-t border-[#F3F1ED] p-5 sm:flex-row sm:items-center sm:justify-end sm:p-6">
+        <CardFooter className="flex-col gap-2.5 border-t border-[#F3F1ED] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <button
+            type="button"
+            onClick={() => navigate('/contact')}
+            className="text-left text-xs font-medium text-[#827E77] transition-colors hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+          >
+            Need help? Contact MODEZA
+          </button>
+          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
           {canMarkReceived(order.status, order.paymentMethod) && (
             <Button
               type="button"
@@ -219,16 +186,11 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingR
               {isMarkingReceived ? 'Updating…' : 'Mark as received'}
             </Button>
           )}
-          {isTrackable(order.status) && (
-            <Button type="button" variant="modeza-outline" size="sm" onClick={openTrack} className="w-full gap-1.5 sm:w-auto">
-              <Truck className="h-3.5 w-3.5" aria-hidden="true" />
-              Track Order
-            </Button>
-          )}
           <Button type="button" variant="primary" size="sm" onClick={openDetails} className="w-full gap-1.5 sm:w-auto">
-            View Order
+            View Order Details
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
+          </div>
         </CardFooter>
       </Card>
       <span className="sr-only">
