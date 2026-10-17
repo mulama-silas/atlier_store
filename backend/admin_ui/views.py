@@ -839,8 +839,8 @@ class AdminPageView(View):
         'inventory': {
             'title': 'Inventory',
             'subtitle': 'Monitor and manage product inventory.',
-            'primary_action': '+ Adjust Stock',
-            'primary_url': '/admin/dashboard/inventory/adjust/',
+            'primary_action': '+ Add Inventory Item',
+            'primary_url': '/admin/dashboard/variants/new/',
             'filters': ['Stock status', 'Category', 'Collection'],
             'columns': ['Product', 'SKU', 'Category', 'Current Stock', 'Low Stock Threshold', 'Status', 'Actions'],
             'rows': [],
@@ -1265,21 +1265,31 @@ class AdminPageView(View):
                     | Q(product__name__icontains=query)
                     | Q(product__category__name__icontains=query)
                 )
-            for variant in variants:
+            stock_filter = request.GET.get('stock', '')
+            if stock_filter == 'in-stock': variants = variants.filter(stock_quantity__gt=0)
+            elif stock_filter == 'low-stock': variants = variants.filter(stock_quantity__gt=0, stock_quantity__lte=3)
+            elif stock_filter == 'out-of-stock': variants = variants.filter(stock_quantity__lte=0)
+            category_filter = request.GET.get('category', '')
+            if category_filter: variants = variants.filter(product__category__slug=category_filter)
+            inventory_page = Paginator(variants, 25).get_page(request.GET.get('page'))
+            for variant in inventory_page.object_list:
                 product = variant.product
                 stock = variant.stock_quantity
                 inventory_rows.append({
                     'id': str(product.pk),
+                    'variant_id': str(variant.pk),
+                    'product_id': str(product.pk),
                     'name': product.name,
                     'sku': variant.sku,
                     'category': product.category.name,
                     'stock': str(stock),
                     'threshold': '3',
-                    'status': 'Low Stock' if stock <= 3 else 'In Stock' if stock > 0 else 'Out of Stock',
+                    'status': 'Out of Stock' if stock <= 0 else 'Low Stock' if stock <= 3 else 'In Stock',
                     'actions': 'View',
                 })
             page_data = dict(page_data)
             page_data['rows'] = inventory_rows
+            page_data['list_page'] = inventory_page
 
         if page == 'variants':
             variant_rows = []
@@ -1291,7 +1301,14 @@ class AdminPageView(View):
                     | Q(product__name__icontains=query)
                     | Q(product__category__name__icontains=query)
                 )
-            for variant in variants:
+            stock_filter = request.GET.get('stock', '')
+            if stock_filter == 'in-stock': variants = variants.filter(stock_quantity__gt=0)
+            elif stock_filter == 'low-stock': variants = variants.filter(stock_quantity__gt=0, stock_quantity__lte=3)
+            elif stock_filter == 'out-of-stock': variants = variants.filter(stock_quantity__lte=0)
+            category_filter = request.GET.get('category', '')
+            if category_filter: variants = variants.filter(product__category__slug=category_filter)
+            variant_page = Paginator(variants, 25).get_page(request.GET.get('page'))
+            for variant in variant_page.object_list:
                 product = variant.product
                 stock = variant.stock_quantity
                 price = Decimal(variant.price_minor or 0) / Decimal(100)
@@ -1304,11 +1321,12 @@ class AdminPageView(View):
                     'color': variant.color or '',
                     'price': f'KES {price:.2f}',
                     'stock': str(stock),
-                    'status': 'Low Stock' if stock <= 3 else 'In Stock' if stock > 0 else 'Out of Stock',
+                    'status': 'Out of Stock' if stock <= 0 else 'Low Stock' if stock <= 3 else 'In Stock',
                     'actions': 'View',
                 })
             page_data = dict(page_data)
             page_data['rows'] = variant_rows
+            page_data['list_page'] = variant_page
 
         if page == 'orders':
             order_rows = []
@@ -1440,6 +1458,17 @@ class AdminPageView(View):
             if query:
                 users = users.filter(Q(username__icontains=query) | Q(email__icontains=query) | Q(
                     first_name__icontains=query) | Q(last_name__icontains=query))
+            customer_status = request.GET.get('customer_status', '')
+            if customer_status == 'active': users = users.filter(is_active=True)
+            elif customer_status == 'inactive': users = users.filter(is_active=False)
+            date_from, date_to = request.GET.get('date_from'), request.GET.get('date_to')
+            if date_from:
+                try: users = users.filter(date_joined__date__gte=datetime.fromisoformat(date_from).date())
+                except ValueError: date_from = ''
+            if date_to:
+                try: users = users.filter(date_joined__date__lte=datetime.fromisoformat(date_to).date())
+                except ValueError: date_to = ''
+            if request.GET.get('sort') == 'oldest': users = users.order_by('date_joined')
             for u in users:
                 last_order = u.orders.order_by('-created_at').first()
                 spent = Decimal(u.total_spent or 0) / Decimal(100)
@@ -1464,6 +1493,9 @@ class AdminPageView(View):
             if query:
                 admins = admins.filter(
                     Q(username__icontains=query) | Q(email__icontains=query))
+            admin_status = request.GET.get('admin_status', '')
+            if admin_status == 'active': admins = admins.filter(is_active=True)
+            elif admin_status == 'inactive': admins = admins.filter(is_active=False)
             for a in admins:
                 profile = getattr(a, 'staff_profile', None)
                 role_names = sorted(
@@ -1574,7 +1606,26 @@ class AdminPageView(View):
             'products_page': products_page if page == 'products' else None,
             'show_products_pagination': (
                 page == 'products' and products_page.paginator.num_pages > 1),
+            'list_query_string': urlencode({k: v for k, v in request.GET.items() if k != 'page'}),
+            'list_page': page_data.get('list_page'),
+            'categories': Category.objects.order_by('name'),
+            'can_adjust_inventory': user_has_permission(request.user, 'inventory.adjust'),
+            'can_create_variants': (user_has_permission(request.user, 'variants.create')
+                                    or user_has_permission(request.user, 'products.update')),
+            'can_update_variants': (user_has_permission(request.user, 'variants.update')
+                                    or user_has_permission(request.user, 'products.update')),
+            'can_delete_variants': (user_has_permission(request.user, 'variants.delete')
+                                    or user_has_permission(request.user, 'products.update')),
         }
+        if page == 'inventory' and not page_context['can_create_variants']:
+            page_context['primary_action'] = ''
+
+        # All other populated admin tables are paged too; the source rows here
+        # are bounded to a single view before rendering.
+        if page != 'products' and page_context['list_page'] is None and len(page_context['rows']) > 25:
+            list_page = Paginator(page_context['rows'], 25).get_page(request.GET.get('page'))
+            page_context['list_page'] = list_page
+            page_context['rows'] = list(list_page.object_list)
 
         return render(request, self.template_name, {
             'page_data': page_context,
@@ -3143,7 +3194,7 @@ class StockAdjustmentPageView(View):
             adjust_stock(data['variant'].id, data['delta'],
                          data['reason'], request.user)
             messages.success(request, 'Inventory updated.')
-            return redirect('admin-dashboard')
+            return redirect('admin-inventory')
         return self.render_form(request, form)
 
     def render_form(self, request, form):

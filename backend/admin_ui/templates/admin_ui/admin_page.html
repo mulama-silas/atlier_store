@@ -221,18 +221,19 @@
             <option value="{{ value }}" {% if page_data.promo_status == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
-        {% else %}
-          {% for filter in page_data.filters %}
-            {% if filter != 'Search products' and filter != 'Search categories' and filter != 'Search order number' and filter != 'Search customer' and filter != 'Search customers' %}
-            <select class="form-control" style="width: auto; padding: 6px 12px; font-size: 13px;">
-              <option>{{ filter }}</option>
-            </select>
-            {% endif %}
-          {% endfor %}
+        {% elif page_data.page == 'inventory' or page_data.page == 'variants' %}
+          <select name="category" class="form-control" aria-label="Filter by category"><option value="">All categories</option>{% for category in page_data.categories %}<option value="{{ category.slug }}" {% if request.GET.category == category.slug %}selected{% endif %}>{{ category.name }}</option>{% endfor %}</select>
+          <select name="stock" class="form-control" aria-label="Filter by stock"><option value="">Any stock level</option><option value="in-stock" {% if request.GET.stock == 'in-stock' %}selected{% endif %}>In stock</option><option value="low-stock" {% if request.GET.stock == 'low-stock' %}selected{% endif %}>Low stock</option><option value="out-of-stock" {% if request.GET.stock == 'out-of-stock' %}selected{% endif %}>Out of stock</option></select>
+        {% elif page_data.page == 'customers' %}
+          <select name="customer_status" class="form-control" aria-label="Customer status"><option value="">All customers</option><option value="active" {% if request.GET.customer_status == 'active' %}selected{% endif %}>Active</option><option value="inactive" {% if request.GET.customer_status == 'inactive' %}selected{% endif %}>Inactive</option></select>
+          <input type="date" name="date_from" value="{{ request.GET.date_from }}" aria-label="Joined from"><input type="date" name="date_to" value="{{ request.GET.date_to }}" aria-label="Joined to">
+          <select name="sort" class="form-control" aria-label="Sort customers"><option value="newest">Newest first</option><option value="oldest" {% if request.GET.sort == 'oldest' %}selected{% endif %}>Oldest first</option></select>
+        {% elif page_data.page == 'admin-users' %}
+          <select name="admin_status" class="form-control" aria-label="Staff status"><option value="">All staff</option><option value="active" {% if request.GET.admin_status == 'active' %}selected{% endif %}>Active</option><option value="inactive" {% if request.GET.admin_status == 'inactive' %}selected{% endif %}>Inactive</option></select>
         {% endif %}
       </div>
       
-      {% if request.GET.q or request.GET.status or request.GET.payment_status or request.GET.category or request.GET.stock or request.GET.sort %}
+      {% if request.GET.q or request.GET.status or request.GET.payment_status or request.GET.category or request.GET.stock or request.GET.sort or request.GET.customer_status or request.GET.admin_status or request.GET.date_from or request.GET.date_to %}
       <a href="?" class="btn btn-secondary" style="padding: 6px 12px;">Clear</a>
       {% endif %}
       <button type="submit" class="btn btn-secondary" style="padding: 6px 12px;"><i class="ph ph-funnel"></i> Filter</button>
@@ -263,6 +264,8 @@
               <!-- skip id -->
             {% elif key == 'product_id' %}
               <!-- internal product reference, not a visible column -->
+            {% elif key == 'variant_id' %}
+              <!-- internal inventory adjustment reference -->
             {% elif key == 'can_approve' %}
               <!-- internal action flag, not a visible column -->
             {% elif key == 'checkbox' %}
@@ -319,7 +322,26 @@
                     <a href="/admin/dashboard/customers/{{ row.id }}/"><i class="ph ph-user"></i> View customer</a>
                   {% elif page_data.page == 'variants' %}
                     <a href="/admin/dashboard/products/{{ row.product_id }}/"><i class="ph ph-eye"></i> View product</a>
+                    {% if page_data.can_update_variants %}
+                    <a href="/admin/dashboard/products/{{ row.product_id }}/variants/{{ row.id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit variant</a>
+                    {% endif %}
+                    {% if page_data.can_adjust_inventory %}
                     <a href="/admin/dashboard/inventory/adjust/?variant={{ row.id }}"><i class="ph ph-arrows-clockwise"></i> Restock</a>
+                    {% endif %}
+                    {% if page_data.can_delete_variants %}
+                    <form method="post" action="/admin/dashboard/products/{{ row.product_id }}/variants/{{ row.id }}/delete/">{% csrf_token %}<button type="submit" onclick="return confirm('Remove this variant? Historical stock and order records will be preserved.');"><i class="ph ph-archive"></i> Remove variant</button></form>
+                    {% endif %}
+                  {% elif page_data.page == 'inventory' %}
+                    <a href="/admin/dashboard/products/{{ row.id }}/"><i class="ph ph-eye"></i> View product</a>
+                    {% if page_data.can_update_variants %}
+                    <a href="/admin/dashboard/products/{{ row.product_id }}/variants/{{ row.variant_id }}/edit/"><i class="ph ph-pencil-simple"></i> Edit inventory item</a>
+                    {% endif %}
+                    {% if page_data.can_adjust_inventory %}
+                    <a href="/admin/dashboard/inventory/adjust/?variant={{ row.variant_id }}"><i class="ph ph-arrows-clockwise"></i> Adjust stock</a>
+                    {% endif %}
+                    {% if page_data.can_delete_variants %}
+                    <form method="post" action="/admin/dashboard/products/{{ row.product_id }}/variants/{{ row.variant_id }}/delete/">{% csrf_token %}<button type="submit" onclick="return confirm('Remove this inventory item? Historical stock and order records will be preserved.');"><i class="ph ph-archive"></i> Remove item</button></form>
+                    {% endif %}
                   {% elif page_data.page == 'admin-users' %}
                     <a href="/admin/dashboard/staff/{{ row.id }}/"><i class="ph ph-eye"></i> View</a>
                     {% if page_data.can_assign_roles %}
@@ -413,6 +435,15 @@
       {% if page_data.products_page.has_next %}
       <a class="btn btn-secondary" href="?{{ page_data.products_query_string }}{% if page_data.products_query_string %}&amp;{% endif %}page={{ page_data.products_page.next_page_number }}">Next</a>
       {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% if page_data.list_page and page_data.list_page.paginator.num_pages > 1 %}
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 24px;border-top:1px solid var(--border);">
+    <span style="color:var(--text-secondary);font-size:13px;">Showing {{ page_data.list_page.start_index }}–{{ page_data.list_page.end_index }} of {{ page_data.list_page.paginator.count }} records · Page {{ page_data.list_page.number }} of {{ page_data.list_page.paginator.num_pages }}</span>
+    <div style="display:flex;gap:8px;">
+      {% if page_data.list_page.has_previous %}<a class="btn btn-secondary" href="?{% if page_data.list_query_string %}{{ page_data.list_query_string }}&amp;{% endif %}page={{ page_data.list_page.previous_page_number }}">Previous</a>{% endif %}
+      {% if page_data.list_page.has_next %}<a class="btn btn-secondary" href="?{% if page_data.list_query_string %}{{ page_data.list_query_string }}&amp;{% endif %}page={{ page_data.list_page.next_page_number }}">Next</a>{% endif %}
     </div>
   </div>
   {% endif %}
