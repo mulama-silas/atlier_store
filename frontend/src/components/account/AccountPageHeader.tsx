@@ -24,6 +24,6 @@ export const AccountPageHeader: React.FC<AccountPageHeaderProps> = ({
     <h1 className="font-serif text-3xl tracking-tight text-[#181716] sm:text-4xl">
       {title}
     </h1>
-    {description && <p className="text-sm text-[#63605A]">{description}</p>}
+    {description && <p className="max-w-2xl text-sm leading-relaxed text-[#63605A]">{description}</p>}
   </header>
 );

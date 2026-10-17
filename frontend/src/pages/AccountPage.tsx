@@ -788,9 +788,9 @@ export const AccountPage: React.FC = () => {
       </div>
 
       <div className="grid items-start gap-8 lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="hidden self-start lg:sticky lg:top-24 lg:block">
-          <Card className="overflow-hidden shadow-sm">
-            <div className="flex items-center gap-3.5 border-b border-[#F3F1ED] bg-[#FAF9F6] px-5 py-5">
+        <aside className="hidden h-[calc(100dvh-7rem)] self-start lg:sticky lg:top-24 lg:block">
+          <Card className="flex h-full min-h-0 flex-col overflow-hidden shadow-sm">
+            <div className="flex shrink-0 items-center gap-3.5 border-b border-[#F3F1ED] bg-[#FAF9F6] px-5 py-5">
               <MemberAvatar initials={initials} />
               <div className="min-w-0">
                 <p className="truncate font-serif text-lg leading-tight text-[#181716]">
@@ -799,13 +799,13 @@ export const AccountPage: React.FC = () => {
                 <p className="truncate text-xs text-[#827E77]">{userEmail}</p>
               </div>
             </div>
-            <div className="p-4">
+            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-4">
               <AccountNavigation
                 activePath={route.path}
                 onNavigate={navigate}
               />
             </div>
-            <div className="border-t border-[#F3F1ED] p-4">
+            <div className="shrink-0 border-t border-[#F3F1ED] p-4">
               <Button
                 type="button"
                 variant="ghost"
@@ -848,7 +848,7 @@ export const AccountPage: React.FC = () => {
                 Manage your orders, details and saved pieces.
               </DialogDescription>
             </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-6">
+            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
               <div className="mb-6 flex items-center gap-3 rounded-xl border border-[#E8E5DF] bg-white p-4">
                 <MemberAvatar initials={initials} />
                 <div className="min-w-0">
