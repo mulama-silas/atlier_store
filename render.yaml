@@ -70,20 +70,29 @@ services:
         value: "false"
 
       # ---- Outbound email (see backend/docs/CELERY.md) ----------------------
-      # DEACTIVATED: nothing is sent and no row is ever marked SENT, but the
-      # mailer itself is still there — queue_email keeps writing EmailLog rows
-      # so the admin email page shows what would have gone out. Flip to "true"
-      # once RESEND_API_KEY is set and the sending domain is verified.
+      # Keep disabled until a mailbox and sender are configured. Render's free
+      # web services block SMTP ports 25/465/587; upgrade this service before
+      # enabling SMTP delivery.
       - key: EMAIL_ENABLED
         value: "false"
-      # Render's free plan blocks outbound SMTP (ports 25/465/587), so mail
-      # would leave through the Resend HTTPS API on port 443 instead: set
-      # RESEND_API_KEY in the dashboard (sync: false, below).
-      #
-      # deferred = a web request never opens a socket for mail. Rows stay
-      # QUEUED and POST /api/admin/emails/sweep delivers them. CREATE THE
-      # CRON JOB (cron-job.org, free) WHEN YOU ENABLE THIS, or nothing will
-      # be delivered. Revert to "inline" to go back to in-request delivery.
+      # Gmail SMTP defaults; replace EMAIL_HOST for a different mailbox host.
+      # For Gmail use an App Password, never the account password.
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "true"
+      - key: EMAIL_USE_SSL
+        value: "false"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      # An unset RESEND_API_KEY lets Django use the SMTP settings above.
+      # Deferred mail needs the existing scheduled sweeper to deliver queued rows.
       - key: EMAIL_DELIVERY_MODE
         value: "deferred"
       - key: EMAIL_TIMEOUT
@@ -111,8 +120,8 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
-      # Resend API key (https://resend.com/api-keys). Unset = mail falls back
-      # to SMTP, which the free plan blocks, so nothing would be delivered.
+      # Optional HTTPS mail transport. When set, it takes precedence over SMTP.
+      # Leave unset when using the configured mailbox transport.
       - key: RESEND_API_KEY
         sync: false
       # Long random token presented in the x-sweep-token header by the

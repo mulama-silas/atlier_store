@@ -39,13 +39,36 @@ observe a delivery.
 > and route work to a worker that does not exist.
 
 > **The mailer ships deactivated — everywhere.** `render.yaml` and the local
-> `backend/.env` both set `EMAIL_ENABLED: "false"` because no sending domain
-> has been verified yet. Everything about
+> `backend/.env` both set `EMAIL_ENABLED: "false"` because mailbox credentials
+> and a sender address still need to be configured. Everything about
 > the subsystem — queueing, idempotency, the `/admin/dashboard/emails/`
 > pages, audit rows — stays in place and keeps recording; only the hand-off
 > to a transport is suppressed, and a message is never marked `SENT` for mail
 > nobody attempted. The admin page shows a banner to that effect, and the
 > Resend/bulk-resend buttons say so instead of pretending they worked.
+
+### SMTP mailbox configuration (no email API)
+
+The Django SMTP backend can send through a mailbox provider's SMTP server.
+This avoids a transactional-email API, but it still requires a mailbox provider
+and SMTP credentials. For Gmail, use `smtp.gmail.com`, port `587`, TLS enabled,
+and a Google App Password (with 2-Step Verification enabled); use the same
+mailbox address in `EMAIL_HOST_USER` and `DEFAULT_FROM_EMAIL`. Never use or
+commit the account password.
+
+For local development, set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`,
+`EMAIL_USE_SSL`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`,
+`DEFAULT_FROM_EMAIL`, and `EMAIL_ENABLED=true` in the ignored `backend/.env`.
+On Render, set the credentials in the service Environment page. The Blueprint
+provides Gmail SMTP defaults and secret slots for username, password, and
+sender address. Set `EMAIL_ENABLED=true` only after those values are valid.
+
+The current Render Blueprint uses a free web service. Render blocks outbound
+SMTP on ports 25, 465, and 587 for free web services, so Gmail SMTP cannot send
+from that plan. Upgrade the web service to a paid instance before enabling
+SMTP. With the Blueprint's `EMAIL_DELIVERY_MODE=deferred`, also configure the
+existing scheduled sweeper; otherwise mail remains queued. This requires no
+Vercel email configuration: only Django on Render connects to SMTP.
 
 ### The transport
 

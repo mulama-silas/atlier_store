@@ -1267,12 +1267,6 @@
             <i class="ph ph-warning-octagon"></i><span>Errors</span>
           </a>
           {% endif %}
-          {% if request.user|can:'emails.view' %}
-          <a class="nav-link {% if admin_page == 'emails' %}active{% endif %}" href="/admin/dashboard/emails/">
-            <i class="ph ph-envelope"></i><span>Emails</span>
-            {% if email_failed_count %}<span class="nav-badge" title="{{ email_failed_count }} failed email(s)">{{ email_failed_count }}</span>{% endif %}
-          </a>
-          {% endif %}
           <a class="nav-link {% if admin_page == 'security' %}active{% endif %}" href="/admin/dashboard/security/">
             <i class="ph ph-shield-warning"></i><span>Security</span>
           </a>
