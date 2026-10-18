@@ -3,6 +3,7 @@ import hashlib
 import math
 import os
 import secrets
+import tempfile
 from datetime import timedelta
 from pathlib import Path
 from django.conf import settings
@@ -19,7 +20,12 @@ from rest_framework.views import APIView
 from access_control.drf_permissions import AdminPermission
 from admin_ui.models import AdminNotification
 from audit.services import AuditLogService
-from catalog.bulk_import import BulkImportError, BulkProductImportService, job_data
+from catalog.bulk_import import (
+    BulkImportError,
+    BulkProductImportService,
+    is_temporary_import_path,
+    job_data,
+)
 from catalog.models import BulkUploadSession, Category, ImportJob, Product, ProductVariant
 from catalog.serializers import CategorySerializer, ProductSerializer
 from catalog.services import BulkImportTemplateService
@@ -355,21 +361,28 @@ class BulkUploadSessionView(AdminAPIView):
             if len(have) != session.chunk_count:
                 return _bulk_error('Upload is incomplete; resume the missing chunks.')
             path = self._dir(session)
-            assembled = path / 'package.zip'
             try:
+                chunk_paths = [path / str(index) for index in range(session.chunk_count)]
+                if sum(item.stat().st_size for item in chunk_paths) != session.file_size:
+                    return _bulk_error('Uploaded package size does not match the expected size.')
+                assembled = path / 'package.zip'
                 with assembled.open('wb') as output:
-                    for index in range(session.chunk_count):
-                        with (path / str(index)).open('rb') as part:
+                    for chunk_path in chunk_paths:
+                        with chunk_path.open('rb') as source:
                             while True:
-                                block = part.read(1024 * 1024)
-                                if not block: break
+                                block = source.read(1024 * 1024)
+                                if not block:
+                                    break
                                 output.write(block)
-                if assembled.stat().st_size != session.file_size:
-                    return _bulk_error('Assembled package size does not match the upload.')
                 from django.core.files import File
-                with assembled.open('rb') as source:
-                    job = BulkProductImportService.create_job(File(source, name=session.filename), request.user,
-                        import_status=session.import_status)
+                try:
+                    with assembled.open('rb') as source:
+                        job = BulkProductImportService.create_job(
+                            File(source, name=session.filename), request.user,
+                            import_status=session.import_status)
+                except Exception:
+                    assembled.unlink(missing_ok=True)
+                    raise
                 session.delete()
                 import shutil
                 shutil.rmtree(path, ignore_errors=True)
@@ -387,25 +400,36 @@ class BulkUploadSessionView(AdminAPIView):
             expected = min(session.chunk_size, session.file_size - index * session.chunk_size)
             if part.size != expected:
                 return _bulk_error('Chunk size is invalid.')
-            raw = part.read()
-            digest = hashlib.sha256(raw).hexdigest()
-            supplied = request.data.get('sha256')
-            if supplied and supplied != digest:
-                return _bulk_error('Chunk checksum verification failed.')
-            with transaction.atomic():
-                locked = BulkUploadSession.objects.select_for_update().get(pk=session.pk, owner=request.user)
-                directory = self._dir(locked)
-                directory.mkdir(parents=True, exist_ok=True)
-                target = directory / str(index)
-                if target.exists():
-                    if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
-                        return _bulk_error('A different chunk already exists at this index.')
-                else:
-                    temp = directory / (str(index) + '.tmp')
-                    with temp.open('wb') as output: output.write(raw)
-                    os.replace(temp, target)
-                locked.received_chunks = sorted(set(int(i) for i in locked.received_chunks) | {index})
-                locked.save(update_fields=['received_chunks'])
+            digest_builder = hashlib.sha256()
+            with tempfile.SpooledTemporaryFile(max_size=session.chunk_size) as chunk_file:
+                for block in part.chunks(chunk_size=1024 * 1024):
+                    digest_builder.update(block)
+                    chunk_file.write(block)
+                digest = digest_builder.hexdigest()
+                supplied = request.data.get('sha256')
+                if supplied and supplied != digest:
+                    return _bulk_error('Chunk checksum verification failed.')
+                chunk_file.seek(0)
+                with transaction.atomic():
+                    locked = BulkUploadSession.objects.select_for_update().get(pk=session.pk, owner=request.user)
+                    directory = self._dir(locked)
+                    directory.mkdir(parents=True, exist_ok=True)
+                    target = directory / str(index)
+                    if target.exists():
+                        existing_digest = hashlib.sha256()
+                        with target.open('rb') as existing:
+                            for block in iter(lambda: existing.read(1024 * 1024), b''):
+                                existing_digest.update(block)
+                        if existing_digest.hexdigest() != digest:
+                            return _bulk_error('A different chunk already exists at this index.')
+                    else:
+                        temp = directory / (str(index) + '.tmp')
+                        with temp.open('wb') as output:
+                            for block in iter(lambda: chunk_file.read(1024 * 1024), b''):
+                                output.write(block)
+                        os.replace(temp, target)
+                    locked.received_chunks = sorted(set(int(i) for i in locked.received_chunks) | {index})
+                    locked.save(update_fields=['received_chunks'])
             return Response({'received': index, 'sha256': digest})
         except (TypeError, ValueError, BulkUploadSession.DoesNotExist):
             return _bulk_error('Invalid chunk request.')
@@ -450,7 +474,9 @@ class BulkImportConfirmView(AdminAPIView):
                 job.import_status = _import_status(requested_status)
                 job.save(update_fields=['import_status', 'updated_at'])
             job = BulkProductImportService.confirm(job, actor=request.user)
-            if settings.CELERY_WORKER_ENABLED:
+            package_is_local = is_temporary_import_path(job.package_path)
+            queued = settings.CELERY_WORKER_ENABLED and not package_is_local
+            if queued:
                 # Background worker owns the job from here; the browser just
                 # polls GET .../status. Without a worker the confirm response
                 # is unchanged and the page drives /process as it always has.
@@ -462,7 +488,7 @@ class BulkImportConfirmView(AdminAPIView):
             logger.exception('Bulk import confirmation failed for job %s', job_id)
             return _bulk_error('The import could not be started. Please try again.', 'BULK_IMPORT_CONFIRM_FAILED', 500)
         payload = job_data(job)
-        payload['queued'] = settings.CELERY_WORKER_ENABLED
+        payload['queued'] = queued
         return Response(payload, 202)
 
 
@@ -472,7 +498,8 @@ class BulkImportProcessView(AdminAPIView):
 
     def post(self, request, job_id):
         job = get_object_or_404(ImportJob, pk=job_id)
-        if settings.CELERY_WORKER_ENABLED:
+        package_is_local = is_temporary_import_path(job.package_path)
+        if settings.CELERY_WORKER_ENABLED and not package_is_local:
             # Idempotent kick: the task re-claims the lease itself, so a duplicate
             # message or a stray browser call is harmless.
             try:

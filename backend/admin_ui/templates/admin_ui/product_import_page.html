@@ -234,7 +234,12 @@
     const response = await fetch(apiUrl(path), config);
     let data = null;
     try { data = await response.json(); } catch (error) { data = {}; }
-    if (!response.ok) throw new Error((data.error && data.error.message) || 'The request could not be completed.');
+    if (!response.ok) {
+      const message = (data.error && data.error.message) || data.detail || data.message;
+      const requestId = response.headers.get('X-Request-ID') || response.headers.get('X-Request-Id');
+      const status = 'Server returned HTTP ' + response.status + (response.statusText ? ' (' + response.statusText + ')' : '') + '.';
+      throw new Error([message || status, requestId ? 'Reference: ' + requestId : ''].filter(Boolean).join(' '));
+    }
     return data;
   }
   function escapeHtml(value) {

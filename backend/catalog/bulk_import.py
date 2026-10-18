@@ -2,12 +2,14 @@ import hashlib
 import io
 import logging
 import re
+import shutil
 import stat
+import tempfile
 import zipfile
 from collections import OrderedDict, defaultdict
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
 from django.conf import settings
@@ -27,6 +29,24 @@ from catalog.variant_services import normalize_hex, normalize_sku
 from inventory.models import InventoryTransaction
 
 logger = logging.getLogger('catalog.bulk_import')
+
+
+def _temporary_import_root():
+    return Path(getattr(settings, 'BASE_DIR', tempfile.gettempdir())) / '.private_bulk_imports'
+
+
+def _temporary_package_path(job_id):
+    return _temporary_import_root() / str(job_id) / 'package.zip'
+
+
+def _delete_temporary_import(job_id):
+    shutil.rmtree(_temporary_import_root() / str(job_id), ignore_errors=True)
+
+
+def is_temporary_import_path(path):
+    if not path:
+        return False
+    return Path(path).resolve().is_relative_to(_temporary_import_root().resolve())
 
 REQUIRED_COLUMNS = {
     'product_code',
@@ -182,7 +202,12 @@ class BulkImportPackage:
         if not self.job.package_path:
             raise BulkImportPackageError('The uploaded package is no longer available.')
         try:
-            self._file = default_storage.open(self.job.package_path, 'rb')
+            package_path = Path(self.job.package_path)
+            if package_path.is_absolute():
+                self._file = package_path.open('rb')
+            else:
+                # Keep existing jobs created before local ZIP storage working.
+                self._file = default_storage.open(self.job.package_path, 'rb')
             self._zip = zipfile.ZipFile(self._file, 'r')
             self._inspect()
         except Exception:
@@ -417,7 +442,7 @@ class BulkImportValidationService:
                         value = _text(row.get(field))
                         if not value:
                             continue
-                        if len(row['_image_names']) != len(set(row['_image_names'] + [value])):
+                        if any(existing.casefold() == value.casefold() for existing in row['_image_names']):
                             warnings.append(_issue('warning', field, 'Image is referenced more than once on this row.', row['_row_number']))
                         if value in image_cache:
                             image_result = image_cache[value]
@@ -963,6 +988,9 @@ class BulkImportExecutionService:
             ('Bulk import completed with errors.' if failed
              else 'Bulk import completed.'),
         )
+        _delete_temporary_import(job.pk)
+        ImportJob.objects.filter(pk=job.pk).update(package_path='')
+        job.package_path = ''
         return ImportJob.objects.get(pk=job.pk)
 
     @classmethod
@@ -1160,10 +1188,13 @@ class BulkImportExecutionService:
             'processing_token', 'processing_lease_until', 'updated_at',
         ])
         if job.package_path:
-            try:
-                default_storage.delete(job.package_path)
-            except Exception:
-                logger.exception('Could not remove cancelled import package %s', job.pk)
+            if Path(job.package_path).is_absolute():
+                _delete_temporary_import(job.pk)
+            else:
+                try:
+                    default_storage.delete(job.package_path)
+                except Exception:
+                    logger.exception('Could not remove cancelled import package %s', job.pk)
         AuditLogService.log(
             'bulk_import_cancelled', actor=actor or job.uploaded_by,
             category='catalog', object_type='import_job', object_id=job.pk,
@@ -1201,12 +1232,17 @@ class BulkProductImportService:
             uploaded_by=actor, filename=filename, package_size=file_size,
             package_sha256=digest.hexdigest(), import_status=import_status,
         )
-        key = f'imports/{job.pk}/package.zip'
+        package_path = _temporary_package_path(job.pk)
         try:
-            saved_key = default_storage.save(key, uploaded_file)
-            job.package_path = saved_key
+            package_path.parent.mkdir(parents=True, exist_ok=True)
+            uploaded_file.seek(0)
+            with package_path.open('wb') as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+            job.package_path = str(package_path)
             job.save(update_fields=['package_path', 'updated_at'])
         except Exception:
+            _delete_temporary_import(job.pk)
             job.status = ImportJob.Status.FAILED
             job.error_details = {'errors': [{'level': 'error', 'field': 'archive', 'message': 'The package could not be stored.'}]}
             job.completed_at = timezone.now()
