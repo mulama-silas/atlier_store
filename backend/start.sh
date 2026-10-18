@@ -2,7 +2,11 @@
 
 python manage.py migrate --noinput || exit $?
 if [ -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]; then
-  python manage.py ensure_superuser || exit $?
+  if [ "${DJANGO_SUPERUSER_RESET_PASSWORD:-false}" = "true" ]; then
+    python manage.py ensure_superuser --reset-password || exit $?
+  else
+    python manage.py ensure_superuser || exit $?
+  fi
 fi
 
 # Keep the change-detecting sync loop in the same container as Django so it

@@ -90,7 +90,7 @@ Django admin at `/admin/`) reads from the **production** database, not your loca
    (`DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD`):
 
    ```bash
-   python manage.py ensure_superuser   # command is idempotent; re-runs also reset the password
+   python manage.py ensure_superuser   # creates if missing; preserves existing password
    ```
 
    (You can also run either command locally with `DATABASE_URL` set to the production
@@ -170,16 +170,18 @@ to enable the worker on a paid plan — is in `backend/docs/CELERY.md`.
 ## Admin recovery (no Render Shell on free)
 
 The free plan has no shell, so `createsuperuser` cannot be run by hand. The
-Dockerfile therefore runs `ensure_superuser --noinput` on **every container
-start**, alongside `migrate`:
+container runs `ensure_superuser` on startup when a bootstrap password is set:
 
 ```
-python manage.py migrate --noinput && (echo y | python manage.py ensure_superuser --noinput || true) && gunicorn ...
+python manage.py migrate --noinput && python manage.py ensure_superuser && gunicorn ...
 ```
 
 Set `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` in Render (all three
-are already declared in `render.yaml`). The command is idempotent and re-promotes
-the account on every boot, so a lost superuser is recoverable by redeploying.
+are already declared in `render.yaml`). It creates the account if missing and
+preserves its password on later starts. If the account exists but lost its admin
+flags, it restores those flags without changing its password. To deliberately
+reset the password, temporarily set `DJANGO_SUPERUSER_RESET_PASSWORD=true` in
+Render and redeploy, then remove that flag so future starts keep the password.
 
 ## Resetting demo data
 

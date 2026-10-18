@@ -159,6 +159,10 @@ services:
         sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
         sync: false
+      # Keep false normally. Turn on for one deploy to explicitly reset the
+      # bootstrap admin password, then turn it off again.
+      - key: DJANGO_SUPERUSER_RESET_PASSWORD
+        value: "false"
       - key: SUPABASE_JWT_SECRET
         sync: false
       - key: SUPABASE_JWT_ISSUER

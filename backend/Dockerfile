@@ -24,7 +24,7 @@ EXPOSE 8000
 # ensure_superuser is the ONLY recovery path into the admin on the free plan:
 # Render offers no shell, so there is no way to run createsuperuser by hand if
 # the superuser is ever lost. It reads DJANGO_SUPERUSER_* from the environment,
-# is idempotent, and re-promotes the account on every boot. With those variables
-# unset it falls back to prompting, so it is chained with `|| true` and must
-# never be able to stop the container from serving.
+# creates the account only when missing, preserves an existing password, and
+# restores admin flags if needed. Set DJANGO_SUPERUSER_RESET_PASSWORD=true for
+# one deliberate password reset, then remove that flag.
 CMD ["sh", "start.sh"]
