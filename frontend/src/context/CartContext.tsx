@@ -282,10 +282,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const pricing = await api.removePromoCode(shippingMethod);
       setServerDiscount(pricing.discount);
       setServerShippingDiscount(pricing.shippingDiscount);
-      const promo = pricing.appliedPromotions.find((entry) => entry.code) ?? pricing.promotion;
+      const promo = pricing.promotion ?? pricing.appliedPromotions[0] ?? null;
       setAppliedPromo(promo ? {
         code: promo.code,
-        discountAmount: pricing.discount,
+        discountAmount: promo.discount ?? pricing.discount,
         description: promo.name,
       } : null);
     } catch {
