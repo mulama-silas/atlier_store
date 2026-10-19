@@ -61,10 +61,13 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY',
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in {'1', 'true', 'yes', 'on'}
 
 ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost,testserver').split(',')
-    if host.strip()
+'*'
 ]
+# ALLOWED_HOSTS = [
+#     host.strip()
+#     for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost,testserver').split(',')
+#     if host.strip()
+# ]
 ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS + ['testserver']))
 
 PAYMENT_WEBHOOK_SECRET = os.getenv(

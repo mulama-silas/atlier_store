@@ -16,11 +16,6 @@
     <a class="btn btn-secondary" href="/admin/">
       <i class="ph ph-database"></i> Django Admin Site
     </a>
-    {% if user.is_superuser %}
-      <a class="btn btn-secondary" href="{% url 'admin-register' %}">
-        <i class="ph ph-user-plus"></i> Create Administrator Account
-      </a>
-    {% endif %}
   </div>
 {% elif user.is_authenticated %}
   <h1 class="auth-title">No admin access</h1>
@@ -41,9 +36,6 @@
   <div class="auth-actions">
     <a class="btn btn-primary" href="{% url 'admin-login' %}">
       <i class="ph ph-sign-in"></i> Sign In
-    </a>
-    <a class="btn btn-secondary" href="{% url 'admin-register' %}">
-      <i class="ph ph-user-plus"></i> Create Administrator Account
     </a>
   </div>
 

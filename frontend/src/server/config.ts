@@ -17,6 +17,10 @@ const configSchema = z.object({
   PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('modeza_webhook_secret_2026'),
   SESSION_SECRET: z.string().min(16).default('modeza_session_secret_2026'),
   ADMIN_API_TOKEN: z.string().min(16).optional(),
+  // Development only: location of the Django SQLite database and the origin the
+  // Django dev server serves /media files from.
+  DJANGO_SQLITE_PATH: z.string().min(1).optional(),
+  DJANGO_BASE_URL: z.string().url().default('http://localhost:8000'),
 });
 
 const parsedConfig = configSchema.safeParse(process.env);

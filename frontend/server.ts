@@ -1,10 +1,15 @@
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { createExpressApp } from './src/server/app';
+import { hydrateFromDjangoSqlite } from './src/server/db/djangoSqlite';
 
 const PORT = Number(process.env.PORT) || 3000;
 
 async function startServer() {
+  // Development only (no-op in production): hydrate catalog, orders and stock
+  // reservations from the Django backend's SQLite database.
+  hydrateFromDjangoSqlite();
+
   const app = createExpressApp();
 
   // Vite middleware setup for development or static serving for production

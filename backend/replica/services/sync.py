@@ -103,6 +103,24 @@ def _supabase_profile_id(username):
         return None
 
 
+def _customer_profile_ids():
+    """Map local customer accounts to their Supabase Auth UUIDs.
+
+    The replica's customer table contains aggregate metrics, not identity PII.
+    Include registered customers even when they have not placed an order yet.
+    """
+    from django.contrib.auth import get_user_model
+
+    users = get_user_model().objects.filter(
+        username__startswith='supabase_', is_staff=False, is_superuser=False,
+    ).values_list('pk', 'username')
+    return {
+        user_id: profile_id
+        for user_id, username in users
+        if (profile_id := _supabase_profile_id(username)) is not None
+    }
+
+
 def category_rows():
     return [
         {
@@ -302,12 +320,17 @@ def audit_log_rows():
 
 
 def customer_rows():
-    """Aggregate per-customer spend.
+    """Replicate all linked customers with aggregate order metrics.
 
     Cancelled orders are excluded from ``total_spent_minor`` but still counted
     in ``order_count``, so cancellation rate stays visible without skewing
-    revenue. No identity fields -- those resolve via public.profiles.
+    revenue. Customers without orders receive zero metrics. No identity fields
+    are included; those resolve via public.profiles.
     """
+    profile_ids = _customer_profile_ids()
+    if not profile_ids:
+        return []
+
     rows = (
         Order.objects.filter(user_id__isnull=False)
         .values('user_id')
@@ -325,30 +348,22 @@ def customer_rows():
             ),
         )
     )
-    aggregates = list(rows)
-    if not aggregates:
-        return []
-
-    from django.contrib.auth import get_user_model
-
-    users = get_user_model().objects.filter(
-        pk__in=[row['user_id'] for row in aggregates]
-    ).values_list('pk', 'username')
-    profile_ids = {
-        user_id: profile_id
-        for user_id, username in users
-        if (profile_id := _supabase_profile_id(username)) is not None
-    }
+    metrics_by_user = {row['user_id']: row for row in rows}
 
     return [
         {
-            'user_id': profile_ids[r['user_id']],
-            'first_order_at': _dt(r['first_order_at']),
-            'last_order_at': _dt(r['last_order_at']),
-            'order_count': r['order_count'],
-            'total_spent_minor': int(r['total_spent_minor'] or 0),
+            'user_id': profile_id,
+            'first_order_at': _dt(metrics_by_user[user_id]['first_order_at'])
+            if user_id in metrics_by_user else None,
+            'last_order_at': _dt(metrics_by_user[user_id]['last_order_at'])
+            if user_id in metrics_by_user else None,
+            'order_count': metrics_by_user[user_id]['order_count']
+            if user_id in metrics_by_user else 0,
+            'total_spent_minor': int(
+                metrics_by_user[user_id]['total_spent_minor'] or 0)
+            if user_id in metrics_by_user else 0,
         }
-        for r in aggregates if r['user_id'] in profile_ids
+        for user_id, profile_id in profile_ids.items()
     ]
 
 
@@ -378,8 +393,6 @@ def current_row_counts():
     on every status-page request so new or removed Django records appear as a
     drift before the next backup is run.
     """
-    from django.contrib.auth import get_user_model
-
     conn = None
     try:
         source_counts = {
@@ -396,14 +409,7 @@ def current_row_counts():
             'receipts': Receipt.objects.count(),
             'audit_logs': AuditLog.objects.count(),
         }
-        linked_usernames = get_user_model().objects.filter(
-            pk__in=Order.objects.filter(user_id__isnull=False)
-            .values_list('user_id', flat=True)
-        ).values_list('username', flat=True)
-        source_counts['customers'] = sum(
-            _supabase_profile_id(username) is not None
-            for username in linked_usernames
-        )
+        source_counts['customers'] = len(_customer_profile_ids())
 
         conn = get_connection()
         counts = {}
