@@ -375,7 +375,7 @@ export const CartPage: React.FC = () => {
                     </div>
                     {appliedPromo && (
                       <div className="flex items-center justify-between gap-4 text-[#2E5A44]">
-                        <dt>{appliedPromo.code ? `Coupon (${appliedPromo.code})` : appliedPromo.description}</dt>
+                        <dt>{appliedPromo.code ? `Coupon (${appliedPromo.code})` : 'Promotion'}</dt>
                         <dd className="font-medium">-{formatPrice(discountAmount)}</dd>
                       </div>
                     )}
