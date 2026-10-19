@@ -48,22 +48,33 @@ export function resetCartId(): void {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}, includeAuth = true, requireAuth = false, retryUnauthorized = true): Promise<T> {
-  const cartId = getOrCreateCartId();
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
-  headers.set('x-cart-id', cartId);
+
+  let cartId = getOrCreateCartId();
 
   if (includeAuth) {
     const session = (await supabase?.auth.getSession())?.data.session;
     if (session?.access_token) {
       headers.set('Authorization', `Bearer ${session.access_token}`);
-    } else if (requireAuth) {
-      const error = new Error('Authentication is required for this request.') as Error & { code?: string; status?: number };
-      error.code = 'AUTH_REQUIRED';
-      error.status = 401;
-      throw error;
+    } else {
+      // A signed-in user's cart key (u:<user id>) cannot be used by a guest.
+      // Clear stale account keys before making public cart/pricing requests,
+      // such as after a session expires or a sign-out event was missed.
+      if (cartId.startsWith('u:')) {
+        resetCartId();
+        cartId = getOrCreateCartId();
+      }
+      if (requireAuth) {
+        const error = new Error('Authentication is required for this request.') as Error & { code?: string; status?: number };
+        error.code = 'AUTH_REQUIRED';
+        error.status = 401;
+        throw error;
+      }
     }
   }
+
+  headers.set('x-cart-id', cartId);
 
   const requestOptions = {
     ...options,
