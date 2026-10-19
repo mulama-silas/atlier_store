@@ -130,17 +130,21 @@ class PromotionAvailableView(APIView):
         from django.db.models import Q
         from django.utils import timezone
 
-        from cart.views import cart_key_from_request, get_or_create_cart
+        from cart.views import get_or_create_cart
         key = request.headers.get('x-cart-id')
         user = request.user if getattr(request.user, 'is_authenticated', False) else None
         shipping_method = (request.query_params.get('shippingMethod') or 'standard').strip() or 'standard'
+        pricing = None
         if key:
-            cart = get_or_create_cart(key, user)
-            breakdown = price_cart(cart, user=user, shipping_method=shipping_method,
-                                   coupon_code=getattr(cart, 'coupon_code', '') or '')
-            pricing = _pricing_payload(breakdown)
-        else:
-            pricing = None
+            try:
+                cart = get_or_create_cart(key, user)
+                breakdown = price_cart(cart, user=user, shipping_method=shipping_method,
+                                       coupon_code=getattr(cart, 'coupon_code', '') or '')
+                pricing = _pricing_payload(breakdown)
+            except Exception:
+                # Cart pricing is optional for promotion discovery. A stale or
+                # inaccessible cart must not hide public announcements.
+                logger.info('Promotion pricing skipped for unavailable cart.', exc_info=True)
         # Public discovery: active automatic promos + coupon promos already
         # applied — never internal IDs, limits, or customer lists.
         promos = candidate_promotions(coupon_normalized='')
@@ -156,7 +160,8 @@ class PromotionAvailableView(APIView):
         now = timezone.now()
         announcements = Promotion.objects.filter(
             status=Promotion.Status.ACTIVE,
-            ends_at__gt=now,
+        ).filter(
+            Q(ends_at__isnull=True) | Q(ends_at__gt=now),
         ).filter(
             Q(starts_at__isnull=True) | Q(starts_at__lte=now),
         ).prefetch_related('promo_customers').order_by('-priority', '-created_at')
