@@ -25,6 +25,9 @@
   .promo-field--wide { grid-column:1 / -1; }
   .promo-field label { display:block; margin:0 0 6px; color:var(--text); font-size:12px; font-weight:600; }
   .promo-field .form-control { width:100%; min-height:40px; border-radius:9px; border-color:#deddd7; background:#fff; font:inherit; }
+  .promo-field--type { padding:15px 16px; border:1px solid #cbd8cb; border-radius:11px; background:#f4f7f2; }
+  .promo-field--type label { font-size:13px; }
+  .promo-field--type .form-control { min-height:44px; border-color:#b9c9b9; font-weight:600; }
   .promo-field textarea.form-control { min-height:88px; resize:vertical; }
   .promo-field select[multiple].form-control { min-height:132px; padding:8px; }
   .promo-field .form-control:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
@@ -77,12 +80,12 @@
     <section class="promo-panel" aria-labelledby="promo-basics-title">
       <div class="promo-panel__heading">
         <h3 id="promo-basics-title"><i class="ph ph-sparkle" aria-hidden="true"></i>Offer details</h3>
-        <p>Choose the promotion and the benefit customers receive.</p>
+        <p>Start with the offer type. The matching discount fields appear below it.</p>
       </div>
       <div class="promo-panel__body">
+        <div class="promo-field promo-field--wide promo-field--type">{{ form.promotion_type.errors }}{{ form.promotion_type.label_tag }}{{ form.promotion_type }}<small>Choose how customers receive the offer: percentage, fixed amount, free shipping, or a quantity-based deal.</small></div>
         <div class="promo-field promo-field--wide">{{ form.name.errors }}{{ form.name.label_tag }}{{ form.name }}</div>
         <div class="promo-field promo-field--wide">{{ form.description.errors }}{{ form.description.label_tag }}{{ form.description }}</div>
-        <div class="promo-field promo-field--wide" data-show-types="percentage,fixed,free_shipping,buy_x_get_y,buy_x_get_pct">{{ form.promotion_type.errors }}{{ form.promotion_type.label_tag }}{{ form.promotion_type }}</div>
         <div class="promo-field" data-show-types="percentage">{{ form.discount_percent.errors }}{{ form.discount_percent.label_tag }}{{ form.discount_percent }}</div>
         <div class="promo-field" data-show-types="fixed">{{ form.discount_amount.errors }}{{ form.discount_amount.label_tag }}{{ form.discount_amount }}</div>
         <div class="promo-field" data-show-types="percentage">{{ form.maximum_discount.errors }}{{ form.maximum_discount.label_tag }}{{ form.maximum_discount }}</div>
@@ -120,6 +123,7 @@
         <div class="promo-field">{{ form.minimum_quantity.errors }}{{ form.minimum_quantity.label_tag }}{{ form.minimum_quantity }}</div>
         <div class="promo-field">{{ form.customer_scope.errors }}{{ form.customer_scope.label_tag }}{{ form.customer_scope }}</div>
         <div class="promo-field">{{ form.priority.errors }}{{ form.priority.label_tag }}{{ form.priority }}</div>
+        <div class="promo-field promo-field--wide" data-customer-scope-field>{{ form.target_customers.errors }}{{ form.target_customers.label_tag }}{{ form.target_customers }}<small>Use Ctrl or Command to select more than one customer. Only active customer accounts are listed.</small></div>
         <div class="promo-field promo-field--wide">{{ form.target_categories.errors }}{{ form.target_categories.label_tag }}{{ form.target_categories }}<small>Use Ctrl or Command to select more than one category.</small></div>
         <div class="promo-field promo-field--wide">{{ form.target_products.errors }}{{ form.target_products.label_tag }}{{ form.target_products }}<small>Leave products empty when the offer covers every product in its selected scope.</small></div>
         <div class="promo-field promo-field--wide">{{ form.target_variants.errors }}{{ form.target_variants.label_tag }}{{ form.target_variants }}</div>
@@ -150,16 +154,21 @@
     const type = document.getElementById("id_promotion_type");
     const automatic = document.getElementById("id_is_automatic");
     const coupon = document.querySelector("[data-coupon-field]");
-    if (!type || !automatic || !coupon) return;
+    const customerScope = document.getElementById("id_customer_scope");
+    const targetCustomers = document.querySelector("[data-customer-scope-field]");
     const updateFields = () => {
-      document.querySelectorAll("[data-show-types]").forEach((field) => {
-        const allowed = field.dataset.showTypes.split(",");
-        field.hidden = !allowed.includes(type.value);
-      });
-      coupon.hidden = automatic.checked;
+      if (type) {
+        document.querySelectorAll("[data-show-types]").forEach((field) => {
+          const allowed = field.dataset.showTypes.split(",");
+          field.hidden = !allowed.includes(type.value);
+        });
+      }
+      if (coupon && automatic) coupon.hidden = automatic.checked;
+      if (targetCustomers && customerScope) targetCustomers.hidden = customerScope.value !== "specific";
     };
-    type.addEventListener("change", updateFields);
-    automatic.addEventListener("change", updateFields);
+    if (type) type.addEventListener("change", updateFields);
+    if (automatic) automatic.addEventListener("change", updateFields);
+    if (customerScope) customerScope.addEventListener("change", updateFields);
     updateFields();
   })();
 </script>

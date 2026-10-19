@@ -343,6 +343,12 @@ class PromotionForm(forms.ModelForm):
     target_products = forms.ModelMultipleChoiceField(label='Specific products (optional)', queryset=Product.objects.order_by('name'), required=False)
     target_categories = forms.ModelMultipleChoiceField(label='Specific categories (optional)', queryset=Category.objects.order_by('name'), required=False)
     target_variants = forms.ModelMultipleChoiceField(label='Specific variants (optional)', queryset=ProductVariant.objects.select_related('product').order_by('sku'), required=False)
+    target_customers = forms.ModelMultipleChoiceField(
+        label='Specific customers',
+        queryset=get_user_model().objects.filter(is_staff=False, is_active=True).order_by('email', 'username'),
+        required=False,
+        help_text='Choose the customer accounts eligible for this offer.',
+    )
 
     class Meta:
         from promotions.models import Promotion
@@ -375,6 +381,7 @@ class PromotionForm(forms.ModelForm):
             self.fields['target_products'].initial = [l.product_id for l in inst.promo_products.all()]
             self.fields['target_categories'].initial = [l.category_id for l in inst.promo_categories.all()]
             self.fields['target_variants'].initial = [l.variant_id for l in inst.promo_variants.all()]
+            self.fields['target_customers'].initial = [l.user_id for l in inst.promo_customers.all()]
 
     def clean(self):
         cleaned = super().clean()
@@ -388,6 +395,8 @@ class PromotionForm(forms.ModelForm):
         ptype = cleaned.get('promotion_type')
         if ptype in ('buy_x_get_y', 'buy_x_get_pct') and ((cleaned.get('qualifying_quantity') or 0) <= 0 or (cleaned.get('reward_quantity') or 0) <= 0):
             raise forms.ValidationError('Buy X Get Y promotions need qualifying and reward quantities.')
+        if cleaned.get('customer_scope') == 'specific' and not cleaned.get('target_customers'):
+            self.add_error('target_customers', 'Choose at least one customer for a specific-customer offer.')
         if not cleaned.get('is_automatic') and not (cleaned.get('coupon_code') or '').strip():
             raise forms.ValidationError('Non-automatic promotions require a coupon code.')
         return cleaned
@@ -404,16 +413,19 @@ class PromotionForm(forms.ModelForm):
         promo.minimum_order_value_minor = int(round(float(self.cleaned_data.get('minimum_order_value') or 0) * 100))
         if commit:
             promo.save()
-            from promotions.models import PromotionCategory, PromotionProduct, PromotionVariant
+            from promotions.models import PromotionCategory, PromotionCustomer, PromotionProduct, PromotionVariant
             PromotionProduct.objects.filter(promotion=promo).delete()
             PromotionCategory.objects.filter(promotion=promo).delete()
             PromotionVariant.objects.filter(promotion=promo).delete()
+            PromotionCustomer.objects.filter(promotion=promo).delete()
             for product in self.cleaned_data.get('target_products') or []:
                 PromotionProduct.objects.get_or_create(promotion=promo, product=product)
             for category in self.cleaned_data.get('target_categories') or []:
                 PromotionCategory.objects.get_or_create(promotion=promo, category=category)
             for variant in self.cleaned_data.get('target_variants') or []:
                 PromotionVariant.objects.get_or_create(promotion=promo, variant=variant)
+            for customer in self.cleaned_data.get('target_customers') or []:
+                PromotionCustomer.objects.get_or_create(promotion=promo, user=customer)
             if promo.eligible_all is False and not ((self.cleaned_data.get('target_products') or []) or (self.cleaned_data.get('target_categories') or []) or (self.cleaned_data.get('target_variants') or [])):
                 pass
         return promo
