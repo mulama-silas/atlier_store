@@ -57,6 +57,90 @@ function mapHistory(messages: AssistantHistoryMessage[]): WidgetMessage[] {
   }));
 }
 
+const INLINE_MARKDOWN_TOKEN = /\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|_[^_\n]+_|`[^`\n]+`|\[[^\]]+\]\(https?:\/\/[^)\s]+\)/g;
+
+function renderInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+  let tokenIndex = 0;
+  for (const match of text.matchAll(INLINE_MARKDOWN_TOKEN)) {
+    const token = match[0];
+    const start = match.index ?? 0;
+    if (start > cursor) nodes.push(text.slice(cursor, start));
+    const key = `${keyPrefix}-${tokenIndex++}`;
+    if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
+      nodes.push(<strong key={key} className="font-semibold">{token.slice(2, -2)}</strong>);
+    } else if ((token.startsWith('*') && token.endsWith('*')) || (token.startsWith('_') && token.endsWith('_'))) {
+      nodes.push(<em key={key}>{token.slice(1, -1)}</em>);
+    } else if (token.startsWith('`')) {
+      nodes.push(<code key={key} className="rounded bg-[#F4F2EE] px-1 py-0.5 font-mono text-[0.9em]">{token.slice(1, -1)}</code>);
+    } else {
+      const link = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+      nodes.push(link
+        ? <a key={key} href={link[2]} target="_blank" rel="noopener noreferrer" className="font-medium text-[#4A5D4E] underline underline-offset-2">{link[1]}</a>
+        : token);
+    }
+    cursor = start + token.length;
+  }
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes;
+}
+
+function AssistantMessageContent({ content }: { content: string }) {
+  const lines = content.split(/\r?\n/);
+  const blocks: React.ReactNode[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    if (!lines[index].trim()) {
+      index += 1;
+      continue;
+    }
+
+    const heading = lines[index].match(/^\s*(#{1,3})\s+(.+)$/);
+    if (heading) {
+      blocks.push(<h4 key={`heading-${index}`} className="text-sm font-semibold leading-snug">{renderInlineMarkdown(heading[2], `heading-${index}`)}</h4>);
+      index += 1;
+      continue;
+    }
+
+    const listMatch = lines[index].match(/^\s*(?:[-*]|\d+\.)\s+(.+)$/);
+    if (listMatch) {
+      const ordered = /^\s*\d+\./.test(lines[index]);
+      const items: React.ReactNode[] = [];
+      while (index < lines.length) {
+        const item = lines[index].match(/^\s*(?:[-*]|\d+\.)\s+(.+)$/);
+        if (!item || /^\s*\d+\./.test(lines[index]) !== ordered) break;
+        items.push(<li key={`item-${index}`}>{renderInlineMarkdown(item[1], `item-${index}`)}</li>);
+        index += 1;
+      }
+      const ListTag = ordered ? 'ol' : 'ul';
+      blocks.push(<ListTag key={`list-${index}`} className={`my-1 space-y-1 pl-5 ${ordered ? 'list-decimal' : 'list-disc'}`}>{items}</ListTag>);
+      continue;
+    }
+
+    const start = index;
+    const paragraph: string[] = [];
+    while (index < lines.length && lines[index].trim()) {
+      if (paragraph.length && (/^\s*#{1,3}\s+/.test(lines[index]) || /^\s*(?:[-*]|\d+\.)\s+/.test(lines[index]))) break;
+      paragraph.push(lines[index]);
+      index += 1;
+    }
+    blocks.push(
+      <p key={`paragraph-${start}`} className="whitespace-pre-wrap break-words">
+        {paragraph.map((line, lineIndex) => (
+          <React.Fragment key={`line-${start}-${lineIndex}`}>
+            {lineIndex > 0 && <br />}
+            {renderInlineMarkdown(line, `paragraph-${start}-${lineIndex}`)}
+          </React.Fragment>
+        ))}
+      </p>,
+    );
+  }
+
+  return <div className="space-y-2 break-words">{blocks}</div>;
+}
+
 export const AssistantWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<WidgetMessage[]>([]);
@@ -355,7 +439,9 @@ export const AssistantWidget: React.FC = () => {
                         : 'max-w-[92%] space-y-2 rounded-2xl rounded-tl-sm border border-[#E8E5DF] bg-white px-4 py-3 text-sm leading-relaxed text-[#181716]'
                     }
                   >
-                    {message.content && <p className="whitespace-pre-wrap break-words">{message.content}</p>}
+                    {message.content && (message.role === 'assistant'
+                      ? <AssistantMessageContent content={message.content} />
+                      : <p className="whitespace-pre-wrap break-words">{message.content}</p>)}
 
                     {message.streaming && !message.content && !message.error && (
                       <span className="inline-flex items-center gap-1.5 text-[#827E77]">
