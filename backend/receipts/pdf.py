@@ -275,7 +275,8 @@ def render_receipt_pdf(receipt):
         _totals_row('Amount Paid', _money(paid)),
         _totals_row('Balance Due', _money(balance)),
     ])
-    total_row = 2 + int(bool(discount))
+    # Subtotal, optional promotion, shipping and VAT all precede Total.
+    total_row = 3 + int(bool(discount))
     totals = Table(rows, colWidths=[target - 150, 150])
     totals.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
@@ -286,12 +287,12 @@ def render_receipt_pdf(receipt):
         ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
         ('LEFTPADDING', (1, 0), (1, 0), 16),
         ('RIGHTPADDING', (1, 0), (1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ('LINEABOVE', (0, total_row), (-1, total_row), 0.7, LINE),
         ('TOPPADDING', (0, total_row), (-1, total_row), 6),
         ('FONTNAME', (0, total_row), (-1, total_row), 'Helvetica-Bold'),
         ('TEXTCOLOR', (0, total_row), (-1, total_row), GREEN),
-        ('TOPPADDING', (0, 4), (-1, 4), 6),
-        ('TOPPADDING', (0, 5), (-1, 5), 6),
     ]))
     story.append(totals)
     story.append(Spacer(1, 16))
