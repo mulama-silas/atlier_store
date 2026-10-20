@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.views import LoginView, LogoutView, redirect_to_login
 from django.core.paginator import Paginator
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Count, Q, Sum
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
@@ -3134,6 +3134,74 @@ class ProfileSettingsPageView(View):
             'form': None,
             'user': request.user,
         })
+
+
+@permission_required('inventory.view')
+@method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
+class LowStockVariantsPageView(View):
+    template_name = 'admin_ui/low_stock_variants_page.html'
+
+    def get(self, request):
+        variants = ProductVariant.objects.select_related(
+            'product', 'product__category'
+        ).filter(stock_quantity__lte=3).order_by(
+            'stock_quantity', 'product__name', 'sku')
+        return render(request, self.template_name, {
+            'variants': variants,
+            'low_stock_count': variants.count(),
+            'page_title': 'Low stock variants',
+            'page_subtitle': 'Review and update variants with 3 or fewer units available.',
+            'can_adjust_stock': user_has_permission(request.user, 'inventory.adjust'),
+        })
+
+    def post(self, request):
+        if not user_has_permission(request.user, 'inventory.adjust'):
+            return access_denied_response(request)
+
+        posted_quantities = {
+            key[len('quantity_'):]: value
+            for key, value in request.POST.items()
+            if key.startswith('quantity_')
+        }
+        if not posted_quantities or len(posted_quantities) > 500:
+            messages.error(request, 'Choose at least one variant and enter its new quantity.')
+            return redirect('admin-low-stock')
+
+        variants = list(ProductVariant.objects.filter(
+            pk__in=posted_quantities).select_related('product'))
+        if len(variants) != len(posted_quantities):
+            messages.error(request, 'Some variants could not be found. Refresh and try again.')
+            return redirect('admin-low-stock')
+
+        desired_quantities = {}
+        for variant in variants:
+            raw_value = posted_quantities[str(variant.pk)]
+            try:
+                desired = int(raw_value)
+            except (TypeError, ValueError):
+                messages.error(request, f'Enter a whole-number quantity for {variant.sku}.')
+                return redirect('admin-low-stock')
+            if desired < 0 or desired > 1000000:
+                messages.error(request, f'Quantity for {variant.sku} must be between 0 and 1,000,000.')
+                return redirect('admin-low-stock')
+            desired_quantities[variant.pk] = desired
+
+        updated = 0
+        with transaction.atomic():
+            locked_variants = ProductVariant.objects.select_for_update().filter(
+                pk__in=posted_quantities).select_related('product')
+            for variant in locked_variants:
+                desired = desired_quantities[variant.pk]
+                delta = desired - variant.stock_quantity
+                if delta:
+                    adjust_stock(variant.pk, delta, 'low_stock_page_adjustment', request.user)
+                    updated += 1
+
+        if updated:
+            messages.success(request, f'Stock updated for {updated} variant{ "s" if updated != 1 else "" }.')
+        else:
+            messages.info(request, 'No stock changes to save.')
+        return redirect('admin-low-stock')
 
 
 @permission_required('inventory.adjust')

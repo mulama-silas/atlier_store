@@ -443,8 +443,8 @@
       </div>
       <div class="metric-value">{{ total_products }}</div>
       <div class="dashboard-kpi-insight">
-        <a href="/admin/dashboard/inventory/adjust/"><span class="insight-label">Low stock variants</span></a>
-        <span class="chip-value {% if low_stock_count %}alert{% endif %}" id="kpi-low-stock">{{ low_stock_count }}</span>
+        <a href="{% url 'admin-low-stock' %}" aria-label="Manage {{ low_stock_count }} low stock variants"><span class="insight-label">Low stock variants</span></a>
+        <a href="{% url 'admin-low-stock' %}" class="chip-value {% if low_stock_count %}alert{% endif %}" id="kpi-low-stock" aria-label="Open low stock variants">{{ low_stock_count }}</a>
       </div>
     </div>
 
