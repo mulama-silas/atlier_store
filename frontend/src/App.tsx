@@ -136,7 +136,7 @@ function AppContent() {
       )}
 
       {/* AI shopping assistant (server-side Gemini via Django) */}
-      {hasInteracted && <Suspense fallback={null}><AssistantWidget /></Suspense>}
+      <Suspense fallback={null}><AssistantWidget /></Suspense>
       <WhatsAppButton />
 
       {/* Global Boutique Footer */}

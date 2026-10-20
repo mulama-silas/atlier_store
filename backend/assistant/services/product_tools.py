@@ -12,6 +12,17 @@ LOW_STOCK_THRESHOLD = 3
 MAX_RESULTS = 10
 
 _SALE_FLAGS = {'sale', 'new', 'best_seller', 'featured'}
+_SEARCH_SYNONYMS = {
+    'shoe': ('shoe', 'shoes', 'footwear', 'sneaker', 'sneakers', 'trainer',
+             'trainers', 'heel', 'heels', 'sandal', 'sandals', 'boot',
+             'boots', 'loafer', 'loafers'),
+    'shoes': ('shoe', 'shoes', 'footwear', 'sneaker', 'sneakers', 'trainer',
+              'trainers', 'heel', 'heels', 'sandal', 'sandals', 'boot',
+              'boots', 'loafer', 'loafers'),
+    'footwear': ('shoe', 'shoes', 'footwear', 'sneaker', 'sneakers', 'trainer',
+                 'trainers', 'heel', 'heels', 'sandal', 'sandals', 'boot',
+                 'boots', 'loafer', 'loafers'),
+}
 
 
 def _base_queryset():
@@ -81,15 +92,20 @@ def _serialize(product):
 
 def search_products(*, context=None, query='', colour='', category='',
                     min_price_kes=None, max_price_kes=None, in_stock=True,
-                    occasion='', collection='', limit=5):
+                    occasion='', collection='', size='', limit=5):
     products = _base_queryset()
 
     for term in (query or '').split():
         term = term.strip()
         if term:
-            products = products.filter(
-                Q(name__icontains=term) | Q(description__icontains=term)
-                | Q(tagline__icontains=term) | Q(category__name__icontains=term))
+            term_matches = Q()
+            for variant in _SEARCH_SYNONYMS.get(term.lower(), (term,)):
+                term_matches |= (
+                    Q(name__icontains=variant)
+                    | Q(description__icontains=variant)
+                    | Q(tagline__icontains=variant)
+                    | Q(category__name__icontains=variant))
+            products = products.filter(term_matches)
 
     for term in (occasion or '').split():
         term = term.strip()
@@ -101,6 +117,11 @@ def search_products(*, context=None, query='', colour='', category='',
     if colour:
         products = products.filter(
             Q(color__icontains=colour) | Q(variants__color__icontains=colour))
+
+    if size:
+        products = products.filter(
+            Q(variants__is_active=True, variants__size__iexact=size)
+            | Q(variants__isnull=True, size__iexact=size))
 
     if category and category.lower() != 'all':
         products = products.filter(

@@ -43,6 +43,8 @@ TOOL_SCHEMAS = [
                           'description': 'Free-text keywords, e.g. "linen dress".'},
                 'colour': {'type': 'string',
                            'description': 'Colour filter, e.g. "black".'},
+                'size': {'type': 'string',
+                         'description': 'Size filter, e.g. "M" or "10".'},
                 'category': {'type': 'string',
                              'description': 'Category slug or name, e.g. "dresses".'},
                 'min_price_kes': {'type': 'integer',

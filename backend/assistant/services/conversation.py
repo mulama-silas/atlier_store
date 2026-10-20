@@ -37,6 +37,33 @@ logger = logging.getLogger('modeza.assistant')
 MAX_PRODUCT_CARDS = 6
 MAX_ACTIONS = 3
 
+_PRODUCT_REQUEST_RE = re.compile(
+    r'\b(?:need|want|looking\s+for|find|show\s+me|recommend|'
+    r'do\s+you\s+have|have\s+you\s+got|do\s+you\s+sell|'
+    r'is\s+there|are\s+there|can\s+i\s+get|could\s+i\s+get|'
+    r'could\s+you\s+find|i[\'’]d\s+like|would\s+like|'
+    r'carry|stock|available|shopping\s+for|search\s+for|buy)\b',
+    re.IGNORECASE,
+)
+_NON_PRODUCT_REQUEST_RE = re.compile(
+    r'\b(?:order|delivery|shipment|tracking|refund|return|payment|receipt)\b',
+    re.IGNORECASE,
+)
+_PRODUCT_QUERY_FILLER = {
+    'a', 'an', 'and', 'any', 'are', 'available', 'buy', 'can', 'carry', 'do',
+    'find', 'for', 'get', 'got', 'have', 'i', 'in', 'is', 'looking', 'me', 'need',
+    'of', 'please', 'recommend', 'search', 'sell', 'show', 'some', 'stock',
+    'help', 'the', 'there', 'to', 'want', 'would', 'could', 'like', 'you',
+    'under', 'below', 'less',
+    'than', 'up', 'at', 'most', 'over', 'above', 'more', 'least', 'price',
+    'kes', 'size', 'color', 'colour',
+}
+_PRODUCT_COLOURS = {
+    'beige', 'black', 'blue', 'brown', 'cream', 'gold', 'green', 'grey',
+    'gray', 'ivory', 'navy', 'orange', 'pink', 'purple', 'red', 'silver',
+    'tan', 'white', 'yellow',
+}
+
 _TOOL_RECORD_STATUS = {
     'ok': AssistantToolCall.Status.OK,
     'error': AssistantToolCall.Status.ERROR,
@@ -271,6 +298,82 @@ def _handle_tool(state, execution, context):
             'durationMs': execution.duration_ms or 0}
 
 
+def _catalog_search_for_message(text):
+    """Extract supported live-catalog filters from a shopping query."""
+    if (_NON_PRODUCT_REQUEST_RE.search(text)
+            or not _PRODUCT_REQUEST_RE.search(text)):
+        return None
+    normalized = re.sub(r"\bmen['’]s\b", 'men', text, flags=re.IGNORECASE)
+    normalized = re.sub(r"\bwomen['’]s\b", 'women', normalized,
+                        flags=re.IGNORECASE)
+    normalized = re.sub(r'\bmens\b', 'men', normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r'\bwomens\b', 'women', normalized,
+                        flags=re.IGNORECASE)
+
+    filters = {'limit': MAX_PRODUCT_CARDS}
+    price_patterns = (
+        (r'\b(?:under|below|less\s+than|up\s+to|at\s+most)\s+(?:kes\s*)?([\d,]+)',
+         'max_price_kes'),
+        (r'\b(?:over|above|more\s+than|at\s+least)\s+(?:kes\s*)?([\d,]+)',
+         'min_price_kes'),
+    )
+    for pattern, key in price_patterns:
+        match = re.search(pattern, normalized, flags=re.IGNORECASE)
+        if match:
+            filters[key] = int(match.group(1).replace(',', ''))
+            normalized = normalized[:match.start()] + normalized[match.end():]
+
+    size_match = re.search(
+        r'\bsize\s+(extra\s+small|extra\s+large|xxs|xs|small|medium|'
+        r'large|s|m|l|xl|xxl|\d{1,2})\b',
+        normalized, flags=re.IGNORECASE)
+    if size_match:
+        size = size_match.group(1).lower()
+        filters['size'] = {
+            'extra small': 'XS', 'small': 'S', 'medium': 'M',
+            'large': 'L', 'extra large': 'XL',
+        }.get(size, size.upper())
+        normalized = normalized[:size_match.start()] + normalized[size_match.end():]
+
+    terms = re.findall(r'[a-z0-9]+', normalized.lower())
+    for term in terms:
+        if term in _PRODUCT_COLOURS:
+            filters['colour'] = term
+            terms.remove(term)
+            break
+    query = ' '.join(term for term in terms
+                     if term not in _PRODUCT_QUERY_FILLER)
+    if not query and len(filters) == 1:
+        return None
+    if query:
+        filters['query'] = query
+    return query or text.strip(), filters
+
+
+def _live_catalog_reply(query, payload):
+    products = payload.get('products') or []
+    if not products:
+        return (f'I checked the current catalog but could not find an in-stock '
+                f'match for “{query}”. Try another style, category, colour, '
+                'or search term.')
+
+    lines = [f'Here are current in-stock matches for “{query}”:']
+    for product in products[:4]:
+        price = product.get('price')
+        try:
+            formatted_price = f"KES {float(price):,.0f}"
+        except (TypeError, ValueError):
+            formatted_price = 'Price shown on the product page'
+        details = []
+        if product.get('colours'):
+            details.append('colours: ' + ', '.join(product['colours']))
+        if product.get('sizes'):
+            details.append('sizes: ' + ', '.join(product['sizes']))
+        suffix = f" ({'; '.join(details)})" if details else ''
+        lines.append(f"- **{product.get('name', 'Product')}** — {formatted_price}{suffix}")
+    return '\n'.join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
@@ -301,7 +404,9 @@ def _persist_turn(conversation, state, started):
         except Exception:  # noqa: BLE001 - analytics rows are best-effort
             logger.warning('assistant: failed to store tool call',
                            exc_info=True)
-    if state.get('interaction_id'):
+    if state.get('clear_interaction_id'):
+        conversation.last_interaction_id = ''
+    elif state.get('interaction_id'):
         conversation.last_interaction_id = state['interaction_id']
     conversation.message_count += 1
     conversation.save(update_fields=['last_interaction_id', 'message_count',
@@ -368,6 +473,53 @@ def run_message(conversation, text, context, *, stream=True):
 
     def _execute(name, arguments):
         return tools_module.execute(name, arguments, context)
+
+    catalog_search = _catalog_search_for_message(user_text)
+    if catalog_search:
+        catalog_query, catalog_arguments = catalog_search
+        # Shopping/availability replies must use the live catalog, even when
+        # this conversation previously told the customer that an item was absent.
+        state['clear_interaction_id'] = True
+        try:
+            execution = tools_module.execute(
+                'search_products',
+                catalog_arguments,
+                context,
+            )
+            yield ('tool', _handle_tool(state, execution, context))
+            if execution.status != 'ok':
+                state['error'] = {
+                    'code': 'catalog_unavailable',
+                    'message': 'I could not check the catalog right now. Please try again shortly.',
+                }
+            else:
+                state['text'] = _live_catalog_reply(
+                    catalog_query, execution.payload or {})
+                yield ('delta', {'text': state['text']})
+                if state['products']:
+                    yield ('products', {
+                        'products': state['products'][:MAX_PRODUCT_CARDS]})
+        except Exception:
+            logger.exception('assistant: live catalog search failed')
+            state['error'] = {
+                'code': 'catalog_unavailable',
+                'message': 'I could not check the catalog right now. Please try again shortly.',
+            }
+        finally:
+            message = _persist_turn(conversation, state, started)
+
+        if state['error']:
+            yield ('error', state['error'])
+            return
+        yield ('done', {
+            'messageId': str(message.pk) if message else '',
+            'conversationId': str(conversation.pk),
+            'latencyMs': int((time.monotonic() - started) * 1000),
+            'usage': {},
+            'unanswered': False,
+            'toolCount': len(state['tools']),
+        })
+        return
 
     try:
         for event, data in gemini.run_turn(
