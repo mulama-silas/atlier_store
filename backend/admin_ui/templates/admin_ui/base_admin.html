@@ -1220,9 +1220,6 @@
           <a class="nav-link {% if admin_page == 'promotions' %}active{% endif %}" href="/admin/dashboard/promotions/">
             <i class="ph ph-ticket"></i><span>Promotions</span>
           </a>
-          <a class="nav-link {% if admin_page == 'customers' %}active{% endif %}" href="/admin/dashboard/customers/">
-            <i class="ph ph-users"></i><span>Customers</span>
-          </a>
         </div>
 
         <div class="sidebar-section">
@@ -1243,8 +1240,14 @@
           {% endif %}
         </div>
 
+        {% if is_super_admin %}
         <div class="sidebar-section">
           <div class="sidebar-label">Access Control</div>
+          {% if request.user|can:'customers.view' %}
+          <a class="nav-link {% if admin_page == 'customers' %}active{% endif %}" href="/admin/dashboard/customers/">
+            <i class="ph ph-users"></i><span>Customers</span>
+          </a>
+          {% endif %}
           {% if request.user|can:'staff.view' %}
           <a class="nav-link {% if admin_page == 'staff' %}active{% endif %}" href="/admin/dashboard/staff/">
             <i class="ph ph-users-three"></i><span>Staff</span>
@@ -1253,6 +1256,11 @@
           {% if request.user|can:'roles.view' %}
           <a class="nav-link {% if admin_page == 'roles' %}active{% endif %}" href="/admin/dashboard/roles/">
             <i class="ph ph-lock-key-open"></i><span>Roles &amp; Permissions</span>
+          </a>
+          {% endif %}
+          {% if request.user|can:'staff.view' %}
+          <a class="nav-link {% if admin_page == 'admin-users' %}active{% endif %}" href="/admin/dashboard/admin-users/">
+            <i class="ph ph-shield-check"></i><span>Admin Users</span>
           </a>
           {% endif %}
         </div>
@@ -1273,22 +1281,16 @@
           <a class="nav-link {% if admin_page == 'system-health' %}active{% endif %}" href="/admin/dashboard/system-health/">
             <i class="ph ph-pulse"></i><span>System Health</span>
           </a>
-          {% if request.user|can:'replica.view' %}
           <a class="nav-link {% if admin_page == 'replica' %}active{% endif %}" href="/admin/dashboard/replica/">
             <i class="ph ph-cloud-check"></i><span>Backup to Supabase</span>
           </a>
-          {% endif %}
-          {% if reset_enabled and request.user.is_superuser %}
+          {% if reset_enabled and is_super_admin %}
           <a class="nav-link {% if admin_page == 'reset-data' %}active{% endif %}" href="/admin/dashboard/reset-data/">
             <i class="ph ph-trash-simple"></i><span>Reset demo data</span>
           </a>
           {% endif %}
-          {% if request.user|can:'staff.view' %}
-          <a class="nav-link {% if admin_page == 'admin-users' %}active{% endif %}" href="/admin/dashboard/admin-users/">
-            <i class="ph ph-shield-check"></i><span>Admin Users</span>
-          </a>
-          {% endif %}
         </div>
+        {% endif %}
       </div>
 
       <div class="sidebar-footer">

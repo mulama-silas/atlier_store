@@ -233,6 +233,22 @@ def permission_required(*codes):
     return decorator
 
 
+def super_admin_required(view_cls):
+    """Restrict a class-based view to active Super Admins only."""
+    original_dispatch = view_cls.dispatch
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect_to_login(
+                request.get_full_path(), login_url=ADMIN_LOGIN_URL)
+        if not is_super_admin(request.user):
+            return _denied_response(request)
+        return original_dispatch(self, request, *args, **kwargs)
+
+    view_cls.dispatch = dispatch
+    return view_cls
+
+
 class StaffPermissionRequiredMixin:
     """Mixin for access_control views: active staff + one permission code."""
 
@@ -243,6 +259,8 @@ class StaffPermissionRequiredMixin:
             return redirect_to_login(
                 request.get_full_path(), login_url=ADMIN_LOGIN_URL)
         if not has_staff_access(request.user):
+            return _denied_response(request)
+        if not is_super_admin(request.user):
             return _denied_response(request)
         if self.permission_required and not user_has_permission(
                 request.user, self.permission_required):

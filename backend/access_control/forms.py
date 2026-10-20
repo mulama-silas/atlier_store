@@ -9,19 +9,20 @@ User = get_user_model()
 class StaffCreateForm(forms.Form):
     first_name = forms.CharField(
         required=False, max_length=150,
-        widget=forms.TextInput(attrs={"placeholder": "First name"}))
+        widget=forms.TextInput(attrs={"placeholder": "First name", "class": "form-control"}))
     last_name = forms.CharField(
         required=False, max_length=150,
-        widget=forms.TextInput(attrs={"placeholder": "Last name"}))
+        widget=forms.TextInput(attrs={"placeholder": "Last name", "class": "form-control"}))
     email = forms.EmailField(
-        widget=forms.EmailInput(attrs={"placeholder": "staff@modeza.store"}))
+        widget=forms.EmailInput(attrs={"placeholder": "staff@modeza.store", "class": "form-control"}))
     username = forms.CharField(
         max_length=150,
-        widget=forms.TextInput(attrs={"placeholder": "username"}))
+        widget=forms.TextInput(attrs={"placeholder": "username", "class": "form-control"}))
     password = forms.CharField(
-        required=False, min_length=8,
-        widget=forms.PasswordInput(attrs={"placeholder": "Password (auto-generated if blank)"}),
-        label="Password")
+        min_length=8,
+        widget=forms.PasswordInput(attrs={"placeholder": "Set a temporary password", "class": "form-control"}),
+        label="Temporary password",
+        help_text="Set a password for this account and share it with the staff member securely.")
     roles = forms.ModelMultipleChoiceField(
         queryset=Role.objects.none(),
         required=False,

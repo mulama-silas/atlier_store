@@ -1,5 +1,24 @@
 {% extends "admin_ui/base_admin.html" %}
-{% block title %}{% if mode == 'create' %}Add staff member{% else %}Edit {{ edit_user.username }}{% endif %} | MODEZA Admin{% endblock %}
+{% block title %}{% if mode == 'create' %}Add Admin Account{% else %}Edit {{ edit_user.username }}{% endif %} | MODEZA Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+  .staff-form { display:grid; gap:18px; max-width:1100px; margin:0 auto; }
+  .staff-form .card { overflow:hidden; }
+  .staff-form-card { padding:24px; }
+  .staff-form-heading { display:flex; align-items:flex-start; gap:12px; margin-bottom:18px; }
+  .staff-form-icon { display:grid; place-items:center; flex:0 0 42px; width:42px; height:42px; border-radius:12px; color:var(--accent); background:var(--accent-soft); font-size:20px; }
+  .staff-form-heading h3 { margin:0 0 5px; color:var(--text); font-size:15px; }
+  .staff-form-heading p { margin:0; color:var(--text-secondary); font-size:12px; line-height:1.55; }
+  .staff-account-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .staff-field label { display:block; margin-bottom:6px; color:var(--text-secondary); font-size:12px; font-weight:650; }
+  .staff-field input { width:100%; }
+  .staff-field-help { margin-top:6px; color:var(--text-secondary); font-size:11px; line-height:1.5; }
+  .staff-no-email-note { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; margin-bottom:18px; border:1px solid var(--border); border-radius:10px; background:var(--status-info-bg); color:var(--text); font-size:12px; line-height:1.55; }
+  .staff-form-actions { display:flex; justify-content:flex-end; gap:10px; padding-bottom:8px; }
+  @media(max-width:640px) { .staff-account-grid { grid-template-columns:1fr; } .staff-form-card { padding:18px; } .staff-form-actions { flex-direction:column-reverse; } .staff-form-actions .btn { width:100%; justify-content:center; } }
+</style>
+{% endblock %}
 
 {% block breadcrumbs %}
 <li>MODEZA</li>
@@ -17,7 +36,7 @@
   </div>
 </div>
 
-<form method="post" style="display:grid; gap:16px;">
+<form method="post" class="staff-form">
   {% csrf_token %}
 
   {% if form.non_field_errors %}
@@ -29,16 +48,20 @@
   {% endif %}
 
   <div class="card">
-    <div class="card-body" style="padding: 20px;">
-      <div class="metric-label" style="margin-bottom: 12px;">Account details</div>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+    <div class="card-body staff-form-card">
+      <div class="staff-form-heading">
+        <span class="staff-form-icon"><i class="ph ph-user-circle-plus"></i></span>
+        <div><h3>Account details</h3><p>Enter the staff member’s contact and sign-in details.</p></div>
+      </div>
+      {% if mode == 'create' %}<div class="staff-no-email-note"><i class="ph ph-info"></i><span>No invitation email is sent. The account is created immediately, so set a temporary password and share it with the staff member securely.</span></div>{% endif %}
+      <div class="staff-account-grid">
         {% for field in form.visible_fields %}
           {% if field.html_name == 'roles' or field.html_name == 'direct_permissions' %}{% else %}
-            <div>
-              <label style="display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">{{ field.label }}</label>
+            <div class="staff-field">
+              <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span style="color:var(--status-danger)">*</span>{% endif %}</label>
               {{ field }}
               {% if field.errors %}<div style="font-size:12px; color: var(--status-danger); margin-top:4px;">{{ field.errors.0 }}</div>{% endif %}
-              {% if field.help_text %}<div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">{{ field.help_text }}</div>{% endif %}
+              {% if field.help_text %}<div class="staff-field-help">{{ field.help_text }}</div>{% endif %}
             </div>
           {% endif %}
         {% endfor %}
@@ -47,9 +70,8 @@
   </div>
 
   <div class="card">
-    <div class="card-body" style="padding: 20px;">
-      <div class="metric-label" style="margin-bottom: 4px;">Roles</div>
-      <p style="font-size:12px; color:var(--text-secondary); margin:0 0 10px;">Roles grant a bundled set of permissions. A role's permission set is expanded automatically with any required permissions.</p>
+    <div class="card-body staff-form-card">
+      <div class="staff-form-heading"><span class="staff-form-icon"><i class="ph ph-shield-check"></i></span><div><h3>Roles</h3><p>Choose a role bundle. Required permissions are included automatically.</p></div></div>
       {% for role in roles %}
         <div style="display:flex; gap:10px; align-items:flex-start; padding:7px 2px; border-bottom: 1px solid var(--border-light);">
           <input type="checkbox" id="role-{{ role.slug }}" name="roles" value="{{ role.pk }}"
@@ -72,9 +94,9 @@
   </div>
 
   <div class="card">
-    <div class="card-body" style="padding: 20px;">
-      <div class="metric-label" style="margin-bottom: 4px;">Direct permissions</div>
-      <p style="font-size:12px; color:var(--text-secondary); margin:0 0 10px;">
+    <div class="card-body staff-form-card">
+      <div class="staff-form-heading"><span class="staff-form-icon"><i class="ph ph-lock-key-open"></i></span><div><h3>Direct permissions</h3><p>Add specific permissions outside the selected role bundles.</p></div></div>
+      <p style="font-size:12px; color:var(--text-secondary); margin:0 0 14px;">
         Additional granular permissions outside of roles. Selecting a permission automatically selects any permissions it requires.
         <span class="perm-pill sensitive"><i class="ph ph-lock-key"></i> sensitive</span> permissions can only be granted by a Super Admin.
       </p>
@@ -101,13 +123,13 @@
     </div>
   </div>
 
-  <div style="display:flex; gap:10px; justify-content:flex-end;">
+  <div class="staff-form-actions">
     {% if edit_user %}
       <a class="btn btn-secondary" href="{% url 'access-staff-detail' edit_user.id %}">Cancel</a>
     {% else %}
       <a class="btn btn-secondary" href="{% url 'access-staff' %}">Cancel</a>
     {% endif %}
-    <button type="submit" class="btn btn-primary"><i class="ph ph-check"></i> {{ submit_label }}</button>
+    <button type="submit" class="btn btn-primary"><i class="ph ph-user-plus"></i> {{ submit_label }}</button>
   </div>
 </form>
 

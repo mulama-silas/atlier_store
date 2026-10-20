@@ -21,3 +21,8 @@ create policy "Customers can add to their own wishlist"
 create policy "Customers can remove from their own wishlist"
   on public.wishlist_items for delete
   using (auth.uid() = user_id);
+
+-- The storefront uses supabase-js upsert/insert/delete for signed-in users.
+-- Upsert requires UPDATE as well as INSERT; RLS still scopes rows to auth.uid().
+grant select, insert, update, delete on public.wishlist_items to authenticated;
+grant all privileges on public.wishlist_items to service_role;

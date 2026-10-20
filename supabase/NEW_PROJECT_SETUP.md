@@ -13,7 +13,9 @@ Run these scripts in order in the new project's SQL Editor:
    table and its row-level policies.
 2. `frontend/supabase/migrations/202610130001_profiles_hardening.sql` — creates
    the Auth signup trigger and prevents customers from changing their role.
-3. `supabase/replica_schema.sql` — optional; run only if you intend to use the
+3. `supabase/fresh_project_wishlist.sql` — creates the signed-in customer
+   wishlist table used by the storefront Data API.
+4. `supabase/replica_schema.sql` — optional; run only if you intend to use the
    Django analytics/backup replica. It creates the private `replica` schema.
 
 Do **not** run `supabase/setup.sql` or the older
@@ -46,6 +48,17 @@ database instead.
 - If enabling the replica, set Render `SUPABASE_DB_URL` to the new project's
   direct Postgres URI. It is the replica writer connection; `DATABASE_URL`
   remains the Django primary database connection.
+
+## Data API table access
+
+Supabase grants for the legacy `public` schema are declared beside table
+creation in `frontend/supabase/migrations/` and mirrored in `supabase/setup.sql`.
+The storefront's `wishlist_items` Data API access is limited to signed-in users
+and scoped by RLS. The legacy commerce scripts explicitly grant public catalogue
+reads; order, payment, and audit tables stay private to customer API roles.
+Django's tables are accessed over the direct Postgres connection and are not
+exposed through the Data API. Keep future grants table-specific in the migration
+that creates each table; avoid broad schema-wide grants.
 
 After Render redeploys, create the Django admin with
 `python manage.py ensure_superuser` (or the project's configured startup flow).

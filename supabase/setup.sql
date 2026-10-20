@@ -327,3 +327,35 @@ create policy "Anyone can read active products"
 create policy "Anyone can read active product variants"
   on public.product_variants for select
   using (is_active = true);
+
+
+-- ============================================================================
+-- SECTION 4 — Explicit Data API grants for newly created public tables
+-- ============================================================================
+-- Grants enable table operations; RLS policies above still scope customer rows.
+-- Sensitive commerce/payment tables remain inaccessible to anon/authenticated.
+
+grant select on public.categories, public.products, public.product_variants
+  to anon, authenticated;
+grant select on public.profiles to authenticated;
+grant update (first_name, last_name, phone) on public.profiles to authenticated;
+grant select, insert, update on public.carts to authenticated;
+grant select, insert, update, delete on public.cart_items to authenticated;
+grant select on public.orders, public.order_items to authenticated;
+grant select, insert, update, delete on public.wishlist_items to authenticated;
+
+grant all privileges on table
+  public.profiles,
+  public.categories,
+  public.products,
+  public.product_variants,
+  public.carts,
+  public.cart_items,
+  public.orders,
+  public.order_items,
+  public.stock_reservations,
+  public.payment_intents,
+  public.payment_events,
+  public.audit_logs,
+  public.wishlist_items
+to service_role;

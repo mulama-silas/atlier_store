@@ -182,3 +182,30 @@ create policy "Customers can read their own order items"
   on public.order_items for select using (
     exists (select 1 from public.orders o where o.id = order_id and o.user_id = auth.uid())
   );
+
+-- Explicit Data API grants. RLS policies above still determine which rows
+-- each role can see; these grants only enable the required table operations.
+grant select on public.categories, public.products, public.product_variants
+  to anon, authenticated;
+grant select on public.profiles to authenticated;
+grant update (first_name, last_name, phone) on public.profiles to authenticated;
+grant select, insert, update on public.carts to authenticated;
+grant select, insert, update, delete on public.cart_items to authenticated;
+grant select on public.orders, public.order_items to authenticated;
+
+-- Private commerce and payment tables are server-only. Django connects over
+-- Postgres directly; service_role access is reserved for trusted server code.
+grant all privileges on table
+  public.profiles,
+  public.categories,
+  public.products,
+  public.product_variants,
+  public.carts,
+  public.cart_items,
+  public.orders,
+  public.order_items,
+  public.stock_reservations,
+  public.payment_intents,
+  public.payment_events,
+  public.audit_logs
+to service_role;

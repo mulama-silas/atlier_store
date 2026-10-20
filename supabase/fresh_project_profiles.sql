@@ -19,6 +19,11 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+-- The Data API role can read its own profile and update contact fields only.
+-- Auth creates profile rows through the SECURITY DEFINER signup trigger.
+grant select on public.profiles to authenticated;
+grant update (first_name, last_name, phone) on public.profiles to authenticated;
+
 drop policy if exists "Customers can read their own profile"
   on public.profiles;
 create policy "Customers can read their own profile"

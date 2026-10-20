@@ -154,15 +154,15 @@ class StaffCreateView(StaffPermissionRequiredMixin, View):
     def _render_form(self, request, form):
         role_ids, direct, direct_codes = self._selections(form)
         context = _page_context(
-            request, "staff", "Add staff member",
-            "Create a new MODEZA staff account with least-privilege access.")
+            request, "staff", "Add Admin Account",
+            "Create a staff login, then assign only the roles and permissions they need.")
         context.update({
             "form": form,
             "roles": Role.objects.all(),
             "selected_role_ids": role_ids,
             "selected_direct_ids": direct,
             "matrix": _role_matrix(direct_codes),
-            "submit_label": "Create staff member",
+            "submit_label": "Create Admin Account",
             "mode": "create",
             "sensitive_permissions": sensitive_codes(),
         })
@@ -192,7 +192,7 @@ class StaffCreateView(StaffPermissionRequiredMixin, View):
             user = User.objects.create_user(
                 username=data["username"],
                 email=data["email"],
-                password=data.get("password") or User.objects.make_random_password(),
+                password=data["password"],
                 first_name=data.get("first_name") or "",
                 last_name=data.get("last_name") or "",
                 is_staff=True,

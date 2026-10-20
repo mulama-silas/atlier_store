@@ -37,7 +37,9 @@ from audit.constants import AUDIT_ACTIONS
 from audit.models import AuditLog
 from access_control.services import (
     access_denied_response,
+    is_super_admin,
     permission_required,
+    super_admin_required,
     user_has_permission,
 )
 from catalog.bulk_import import BulkImportError, BulkProductImportService, job_data
@@ -924,8 +926,8 @@ class AdminPageView(View):
         'admin-users': {
             'title': 'Admin Users',
             'subtitle': 'Manage administrators and staff.',
-            'primary_action': '+ Invite Admin',
-            'primary_url': '/admin/dashboard/admin-users/invite/',
+            'primary_action': '+ Add Admin Account',
+            'primary_url': '/admin/dashboard/staff/create/',
             'filters': ['Role filter', 'Status filter'],
             'columns': ['Admin', 'Email', 'Role', 'Status', 'Last Active', 'Actions'],
             'rows': [],
@@ -965,6 +967,8 @@ class AdminPageView(View):
     def dispatch(self, request, *args, **kwargs):
         # Page-level permission check for the generic list pages.
         page = kwargs.get('page', '')
+        if page in {'customers', 'admin-users'} and not is_super_admin(request.user):
+            return access_denied_response(request)
         required = AdminPageView.PAGE_REQUIRED_PERMISSION.get(page)
         if required and not user_has_permission(request.user, required):
             return access_denied_response(request)
@@ -3116,47 +3120,14 @@ class ProductDeletePageView(View):
         return redirect('admin-products')
 
 
+@super_admin_required
 @permission_required('staff.create')
-@method_decorator(user_passes_test(is_superuser, login_url='admin-login'), name='dispatch')
 class AdminUserInvitePageView(View):
-    template_name = 'admin_ui/admin_user_invite_page.html'
-
     def get(self, request):
-        return render(request, self.template_name, {
-            'page_title': 'Invite Admin',
-            'page_subtitle': 'Create a staff administrator account and grant admin powers.',
-            'submit_label': 'Send Invite',
-            'form': AdminSignupForm(allow_superuser=True),
-        })
+        return redirect('access-staff-create')
 
     def post(self, request):
-        form = AdminSignupForm(request.POST, allow_superuser=True)
-        if form.is_valid():
-            user = form.save()
-            AuditLogService.log(
-                'create',
-                actor=user,
-                category='auth',
-                object_type='user',
-                object_id=user.pk,
-                object_repr=user.get_username(),
-                description=f'Administrator account created: {user.get_username()}.',
-            )
-            notify_staff(
-                category='system',
-                title='New admin account created',
-                message=f'{user.get_full_name() or user.username} ({user.email}) was added as an administrator.',
-                recipient=user,
-            )
-            messages.success(
-                request, f'Administrator {user.username} created and granted admin powers.')
-            return redirect('admin-users')
-        return render(request, self.template_name, {
-            'page_title': 'Invite Admin',
-            'page_subtitle': 'Create a staff administrator account and grant admin powers.',
-            'submit_label': 'Send Invite',
-            'form': form,
-        })
+        return redirect('access-staff-create')
 
 
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
@@ -3235,6 +3206,7 @@ class StaffRequiredMixin:
         return super().dispatch(request, *args, **kwargs)
 
 
+@super_admin_required
 @permission_required('audit_logs.view')
 @method_decorator(user_passes_test(is_staff, login_url='admin-login'), name='dispatch')
 class AuditLogsPageView(View):
@@ -3252,6 +3224,7 @@ class AuditLogsPageView(View):
             self, request, template_name=self.template_name)
 
 
+@super_admin_required
 @permission_required('audit_logs.view')
 class ActivityOverviewPageView(StaffRequiredMixin, View):
     """Main logging dashboard: summary cards, timeline/table, filters, export."""
@@ -3406,6 +3379,7 @@ class ActivitySelectors:
         return get_user_model().objects.filter(is_staff=True).order_by('username')
 
 
+@super_admin_required
 @permission_required('audit_logs.export')
 class ActivityExportView(StaffRequiredMixin, View):
     """Export the filtered audit trail as CSV or JSON.
@@ -3489,6 +3463,7 @@ class ActivityExportView(StaffRequiredMixin, View):
         return response
 
 
+@super_admin_required
 @permission_required('audit_logs.view')
 class RequestTracePageView(StaffRequiredMixin, View):
     """Chronological trace of every audit event for a single request ID."""
@@ -3537,6 +3512,7 @@ class RequestTracePageView(StaffRequiredMixin, View):
         })
 
 
+@super_admin_required
 @permission_required('audit_logs.view')
 class SecurityCenterPageView(StaffRequiredMixin, View):
     """Focused view of authentication and security-related audit events."""
@@ -3596,6 +3572,7 @@ class SecurityCenterPageView(StaffRequiredMixin, View):
         })
 
 
+@super_admin_required
 @permission_required('audit_logs.view')
 class ErrorCenterPageView(StaffRequiredMixin, View):
     """Focused view of failed/high-severity application events."""
@@ -3641,6 +3618,7 @@ class ErrorCenterPageView(StaffRequiredMixin, View):
         })
 
 
+@super_admin_required
 @permission_required('audit_logs.view')
 class SystemHealthPageView(StaffRequiredMixin, View):
     """Honest, read-only system health summary.
@@ -3772,6 +3750,7 @@ class SystemHealthPageView(StaffRequiredMixin, View):
 REPLICA_STALE_AFTER = timedelta(hours=36)
 
 
+@super_admin_required
 @permission_required('replica.view')
 class ReplicaStatusPageView(StaffRequiredMixin, View):
     """Backup status for the Supabase analytics replica.
@@ -3863,6 +3842,7 @@ class ReplicaStatusPageView(StaffRequiredMixin, View):
         })
 
 
+@super_admin_required
 @permission_required('replica.view')
 class ReplicaCountsRefreshView(StaffRequiredMixin, View):
     """Read-only live count endpoint used by the replica status page."""
@@ -3896,6 +3876,7 @@ class ReplicaCountsRefreshView(StaffRequiredMixin, View):
         return response
 
 
+@super_admin_required
 @permission_required('replica.sync')
 class ReplicaSyncActionView(StaffRequiredMixin, View):
     """POST-only manual sync trigger.
@@ -4025,7 +4006,7 @@ def _data_reset_enabled(request):
             'Data reset is not enabled on this deployment.')
     # Hard superuser gate, not a permission code: codes in the permissions
     # catalog can be granted to other roles, and this one is irreversible.
-    if not (request.user.is_authenticated and request.user.is_superuser):
+    if not is_super_admin(request.user):
         return access_denied_response(request)
     return None
 
@@ -4158,6 +4139,7 @@ class AssistantAnalyticsPageView(StaffRequiredMixin, View):
         })
 
 
+@super_admin_required
 @permission_required('customers.view')
 class CustomerDetailPageView(StaffRequiredMixin, View):
     """Customer profile with the linked audit activity for that account."""
