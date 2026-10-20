@@ -1,14 +1,5 @@
 import React from "react";
-import {
-  ArrowDown,
-  ArrowRight,
-  ArrowUpRight,
-  Feather,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  Truck,
-} from "lucide-react";
+import { ArrowDown, ArrowRight, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 import { useStore } from "../context/StoreContext";
@@ -16,7 +7,6 @@ import { ProductCard } from "../components/ProductCard";
 import { Button } from "../components/modeza/Button";
 import { useRouter } from "../router/RouterContext";
 import { Product } from "../types";
-import { CATEGORIES } from "../data/mockData";
 
 export interface HomePageProps {
   onQuickView: (product: Product) => void;
@@ -25,24 +15,11 @@ export interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
   const { navigate } = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
-  const { products, categories } = useStore();
-  const markedArrivals = products.filter((product) => product.isNewArrival);
-  const newArrivals = (
-    markedArrivals.length > 0
-      ? markedArrivals
-      : [...products].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  ).slice(0, 4);
+  const { products } = useStore();
   const markedBestSellers = products.filter((product) => product.isBestSeller);
-  const bestSellers = (
+  const featuredPieces = (
     markedBestSellers.length > 0 ? markedBestSellers : products
   ).slice(0, 4);
-  const liveCategories = categories.filter(
-    (category) => category.slug !== "all",
-  );
-  const shopCategories =
-    liveCategories.length > 0
-      ? liveCategories
-      : CATEGORIES.filter((category) => category.slug !== "all");
 
   return (
     <div className="bg-[#FAF9F6] pb-16 sm:pb-20">
@@ -103,11 +80,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
                   <Button
                     variant="ghost"
                     size="lg"
-                    onClick={() => navigate("/shop?collection=new-arrivals")}
+                    onClick={() => document.getElementById("featured-pieces")?.scrollIntoView({ behavior: "smooth" })}
                     className="gap-2 border border-white/50 text-white hover:border-white hover:bg-white/10"
                   >
-                    New Arrivals
-                    <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                    Featured Pieces
+                    <ArrowDown className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </>
               ) : (
@@ -125,7 +102,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
           </motion.div>
 
           <a
-            href="#new-arrivals"
+            href="#featured-pieces"
             className="flex items-center justify-between gap-4 border-t border-white/35 pt-4 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/75 transition-colors hover:text-white"
           >
             <span>Discover the collection</span>
@@ -135,169 +112,37 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
       </section>
 
       <section
-        aria-label="Store services"
-        className="border-b border-[#E8E5DF] bg-white"
-      >
-        <div className="mx-auto grid max-w-7xl grid-cols-1 divide-y divide-[#E8E5DF] px-5 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-8 lg:px-12">
-          <ServiceNote
-            icon={<Truck className="h-4 w-4" />}
-            label="Delivery across Kenya"
-          />
-          <ServiceNote
-            icon={<RotateCcw className="h-4 w-4" />}
-            label="30-day returns"
-          />
-          <ServiceNote
-            icon={<ShieldCheck className="h-4 w-4" />}
-            label="Secure checkout"
-          />
-        </div>
-      </section>
-
-      <section
-        id="new-arrivals"
-        aria-labelledby="arrivals-title"
+        id="featured-pieces"
+        aria-labelledby="featured-title"
         className="scroll-mt-24 mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24"
       >
         <SectionHeading
-          id="arrivals-title"
-          eyebrow="Just landed"
-          title="New arrivals"
-          actionLabel="Shop all new arrivals"
-          onAction={() => navigate("/shop?collection=new-arrivals")}
+          id="featured-title"
+          eyebrow="Selected for you"
+          title="Featured Pieces"
+          actionLabel="Explore the collection"
+          onAction={() => navigate("/shop")}
         />
-        {newArrivals.length > 0 ? (
+        {featuredPieces.length > 0 ? (
           <ProductGrid
-            products={newArrivals}
+            products={featuredPieces}
             onQuickView={onQuickView}
             onProductClick={(product) => navigate(`/product/${product.slug}`)}
           />
         ) : (
           <p className="border-y border-[#E8E5DF] py-8 text-sm text-[#63605A]">
-            New pieces are on their way. Explore the full collection in the
-            meantime.
+            New pieces are on their way. Explore the full collection in the meantime.
           </p>
         )}
       </section>
 
-      <section
-        aria-labelledby="materials-title"
-        className="overflow-hidden border-y border-[#E8E5DF] bg-[#F4ECE9]"
-      >
-        <div className="mx-auto grid max-w-7xl lg:grid-cols-2">
-          <div className="flex flex-col justify-center px-5 py-14 sm:px-8 sm:py-16 lg:px-12 lg:py-20">
-            <p className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
-              <Feather className="h-4 w-4" aria-hidden="true" />
-              Materials, considered
-            </p>
-            <h2
-              id="materials-title"
-              className="mt-5 max-w-lg font-serif text-3xl font-normal leading-tight sm:text-4xl lg:text-5xl"
-            >
-              Beautiful cloth changes how a piece feels.
-            </h2>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-[#63605A] sm:text-base sm:leading-8">
-              Traceable silk, responsible wool, and Mongolian cashmere bring
-              softness, structure, and ease to the MODEZA wardrobe. Each
-              material is chosen for the way it wears, not just the way it
-              looks.
-            </p>
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => navigate("/about#sustainability")}
-              className="mt-7 w-fit gap-2"
-            >
-              Our approach to materials
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-          <div className="relative min-h-[320px] overflow-hidden bg-[#D8D3CB] sm:min-h-[420px] lg:min-h-[560px]">
-            <img
-              src="https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&w=1600&auto=format&fit=crop"
-              alt="Soft knitwear from the MODEZA collection"
-              className="absolute inset-0 h-full w-full object-cover"
-              referrerPolicy="no-referrer"
-              loading="lazy"
-            />
-            <span className="absolute bottom-5 left-5 bg-white/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#181716]">
-              Natural fibers, considered design
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {shopCategories.length > 0 && (
-        <section
-          aria-labelledby="categories-title"
-          className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24"
-        >
-          <SectionHeading
-            id="categories-title"
-            eyebrow="Find your form"
-            title="Shop by category"
-            actionLabel="Explore all pieces"
-            onAction={() => navigate("/shop")}
-          />
-          <div className="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-4">
-            {shopCategories.slice(0, 8).map((category, index) => (
-              <button
-                key={category.id}
-                type="button"
-                onClick={() => navigate(`/shop/${category.slug}`)}
-                className="group flex min-h-24 items-center justify-between gap-4 border-t border-[#D8D3CB] py-5 text-left transition-colors hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
-              >
-                <span className="flex min-w-0 items-baseline gap-3">
-                  <span className="text-[10px] font-medium text-[#A29E96]">
-                    0{index + 1}
-                  </span>
-                  <span className="truncate font-serif text-xl sm:text-2xl">
-                    {category.name}
-                  </span>
-                </span>
-                <ArrowUpRight
-                  className="h-4 w-4 shrink-0 text-[#A2574F] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section
-        aria-labelledby="bestsellers-title"
-        className="border-y border-[#E8E5DF] bg-white"
-      >
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
-          <SectionHeading
-            id="bestsellers-title"
-            eyebrow="Worn on repeat"
-            title="Most-loved pieces"
-            actionLabel="Browse best sellers"
-            onAction={() => navigate("/shop?collection=best-sellers")}
-          />
-          {bestSellers.length > 0 ? (
-            <ProductGrid
-              products={bestSellers}
-              onQuickView={onQuickView}
-              onProductClick={(product) => navigate(`/product/${product.slug}`)}
-            />
-          ) : (
-            <p className="border-y border-[#E8E5DF] py-8 text-sm text-[#63605A]">
-              Explore the collection to find your next favorite piece.
-            </p>
-          )}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
+      <section aria-labelledby="story-title" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
         <div className="flex flex-col gap-6 border-b border-[#D8D3CB] pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
               The MODEZA story
             </p>
-            <h2 className="mt-4 font-serif text-3xl font-normal leading-tight sm:text-4xl">
+            <h2 id="story-title" className="mt-4 font-serif text-3xl font-normal leading-tight sm:text-4xl">
               Made for your wardrobe, not just the moment.
             </h2>
           </div>
@@ -376,12 +221,3 @@ const ProductGrid: React.FC<{
   </div>
 );
 
-const ServiceNote: React.FC<{ icon: React.ReactNode; label: string }> = ({
-  icon,
-  label,
-}) => (
-  <div className="flex items-center gap-3 py-4 text-xs font-medium text-[#63605A] sm:justify-center sm:py-5">
-    <span className="text-[#A2574F]">{icon}</span>
-    {label}
-  </div>
-);
