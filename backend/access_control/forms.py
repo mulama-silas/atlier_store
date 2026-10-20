@@ -94,10 +94,19 @@ class StaffEditForm(forms.Form):
 
 
 class RoleForm(forms.Form):
-    name = forms.CharField(max_length=160)
+    name = forms.CharField(
+        max_length=160,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "e.g. Catalog Manager",
+        }))
     description = forms.CharField(
         required=False, max_length=2000,
-        widget=forms.Textarea(attrs={"rows": 3}))
+        widget=forms.Textarea(attrs={
+            "rows": 3,
+            "class": "form-control",
+            "placeholder": "Describe the team or access this role is intended for.",
+        }))
     permissions = forms.ModelMultipleChoiceField(
         queryset=Permission.objects.none(),
         required=False,

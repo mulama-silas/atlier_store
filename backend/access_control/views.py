@@ -557,12 +557,17 @@ class RoleCreateView(StaffPermissionRequiredMixin, View):
         return set(Permission.objects.filter(pk__in=pks).values_list("code", flat=True))
 
     def _render_form(self, request, form):
+        matrix = _role_matrix(self._selected_codes(form))
         context = _page_context(
             request, "roles", "Create role",
             "Bundle a set of permissions into a reusable role.")
         context.update({
             "form": form,
-            "matrix": _role_matrix(self._selected_codes(form)),
+            "matrix": matrix,
+            "selected_permission_count": sum(group["selected_count"] for group in matrix),
+            "sensitive_permission_count": sum(
+                1 for group in matrix for permission in group["permissions"]
+                if permission["selected"] and permission["sensitive"]),
             "sensitive_permissions": sensitive_codes(),
             "submit_label": "Create role",
             "mode": "create",
@@ -609,12 +614,17 @@ class RoleEditView(StaffPermissionRequiredMixin, View):
         return set(Permission.objects.filter(pk__in=pks).values_list("code", flat=True))
 
     def _render_form(self, request, form, role):
+        matrix = _role_matrix(self._selected_codes(form))
         context = _page_context(
             request, "roles", f"Edit role · {role.name}",
             "Adjust the role's permission bundle.")
         context.update({
             "form": form,
-            "matrix": _role_matrix(self._selected_codes(form)),
+            "matrix": matrix,
+            "selected_permission_count": sum(group["selected_count"] for group in matrix),
+            "sensitive_permission_count": sum(
+                1 for group in matrix for permission in group["permissions"]
+                if permission["selected"] and permission["sensitive"]),
             "sensitive_permissions": sensitive_codes(),
             "submit_label": "Save changes",
             "mode": "edit",
