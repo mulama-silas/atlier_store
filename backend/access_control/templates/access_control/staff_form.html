@@ -15,6 +15,15 @@
   .staff-field input { width:100%; }
   .staff-field-help { margin-top:6px; color:var(--text-secondary); font-size:11px; line-height:1.5; }
   .staff-no-email-note { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; margin-bottom:18px; border:1px solid var(--border); border-radius:10px; background:var(--status-info-bg); color:var(--text); font-size:12px; line-height:1.55; }
+  .permission-group { margin:0 0 10px; border:1px solid var(--border); border-radius:10px; background:var(--panel); overflow:hidden; }
+  .permission-group:last-child { margin-bottom:0; }
+  .permission-group summary { display:flex; align-items:center; gap:10px; padding:13px 15px; color:var(--text); cursor:pointer; list-style:none; user-select:none; }
+  .permission-group summary::-webkit-details-marker { display:none; }
+  .permission-group summary::before { content:""; width:7px; height:7px; border-right:1.5px solid var(--text-secondary); border-bottom:1.5px solid var(--text-secondary); transform:rotate(-45deg); transition:transform .18s ease; }
+  .permission-group[open] summary::before { transform:rotate(45deg); }
+  .permission-group-title { flex:1; font-size:12px; font-weight:700; letter-spacing:.055em; text-transform:uppercase; }
+  .permission-group-count { color:var(--text-secondary); font-size:11px; font-variant-numeric:tabular-nums; }
+  .permission-group-content { padding:0 14px 10px; border-top:1px solid var(--border-light); }
   .staff-form-actions { display:flex; justify-content:flex-end; gap:10px; padding-bottom:8px; }
   @media(max-width:640px) { .staff-account-grid { grid-template-columns:1fr; } .staff-form-card { padding:18px; } .staff-form-actions { flex-direction:column-reverse; } .staff-form-actions .btn { width:100%; justify-content:center; } }
 </style>
@@ -102,8 +111,12 @@
       </p>
 
       {% for group in matrix %}
-        <div style="margin-bottom:14px;">
-          <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); margin-bottom:4px;">{{ group.label }}</div>
+        <details class="permission-group" {% if group.selected_count %}open{% endif %}>
+          <summary>
+            <span class="permission-group-title">{{ group.label }}</span>
+            <span class="permission-group-count">{{ group.selected_count }} of {{ group.permissions|length }} selected</span>
+          </summary>
+          <div class="permission-group-content">
           {% for p in group.permissions %}
             <div class="perm-matrix-row">
               <input type="checkbox" id="perm-{{ p.code|slugify }}" name="direct_permissions" value="{{ p.pk }}" data-code="{{ p.code }}"
@@ -118,7 +131,8 @@
               </label>
             </div>
           {% endfor %}
-        </div>
+          </div>
+        </details>
       {% endfor %}
     </div>
   </div>

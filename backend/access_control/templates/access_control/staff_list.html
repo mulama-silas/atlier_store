@@ -117,7 +117,6 @@
             <th>Staff member</th>
             <th>Roles</th>
             <th>Status</th>
-            <th>Super user</th>
             <th style="text-align: right;">Actions</th>
           </tr>
         </thead>
@@ -153,9 +152,6 @@
                 <span style="display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; background: var(--status-danger-bg); color: var(--status-danger);">Inactive</span>
               {% endif %}
             </td>
-            <td>
-              {% if member.is_superuser %}<i class="ph ph-check-circle" style="color: var(--status-success);"></i>{% else %}<span style="color: var(--text-secondary);">—</span>{% endif %}
-            </td>
             <td style="text-align:right; white-space:nowrap;">
               <a class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" href="{% url 'access-staff-detail' member.id %}">View</a>
               {% if can_edit and member.id != request.user.id %}
@@ -164,7 +160,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" style="padding: 32px; text-align:center; color: var(--text-secondary);">No staff members found.</td></tr>
+          <tr><td colspan="4" style="padding: 32px; text-align:center; color: var(--text-secondary);">No staff members found.</td></tr>
           {% endfor %}
         </tbody>
       </table>

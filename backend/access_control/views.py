@@ -64,6 +64,9 @@ class StaffListView(StaffPermissionRequiredMixin, View):
 
         queryset = (User.objects
                     .filter(is_staff=True)
+                    .exclude(is_superuser=True)
+                    .exclude(staff_profile__roles__is_superadmin=True)
+                    .distinct()
                     .select_related("staff_profile")
                     .prefetch_related("staff_profile__roles",
                                       "staff_profile__direct_permissions")
@@ -487,7 +490,13 @@ def _role_matrix(selected_codes=None):
             for code, p in ((c, permission_map.get(c)) for c in sorted(
                 Permission.objects.filter(group=group).values_list("code", flat=True)))
         ]
-        matrix.append({"group": group, "label": label, "permissions": permissions})
+        matrix.append({
+            "group": group,
+            "label": label,
+            "permissions": permissions,
+            "selected_count": sum(1 for permission in permissions
+                                   if permission["selected"]),
+        })
     return matrix
 
 

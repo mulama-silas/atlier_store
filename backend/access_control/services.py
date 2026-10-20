@@ -8,7 +8,7 @@ immediately responsive to deactivation.
 from django.contrib.auth import get_user_model
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import render
 
 from audit.services import AuditLogService
@@ -273,14 +273,26 @@ def staff_directory_stats():
     from django.contrib.auth import get_user_model
 
     User = get_user_model()
+    super_admin_filter = (
+        Q(is_superuser=True)
+        | Q(staff_profile__roles__is_superadmin=True)
+    )
+    staff = (User.objects.filter(is_staff=True)
+             .exclude(is_superuser=True)
+             .exclude(staff_profile__roles__is_superadmin=True)
+             .distinct())
+    super_admins = User.objects.filter(is_staff=True).filter(
+        super_admin_filter).distinct()
     return {
-        "total_staff": User.objects.filter(is_staff=True).count(),
-        "active_staff": User.objects.filter(is_staff=True, is_active=True).count(),
+        "total_staff": staff.count(),
+        "active_staff": staff.filter(is_active=True).count(),
         "total_roles": Role.objects.count(),
-        "super_admins": User.objects.filter(is_superuser=True, is_active=True).count(),
-        "active_super_admins": active_super_admin_count(),
+        "super_admins": super_admins.filter(is_active=True).count(),
+        "active_super_admins": super_admins.filter(is_active=True).count(),
         "staff_by_role": (
             StaffProfile.objects
+            .exclude(user__is_superuser=True)
+            .exclude(roles__is_superadmin=True)
             .exclude(roles__isnull=True)
             .values("roles__name")
             .annotate(count=Count("id"))

@@ -925,7 +925,7 @@ class AdminPageView(View):
         },
         'admin-users': {
             'title': 'Admin Users',
-            'subtitle': 'Manage administrators and staff.',
+            'subtitle': 'Manage Super Admin accounts.',
             'primary_action': '+ Add Admin Account',
             'primary_url': '/admin/dashboard/staff/create/',
             'filters': ['Role filter', 'Status filter'],
@@ -1492,8 +1492,12 @@ class AdminPageView(View):
         if page == 'admin-users':
             admin_rows = []
             User = get_user_model()
-            admins = User.objects.filter(is_staff=True).prefetch_related(
-                'staff_profile__roles').order_by('username')
+            admins = (User.objects.filter(is_staff=True)
+                      .filter(Q(is_superuser=True)
+                              | Q(staff_profile__roles__is_superadmin=True))
+                      .distinct()
+                      .prefetch_related('staff_profile__roles')
+                      .order_by('username'))
             if query:
                 admins = admins.filter(
                     Q(username__icontains=query) | Q(email__icontains=query))
@@ -1501,23 +1505,11 @@ class AdminPageView(View):
             if admin_status == 'active': admins = admins.filter(is_active=True)
             elif admin_status == 'inactive': admins = admins.filter(is_active=False)
             for a in admins:
-                profile = getattr(a, 'staff_profile', None)
-                role_names = sorted(
-                    r.name for r in profile.roles.all()) if profile else []
-                is_super = a.is_superuser or any(
-                    r.is_superadmin
-                    for r in (profile.roles.all() if profile else []))
-                if is_super:
-                    role_label = 'Super Admin'
-                elif role_names:
-                    role_label = ', '.join(role_names)
-                else:
-                    role_label = 'No roles yet'
                 admin_rows.append({
                     'id': str(a.pk),
                     'name': a.get_full_name() or a.username,
                     'email': a.email,
-                    'role': role_label,
+                    'role': 'Super Admin',
                     'status': 'Active' if a.is_active else 'Inactive',
                     'last': a.last_login.strftime('%b %d, %Y') if a.last_login else 'Never',
                     'actions': 'View'
