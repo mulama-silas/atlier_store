@@ -79,6 +79,32 @@ def _humanize(value, fallback=''):
     return value or fallback
 
 
+def _draw_receipt_watermark(canvas, _document):
+    """Draw a low-contrast repeating PAID pattern and MODEZA wordmark."""
+    canvas.saveState()
+
+    # Keep the repeated mark subtle enough to sit behind small receipt text.
+    canvas.setFillColor(rl_colors.HexColor('#F1F3EF'))
+    canvas.setFont('Helvetica-Bold', 8)
+    for y in range(42, int(PAGE[1]), 112):
+        offset = 44 if (y // 112) % 2 else 0
+        for x in range(-20 + offset, int(PAGE[0]) + 40, 112):
+            canvas.saveState()
+            canvas.translate(x, y)
+            canvas.rotate(32)
+            canvas.drawString(0, 0, 'PAID')
+            canvas.restoreState()
+
+    canvas.saveState()
+    canvas.translate(PAGE[0] / 2, PAGE[1] / 2)
+    canvas.rotate(32)
+    canvas.setFillColor(rl_colors.HexColor('#F5F6F3'))
+    canvas.setFont('Times-Bold', 64)
+    canvas.drawCentredString(0, 0, 'MODEZA')
+    canvas.restoreState()
+    canvas.restoreState()
+
+
 def render_receipt_pdf(receipt):
     """Render ``receipt`` to PDF bytes (pure function, no I/O)."""
     order = receipt.order
@@ -334,7 +360,11 @@ def render_receipt_pdf(receipt):
         author='Modeza Boutique',
         subject=f'Official receipt for order {order.order_number}',
     )
-    doc.build(story)
+    doc.build(
+        story,
+        onFirstPage=_draw_receipt_watermark,
+        onLaterPages=_draw_receipt_watermark,
+    )
     buffer.seek(0)
     return buffer.getvalue()
 
