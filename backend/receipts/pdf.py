@@ -188,7 +188,11 @@ def render_receipt_pdf(receipt):
         [
             [
                 Paragraph('<br/>'.join(billed_lines), STYLE_MUTED),
-                Paragraph('<br/>'.join(ref_lines), STYLE_MUTED),
+                Paragraph(
+                    '<br/>'.join(ref_lines),
+                    ParagraphStyle(
+                        name='order-reference', parent=STYLE_MUTED,
+                        alignment=TA_RIGHT)),
             ]
         ],
         colWidths=[(PAGE[0] - 2 * MARGIN) / 2] * 2,
