@@ -46,9 +46,25 @@ _PRODUCT_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 _NON_PRODUCT_REQUEST_RE = re.compile(
-    r'\b(?:order|delivery|shipment|tracking|refund|return|payment|receipt)\b',
+    r'\b(?:order|delivery|shipment|tracking|refund|return|payment|receipt|'
+    r'shipping|policy|support|account|password|login|coupon|promotion)\b',
     re.IGNORECASE,
 )
+_NON_PRODUCT_FRAGMENT_RE = re.compile(
+    r'^(?:hi|hello|hey|thanks?|thank\s+you|ok|okay|sure|'
+    r'good\s+(?:morning|afternoon|evening)|how\s+are\s+you|'
+    r'what\s+can\s+you\s+do|what\s+is\s+your\s+name)[.!?\s]*$',
+    re.IGNORECASE,
+)
+_PRODUCT_FRAGMENT_TERMS = {
+    'accessory', 'accessories', 'bag', 'bags', 'belt', 'belts', 'blouse',
+    'blouses', 'boot', 'boots', 'clothing', 'dress', 'dresses', 'footwear',
+    'gown', 'gowns', 'handbag', 'handbags', 'heel', 'heels', 'jacket',
+    'jackets', 'jeans', 'loafer', 'loafers', 'pants', 'scarf', 'scarves',
+    'shoe', 'shoes', 'shirt', 'shirts', 'skirt', 'skirts', 'sneaker',
+    'sneakers', 'socks', 'suit', 'suits', 'top', 'tops', 'trainer',
+    'trainers', 'trousers', 'watch', 'watches',
+}
 _PRODUCT_QUERY_FILLER = {
     'a', 'an', 'and', 'any', 'are', 'available', 'buy', 'can', 'carry', 'do',
     'find', 'for', 'get', 'got', 'have', 'i', 'in', 'is', 'looking', 'me', 'need',
@@ -300,8 +316,16 @@ def _handle_tool(state, execution, context):
 
 def _catalog_search_for_message(text):
     """Extract supported live-catalog filters from a shopping query."""
-    if (_NON_PRODUCT_REQUEST_RE.search(text)
-            or not _PRODUCT_REQUEST_RE.search(text)):
+    if _NON_PRODUCT_REQUEST_RE.search(text):
+        return None
+    has_shopping_intent = bool(_PRODUCT_REQUEST_RE.search(text))
+    words = re.findall(r'[a-z0-9]+', text.lower())
+    is_product_fragment = (
+        1 <= len(words) <= 5
+        and not _NON_PRODUCT_FRAGMENT_RE.fullmatch(text.strip())
+        and any(word in _PRODUCT_FRAGMENT_TERMS for word in words)
+    )
+    if not has_shopping_intent and not is_product_fragment:
         return None
     normalized = re.sub(r"\bmen['’]s\b", 'men', text, flags=re.IGNORECASE)
     normalized = re.sub(r"\bwomen['’]s\b", 'women', normalized,
