@@ -205,6 +205,9 @@
   .dashboard-kpi-insight .chip-value.alert { color: var(--status-danger); }
   .dashboard-kpi-insight a { color: inherit; text-decoration: none; }
   .dashboard-kpi-insight a:hover { color: var(--dash-sage); }
+  .dashboard-kpi-insight.kpi-action { width: 100%; text-decoration: none; border-radius: 6px; transition: color .15s ease; }
+  .dashboard-kpi-insight.kpi-action:hover .insight-label { color: var(--dash-sage); }
+  .dashboard-kpi-insight.kpi-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   .dashboard-kpi-insight .insight-label {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -442,10 +445,10 @@
         <div class="dashboard-kpi-label">Products</div>
       </div>
       <div class="metric-value">{{ total_products }}</div>
-      <div class="dashboard-kpi-insight">
-        <a href="{% url 'admin-low-stock' %}" aria-label="Manage {{ low_stock_count }} low stock variants"><span class="insight-label">Low stock variants</span></a>
-        <a href="{% url 'admin-low-stock' %}" class="chip-value {% if low_stock_count %}alert{% endif %}" id="kpi-low-stock" aria-label="Open low stock variants">{{ low_stock_count }}</a>
-      </div>
+      <a class="dashboard-kpi-insight kpi-action" href="{% url 'admin-low-stock' %}" aria-label="Manage {{ low_stock_count }} low stock variants">
+        <span class="insight-label">Low stock variants</span>
+        <span class="chip-value {% if low_stock_count %}alert{% endif %}" id="kpi-low-stock">{{ low_stock_count }}</span>
+      </a>
     </div>
 
   </section>
