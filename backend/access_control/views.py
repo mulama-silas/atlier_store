@@ -629,6 +629,7 @@ class RoleEditView(StaffPermissionRequiredMixin, View):
             "submit_label": "Save changes",
             "mode": "edit",
             "edit_role": role,
+            "role_choices": Role.objects.order_by("name").values("id", "name"),
         })
         return render(request, self.template_name, context)
 

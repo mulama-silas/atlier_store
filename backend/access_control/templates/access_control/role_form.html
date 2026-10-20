@@ -23,6 +23,10 @@
   .role-field textarea { min-height:96px; resize:vertical; }
   .role-field-error { margin-top:6px; color:var(--status-danger); font-size:12px; }
   .role-field-help { margin-top:6px; color:var(--text-secondary); font-size:11px; line-height:1.5; }
+  .role-switcher { display:grid; grid-template-columns:minmax(220px,1fr) auto; align-items:end; gap:12px; margin-bottom:18px; padding:14px; border:1px solid var(--border-light); border-radius:11px; background:#fbfaf8; }
+  .role-switcher label { display:block; margin-bottom:7px; color:var(--text); font-size:12px; font-weight:650; }
+  .role-switcher select { width:100%; min-height:40px; }
+  .role-switcher p { grid-column:1 / -1; margin:-4px 0 0; color:var(--text-secondary); font-size:11px; line-height:1.5; }
   .role-permission-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
   .role-permission-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
   .role-count-pill { display:inline-flex; align-items:center; gap:5px; padding:6px 9px; border:1px solid var(--border); border-radius:999px; background:#faf9f6; color:var(--text-secondary); font-size:11px; font-weight:650; white-space:nowrap; }
@@ -62,6 +66,8 @@
     .role-permission-meta { justify-content:flex-start; }
   }
   @media(max-width:520px) {
+    .role-switcher { grid-template-columns:1fr; }
+    .role-switcher .btn { width:100%; }
     .role-permission-tools { align-items:flex-start; flex-direction:column; }
     .role-group-count { min-width:0; }
     .role-permission-group summary { gap:8px; padding:11px; }
@@ -99,6 +105,20 @@
         <span class="role-editor-mark"><i class="ph ph-identification-card" aria-hidden="true"></i></span>
         <div><h3 id="role-details-title">Role details</h3><p>Give this role a clear name and explain which team or responsibilities it covers.</p></div>
       </div>
+      {% if edit_role %}
+      <div class="role-switcher">
+        <div>
+          <label for="role-switch-select">Main role</label>
+          <select id="role-switch-select" aria-describedby="role-switch-help">
+            {% for choice in role_choices %}
+              <option value="{% url 'access-role-edit' choice.id %}" {% if choice.id == edit_role.id %}selected{% endif %}>{{ choice.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="button" class="btn btn-secondary" data-open-selected-role><i class="ph ph-arrow-square-out" aria-hidden="true"></i> Open role</button>
+        <p id="role-switch-help">Choose a different role to open its editor. Your unsaved changes on this page will be discarded.</p>
+      </div>
+      {% endif %}
       <div class="role-details-grid">
         {% for field in form.visible_fields %}
           {% if field.html_name != 'permissions' %}
@@ -233,6 +253,13 @@
         });
       });
     });
+    const roleSelect = document.querySelector('#role-switch-select');
+    const openRoleButton = document.querySelector('[data-open-selected-role]');
+    if (roleSelect && openRoleButton) {
+      openRoleButton.addEventListener('click', function () {
+        if (roleSelect.value) window.location.assign(roleSelect.value);
+      });
+    }
     updatePermissionCounts();
   });
 </script>
