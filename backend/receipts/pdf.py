@@ -84,7 +84,7 @@ def _draw_receipt_watermark(canvas, _document):
     canvas.saveState()
 
     # Keep the repeated mark subtle enough to sit behind small receipt text.
-    canvas.setFillColor(rl_colors.HexColor("#124E01"))
+    canvas.setFillColor(rl_colors.HexColor("#C7CAC6"))
     canvas.setFont('Helvetica-Bold', 8)
     for y in range(42, int(PAGE[1]), 112):
         offset = 44 if (y // 112) % 2 else 0
@@ -98,7 +98,7 @@ def _draw_receipt_watermark(canvas, _document):
     canvas.saveState()
     canvas.translate(PAGE[0] / 2, PAGE[1] / 2)
     canvas.rotate(32)
-    canvas.setFillColor(rl_colors.HexColor("#124E01"))
+    canvas.setFillColor(rl_colors.HexColor("#C7CAC6"))
     canvas.setFont('Times-Bold', 64)
     canvas.drawCentredString(0, 0, 'MODEZA')
     canvas.restoreState()
