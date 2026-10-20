@@ -136,25 +136,53 @@ export const HomePage: React.FC<HomePageProps> = ({ onQuickView }) => {
         )}
       </section>
 
-      <section aria-labelledby="story-title" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
-        <div className="flex flex-col gap-6 border-b border-[#D8D3CB] pb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A2574F]">
+      <section aria-labelledby="story-title" className="overflow-hidden border-y border-[#E8DAD3] bg-[#F4ECE9]">
+        <div className="mx-auto grid max-w-7xl lg:min-h-[560px] lg:grid-cols-[1fr_0.92fr]">
+          <div className="flex flex-col justify-center px-5 py-14 sm:px-8 sm:py-18 lg:px-12 lg:py-20">
+            <p className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#A2574F]">
+              <span aria-hidden="true" className="h-px w-8 bg-[#A2574F]" />
               The MODEZA story
             </p>
-            <h2 id="story-title" className="mt-4 font-serif text-3xl font-normal leading-tight sm:text-4xl">
-              Made for your wardrobe, not just the moment.
+            <h2 id="story-title" className="mt-6 max-w-xl font-serif text-4xl font-normal leading-[1.08] tracking-tight text-[#211D1A] sm:text-5xl lg:text-[3.5rem]">
+              Made for your wardrobe, <span className="italic text-[#A2574F]">not just the moment.</span>
             </h2>
+            <p className="mt-6 max-w-lg text-sm leading-7 text-[#635A54] sm:text-base sm:leading-8">
+              We believe getting dressed should feel effortless and personal. MODEZA brings together thoughtful fabrics, fluid shapes, and considered details in pieces you can make your own and return to season after season.
+            </p>
+            <div className="mt-8 grid max-w-lg grid-cols-2 gap-4 border-t border-[#D9C8C0] pt-5">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#A2574F]">Our point of view</p>
+                <p className="mt-1.5 font-serif text-lg text-[#211D1A]">Less noise. More intention.</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#A2574F]">Our promise</p>
+                <p className="mt-1.5 font-serif text-lg text-[#211D1A]">Made to be worn again.</p>
+              </div>
+            </div>
+            <Button
+              variant="modeza-sandstone"
+              size="md"
+              onClick={() => navigate("/about")}
+              className="mt-8 w-fit gap-2"
+            >
+              Discover our story
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="md"
-            onClick={() => navigate("/about")}
-            className="w-fit gap-2 px-0"
-          >
-            Meet MODEZA
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
+          <figure className="relative min-h-[320px] overflow-hidden bg-[#D8D3CB] sm:min-h-[440px] lg:min-h-full">
+            <img
+              src="https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&w=1500&auto=format&fit=crop"
+              alt="Soft knitwear, showing the tactile fabrics behind the MODEZA collection"
+              className="absolute inset-0 h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+            />
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#181716]/45 via-transparent to-transparent" />
+            <figcaption className="absolute bottom-5 left-5 right-5 flex items-end justify-between gap-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-white sm:bottom-7 sm:left-7 sm:right-7">
+              <span>Considered from fiber to finish</span>
+              <span>MODEZA / 01</span>
+            </figcaption>
+          </figure>
         </div>
       </section>
     </div>
