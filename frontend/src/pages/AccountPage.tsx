@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -52,6 +52,19 @@ interface AccountNavigationProps {
   activePath: string;
   onNavigate: (path: string) => void;
 }
+
+const persistAccountSidebarScroll = (event: React.UIEvent<HTMLDivElement>) => {
+  const scrollKey = event.currentTarget.dataset.scrollKey;
+  if (!scrollKey) return;
+  try {
+    sessionStorage.setItem(
+      `modeza-customer-sidebar-scroll-${scrollKey}`,
+      String(event.currentTarget.scrollTop),
+    );
+  } catch {
+    // Sidebar navigation remains usable if browser storage is unavailable.
+  }
+};
 
 const NAV_GROUPS: { label: string; items: NavigationItem[] }[] = [
   {
@@ -255,6 +268,23 @@ export const AccountPage: React.FC = () => {
     setFullName(user.user_metadata?.full_name || "");
     setPhone(user.user_metadata?.phone || "");
   }, [user]);
+
+  useLayoutEffect(() => {
+    document.querySelectorAll<HTMLDivElement>("[data-account-sidebar-scroll]").forEach((area) => {
+      const scrollKey = area.dataset.scrollKey;
+      if (!scrollKey) return;
+      try {
+        const savedPosition = Number(
+          sessionStorage.getItem(`modeza-customer-sidebar-scroll-${scrollKey}`),
+        );
+        if (Number.isFinite(savedPosition) && savedPosition > 0) {
+          area.scrollTop = savedPosition;
+        }
+      } catch {
+        // Use the browser's default scroll position if storage is unavailable.
+      }
+    });
+  }, [route.path, isMobileMenuOpen]);
 
   const switchMode = (nextMode: AuthMode) => {
     if (isSubmitting) return;
@@ -778,7 +808,7 @@ export const AccountPage: React.FC = () => {
                 <p className="truncate text-xs text-[#827E77]">{userEmail}</p>
               </div>
             </div>
-            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-4">
+            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-4" data-account-sidebar-scroll data-scroll-key="desktop" onScroll={persistAccountSidebarScroll}>
               <AccountNavigation
                 activePath={route.path}
                 onNavigate={navigate}
@@ -835,7 +865,7 @@ export const AccountPage: React.FC = () => {
                 Manage your orders, details and saved pieces.
               </DialogDescription>
             </DialogHeader>
-            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
+            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6" data-account-sidebar-scroll data-scroll-key="mobile" onScroll={persistAccountSidebarScroll}>
               <div className="mb-6 flex items-center gap-3 rounded-xl border border-[#E8E5DF] bg-white p-4">
                 <MemberAvatar initials={initials} />
                 <div className="min-w-0">

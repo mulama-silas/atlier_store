@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useStore } from "../context/StoreContext";
 import { ProductCard } from "../components/ProductCard";
 import { CategorySlug, Product } from "../types";
@@ -42,6 +42,19 @@ export interface ShopPageProps {
 }
 
 type SortOption = "featured" | "price-asc" | "price-desc" | "newest";
+
+const persistShopSidebarScroll = (event: React.UIEvent<HTMLElement>) => {
+  const scrollKey = event.currentTarget.dataset.scrollKey;
+  if (!scrollKey) return;
+  try {
+    sessionStorage.setItem(
+      `modeza-customer-shop-sidebar-scroll-${scrollKey}`,
+      String(event.currentTarget.scrollTop),
+    );
+  } catch {
+    // Sidebar navigation remains usable if browser storage is unavailable.
+  }
+};
 
 const OCCASION_TITLES: Record<ShopOccasion, string> = {
   everyday: "The Everyday Edit",
@@ -108,6 +121,23 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     selectedSale, minPrice, maxPrice, selectedSize, selectedColor, onlyInStock,
   ]);
   const previousCatalogFiltersKey = useRef(catalogFiltersKey);
+
+  useLayoutEffect(() => {
+    document.querySelectorAll<HTMLElement>("[data-shop-sidebar-scroll]").forEach((area) => {
+      const scrollKey = area.dataset.scrollKey;
+      if (!scrollKey) return;
+      try {
+        const savedPosition = Number(
+          sessionStorage.getItem(`modeza-customer-shop-sidebar-scroll-${scrollKey}`),
+        );
+        if (Number.isFinite(savedPosition) && savedPosition > 0) {
+          area.scrollTop = savedPosition;
+        }
+      } catch {
+        // Use the browser's default scroll position if storage is unavailable.
+      }
+    });
+  }, [showFilters]);
 
   useEffect(() => {
     setSelectedCategory(initialCategory);
@@ -412,6 +442,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 320 }}
             className="fixed inset-x-0 bottom-0 z-[600] max-h-[88dvh] overflow-y-auto rounded-t-3xl border-t border-[#E8E5DF] bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:p-6 sm:max-h-[80dvh] lg:hidden"
+            data-shop-sidebar-scroll
+            data-scroll-key="mobile"
+            onScroll={persistShopSidebarScroll}
           >
             <div className="mx-auto mb-6 h-1 w-12 rounded-full bg-[#D8D3CB]" />
 
@@ -516,7 +549,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                 <h2 className="mt-0.5 truncate font-serif text-lg leading-tight text-[#181716]">Refine pieces</h2>
               </div>
             </div>
-            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5" role="region" tabIndex={0} aria-label="Scrollable product filters">
+            <div className="account-sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5" role="region" tabIndex={0} aria-label="Scrollable product filters" data-shop-sidebar-scroll data-scroll-key="desktop" onScroll={persistShopSidebarScroll}>
               <div className="space-y-5">
                 <section aria-labelledby="desktop-categories-heading">
                   <h3 id="desktop-categories-heading" className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#827E77]">Categories</h3>

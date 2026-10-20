@@ -1422,6 +1422,35 @@
   <div id="notification-toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
   <script>
+    (function preserveAdminSidebarScroll() {
+      const storageKey = 'modeza-admin-sidebar-scroll-v1';
+      const scrollArea = document.querySelector('.sidebar-scroll');
+      if (!scrollArea) return;
+
+      function saveScrollPosition() {
+        try {
+          sessionStorage.setItem(storageKey, String(scrollArea.scrollTop));
+        } catch (error) {
+          // Keep sidebar navigation usable if browser storage is unavailable.
+        }
+      }
+
+      try {
+        const savedPosition = Number(sessionStorage.getItem(storageKey));
+        if (Number.isFinite(savedPosition) && savedPosition > 0) {
+          scrollArea.scrollTop = savedPosition;
+        }
+      } catch (error) {
+        // Ignore storage access errors and use the browser's default position.
+      }
+
+      scrollArea.addEventListener('scroll', saveScrollPosition, { passive: true });
+      scrollArea.querySelectorAll('a.nav-link').forEach(function (link) {
+        link.addEventListener('click', saveScrollPosition);
+      });
+      window.addEventListener('pagehide', saveScrollPosition);
+    })();
+
     function toggleSidebar() {
       const sidebar = document.getElementById('sidebar');
       const overlay = document.getElementById('mobileOverlay');
