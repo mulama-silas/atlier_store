@@ -318,6 +318,7 @@ class ReceiptApiTests(TestCase):
             self._confirm_payment(intent['id'])
         receipt = Receipt.objects.get(order=self.order)
         self.assertEqual(receipt.status, Receipt.Status.FAILED)
+        previous_number = receipt.receipt_number
 
         self._auth_staff()
         response = self.client.post(
@@ -325,6 +326,7 @@ class ReceiptApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, Receipt.Status.GENERATED)
+        self.assertNotEqual(receipt.receipt_number, previous_number)
         self.assertTrue(receipt.pdf_key)
         self.assertGreater(receipt.payload_size, 0)
         self.assertEqual(

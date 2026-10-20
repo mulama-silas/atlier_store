@@ -41,6 +41,22 @@ def next_receipt_number(issued_at=None):
     return issued_local.strftime('R-%Y%m%d-%H%M%S')
 
 
+def _next_receipt_issue_time(
+        issued_at, *, excluding_receipt_id=None, avoid_number=''):
+    """Find an unused second so every receipt number remains unique."""
+    from datetime import timedelta
+
+    issued_local = timezone.localtime(issued_at)
+    while True:
+        number = next_receipt_number(issued_local)
+        matches = Receipt.objects.filter(receipt_number=number)
+        if excluding_receipt_id is not None:
+            matches = matches.exclude(pk=excluding_receipt_id)
+        if number != avoid_number and not matches.exists():
+            return issued_local
+        issued_local += timedelta(seconds=1)
+
+
 def build_snapshot(order):
     """Freeze the billed customer, line items and totals for the PDF."""
     customer = order.customer or {}
@@ -141,7 +157,7 @@ def _generate_impl(order, intent):
     checkout_request_id = _clean_checkout_request_id(intent)
 
     if existing is None:
-        issued_at = timezone.now()
+        issued_at = _next_receipt_issue_time(timezone.now())
         receipt_number = next_receipt_number(issued_at)
         receipt = Receipt.objects.create(
             order=order,
@@ -243,12 +259,17 @@ def _send_customer_receipt_if_confirmed(receipt, order):
 
 
 def regenerate_receipt(receipt):
-    """Re-render the PDF for an existing receipt. Raises on failure."""
+    """Issue a replacement receipt number and re-render its PDF."""
     order = receipt.order
+    previous_receipt_number = receipt.receipt_number
+    issued_at = _next_receipt_issue_time(
+        timezone.now(), excluding_receipt_id=receipt.pk,
+        avoid_number=receipt.receipt_number)
+    receipt.receipt_number = next_receipt_number(issued_at)
     receipt.snapshot = build_snapshot(order)
     receipt.amount_minor = order.total_minor
     receipt.currency = order.currency or 'KES'
-    receipt = _render_and_store(receipt)
+    receipt = _render_and_store(receipt, generated_at=issued_at)
     audit_log = AuditLogService.log(
         'receipt_regenerated',
         object_type='receipt',
@@ -256,6 +277,7 @@ def regenerate_receipt(receipt):
         object_repr=receipt.receipt_number,
         category='payments',
         metadata={'order_number': order.order_number,
+                  'previous_receipt_number': previous_receipt_number,
                   'pdf_key': receipt.pdf_key},
         description=f'Receipt {receipt.receipt_number} regenerated for '
         f'order {order.order_number}.',
@@ -285,7 +307,7 @@ def _render_and_store(receipt, generated_at=None):
     receipt.status = Receipt.Status.GENERATED
     receipt.notes = ''
     receipt.save(update_fields=[
-        'pdf_key', 'pdf_url', 'payload_size', 'generated_at',
+        'receipt_number', 'pdf_key', 'pdf_url', 'payload_size', 'generated_at',
         'status', 'notes', 'updated_at'])
     return receipt
 
