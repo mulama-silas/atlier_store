@@ -116,6 +116,10 @@ STORE_EMAIL = os.getenv('STORE_EMAIL', 'hello@modeza.co.ke')
 STORE_PHONE = os.getenv('STORE_PHONE', '+254 700 123 456')
 STORE_WEBSITE = os.getenv('STORE_WEBSITE', 'https://modeza.co.ke')
 STORE_ADDRESS = os.getenv('STORE_ADDRESS', 'Nairobi, Kenya')
+STORE_RECEIPT_EMAIL = os.getenv(
+    'STORE_RECEIPT_EMAIL', 'boutique.modeza.support@gmail.com')
+STORE_RECEIPT_WEBSITE = os.getenv(
+    'STORE_RECEIPT_WEBSITE', 'https://atlier-boutique.vercel.app/')
 
 # ---------------------------------------------------------------------------
 # Outbound email (automatic receipts & notifications)

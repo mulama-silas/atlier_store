@@ -102,8 +102,11 @@ def render_receipt_pdf(receipt):
     brand_name = brand[0] if brand else 'MODEZA'
     brand_sub = ' '.join(brand[1:]) or 'BOUTIQUE'
     store_phone = getattr(settings, 'STORE_PHONE', '+254 700 123 456')
-    store_email = getattr(settings, 'STORE_EMAIL', 'hello@modeza.co.ke')
-    store_website = getattr(settings, 'STORE_WEBSITE', 'https://modeza.co.ke')
+    store_email = getattr(
+        settings, 'STORE_RECEIPT_EMAIL', 'boutique.modeza.support@gmail.com')
+    store_website = getattr(
+        settings, 'STORE_RECEIPT_WEBSITE',
+        'https://atlier-boutique.vercel.app/')
     store_address = getattr(settings, 'STORE_ADDRESS', 'Nairobi, Kenya')
 
     story = []
