@@ -219,6 +219,8 @@ export class ProductService {
       isFeatured: product.isFeatured,
       isNewArrival: product.isNewArrival,
       isBestSeller: product.isBestSeller,
+      averageRating: product.averageRating,
+      reviewCount: product.reviewCount || 0,
       variants: variantDTOs,
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),

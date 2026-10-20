@@ -266,6 +266,8 @@
               <!-- internal product reference, not a visible column -->
             {% elif key == 'variant_id' %}
               <!-- internal inventory adjustment reference -->
+            {% elif key == 'link' %}
+              <!-- optional analytics destination -->
             {% elif key == 'can_approve' %}
               <!-- internal action flag, not a visible column -->
             {% elif key == 'checkbox' %}
@@ -389,6 +391,8 @@
               <td><a href="/admin/dashboard/customers/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
             {% elif key == 'name' and page_data.page == 'admin-users' %}
               <td><a href="/admin/dashboard/staff/{{ row.id }}/" class="admin-product-name-link">{{ val }}</a></td>
+            {% elif key == 'value' and page_data.page == 'analytics' and row.link %}
+              <td><a href="{{ row.link }}" class="admin-product-name-link">{{ val }} <i class="ph ph-arrow-square-out" aria-hidden="true"></i></a></td>
             {% elif key == 'status' or key == 'payment_status' or key == 'role' %}
               <td><span class="status-badge status-{{ val|lower|cut:' ' }}">{{ val }}</span></td>
             {% else %}

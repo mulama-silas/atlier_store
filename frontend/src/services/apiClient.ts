@@ -22,6 +22,12 @@ const CART_STORAGE_KEY = 'modeza_server_cart_id';
 // Default to the Django backend for local development. The frontend is expected to
 // read real catalog data from the database unless a different API origin is configured.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+// Reviews are owned by Django (verified-purchase checks and moderation). In
+// local SQLite storefront mode the main API points at Express, so allow review
+// requests to target Django directly while production can use the same origin.
+const REVIEWS_API_BASE_URL = (
+  import.meta.env.VITE_DJANGO_API_BASE_URL || API_BASE_URL
+).replace(/\/$/, '');
 
 export function getOrCreateCartId(): string {
   if (typeof window === 'undefined') return 'cart_ssr';
@@ -47,7 +53,7 @@ export function resetCartId(): void {
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}, includeAuth = true, requireAuth = false, retryUnauthorized = true): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}, includeAuth = true, requireAuth = false, retryUnauthorized = true, baseUrl = API_BASE_URL): Promise<T> {
   const headers = new Headers(options.headers || {});
   headers.set('Content-Type', 'application/json');
 
@@ -81,7 +87,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
     headers,
     credentials: 'include' as const,
   };
-  let res = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+  let res = await fetch(`${baseUrl}${endpoint}`, requestOptions);
 
   // Supabase access tokens are short-lived. Refresh once before surfacing a 401.
   if (res.status === 401 && retryUnauthorized && includeAuth && requireAuth && supabase && headers.has('Authorization')) {
@@ -89,7 +95,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
     const refreshedToken = data.session?.access_token;
     if (refreshedToken) {
       headers.set('Authorization', `Bearer ${refreshedToken}`);
-      res = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+      res = await fetch(`${baseUrl}${endpoint}`, requestOptions);
     }
   }
 
@@ -219,14 +225,14 @@ export const api = {
   },
 
   async getProductReviews(idOrSlug: string): Promise<{ results: ProductReviewDTO[] }> {
-    return request<{ results: ProductReviewDTO[] }>(`/api/products/${encodeURIComponent(idOrSlug)}/reviews/`, {}, false);
+    return request<{ results: ProductReviewDTO[] }>(`/api/products/${encodeURIComponent(idOrSlug)}/reviews/`, {}, false, false, true, REVIEWS_API_BASE_URL);
   },
 
   async submitProductReview(idOrSlug: string, payload: { rating: number; title: string; body: string }): Promise<{ id: string; message: string }> {
     return request<{ id: string; message: string }>(`/api/products/${encodeURIComponent(idOrSlug)}/reviews/`, {
       method: 'POST',
       body: JSON.stringify(payload),
-    }, true, true);
+    }, true, true, true, REVIEWS_API_BASE_URL);
   },
 
   async getAddresses(): Promise<CustomerAddressDTO[]> {

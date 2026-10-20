@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from "react";
-import { ArrowRight, Check, Eye, Heart, ShoppingBag } from "lucide-react";
+import { ArrowRight, Check, Eye, Heart, ShoppingBag, Star } from "lucide-react";
 import { Product } from "../types";
 import { useCart } from "../context/CartContext";
 import { useStore } from "../context/StoreContext";
@@ -177,6 +177,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     </div>
   );
 
+  const renderRating = () => {
+    if (!product.averageRating || !product.reviewCount) return null;
+    return (
+      <div
+        className="inline-flex items-center gap-1.5 text-[11px] text-[#63605A]"
+        aria-label={`Rated ${product.averageRating.toFixed(1)} out of 5 from ${product.reviewCount} customer ${product.reviewCount === 1 ? "review" : "reviews"}`}
+      >
+        <Star className="h-3.5 w-3.5 fill-[#C6A77A] text-[#C6A77A]" aria-hidden="true" />
+        <span className="font-semibold text-[#181716]">{product.averageRating.toFixed(1)}</span>
+        <span>({product.reviewCount})</span>
+      </div>
+    );
+  };
+
   const renderCategoryMeta = () => (
     <div className="flex min-h-[14px] items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-widest text-[#827E77]">
       <span className="truncate">{product.categorySlug}</span>
@@ -269,6 +283,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             >
               {product.name}
             </h3>
+            {renderRating()}
             {renderPriceLine()}
             {renderVariantMeta()}
           </div>
@@ -376,6 +391,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <p className="min-h-[16px] line-clamp-1 text-[11px] italic text-[#63605A]">
             {product.tagline || " "}
           </p>
+
+          <div className="min-h-[16px]">{renderRating()}</div>
 
           <div className="min-h-[24px] pt-1">{renderPriceLine()}</div>
           <div className="min-h-[44px]">

@@ -246,7 +246,8 @@ k6 run -e VUS=500                  boutique-500-users.js
 | `DURATION`        | `15m30s`| Total test duration                               |
 | `CHECKOUT_DRY_RUN`| `true`  | Skip order creation (safe by default)             |
 | `INCLUDE_FRONTEND`| `false` | Include requests to `http://127.0.0.1:3000`       |
-| `API`             | `http://127.0.0.1:8000` | Backend base URL        |
+| `API`             | `http://127.0.0.1:8000` | Backend base URL                  |
+|-------------------|---------|---------------------------------------------------|
 
 ### Current Database Inventory
 
@@ -259,6 +260,7 @@ Only 4 of 6 active products have variants; the test uses these for add-to-cart:
 | urban-cartoon-street-style | `3626daae-ac0c-46c0-94d7-fcb08af65664` | 86   |
 | silk-midi-wrap-dress    | `d5598e1e-a490-4fa8-b8d7-fedfa5df53aa` | 13    |
 | silk-midi-wrap-dress    | `9cf5a094-d48e-4665-94fd-7e3d7a964234` | 12    |
+|-------------------|---------|---------------------------------------------------|
 
 With `CHECKOUT_DRY_RUN=true` (default), stock is not reserved, so cart operations remain stable for the full test duration.
 

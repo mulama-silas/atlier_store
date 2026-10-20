@@ -32,6 +32,8 @@ export interface ProductEntity {
   isFeatured?: boolean;
   isNewArrival?: boolean;
   isBestSeller?: boolean;
+  averageRating?: number | null;
+  reviewCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }

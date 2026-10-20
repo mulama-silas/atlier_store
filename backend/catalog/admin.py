@@ -7,6 +7,8 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.urls import path
 
+from access_control.services import is_super_admin
+
 from .models import Category, Product, ProductImportLog, ProductReview, ProductVariant
 from .services import import_products_from_file
 
@@ -29,9 +31,21 @@ class ProductVariantInline(admin.TabularInline):
 @admin.register(ProductReview)
 class ProductReviewAdmin(admin.ModelAdmin):
     list_display = ('product', 'user', 'rating', 'is_approved', 'created_at')
+    list_editable = ('is_approved',)
     list_filter = ('is_approved', 'rating', 'created_at')
+    date_hierarchy = 'created_at'
+    list_per_page = 50
     search_fields = ('product__name', 'user__email', 'title', 'body')
     readonly_fields = ('product', 'user', 'rating', 'title', 'body', 'created_at', 'updated_at')
+
+    def has_module_permission(self, request):
+        return super().has_module_permission(request) or is_super_admin(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return super().has_view_permission(request, obj) or is_super_admin(request.user)
+
+    def has_change_permission(self, request, obj=None):
+        return super().has_change_permission(request, obj) or is_super_admin(request.user)
 
 
 @admin.register(Product)

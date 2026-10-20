@@ -34,6 +34,11 @@ npm run lint && npm run build # typecheck + production build
 npm run test:api              # bundled API integration tests
 ```
 
+When the storefront uses its local Express/SQLite API (`VITE_API_BASE_URL=http://localhost:3000`),
+set `VITE_DJANGO_API_BASE_URL=http://127.0.0.1:8000` as well so verified-purchase
+reviews use Django's review and moderation endpoints. In production, leave this
+unset when `VITE_API_BASE_URL` already points to Django.
+
 ## Deploy the backend to Render
 
 1. Push this repo to GitHub.

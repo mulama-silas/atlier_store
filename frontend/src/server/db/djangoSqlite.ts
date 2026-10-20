@@ -253,6 +253,26 @@ function mapProducts(
   const rowsById = new Map<string, ProductSeedRow>();
   const seenIds = new Set<string>();
   const seenSlugs = new Set<string>();
+  const reviewSummaries = new Map<string, { averageRating: number; reviewCount: number }>();
+  const hasReviewTable = query(conn, `
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'catalog_productreview'
+  `).length > 0;
+  if (hasReviewTable) {
+    for (const summary of query(conn, `
+      SELECT product_id, ROUND(AVG(rating), 1) AS average_rating, COUNT(*) AS review_count
+      FROM catalog_productreview
+      WHERE is_approved = 1
+      GROUP BY product_id
+    `)) {
+      const productId = asText(summary.product_id);
+      if (productId) {
+        reviewSummaries.set(productId, {
+          averageRating: asNumber(summary.average_rating),
+          reviewCount: asNumber(summary.review_count),
+        });
+      }
+    }
+  }
 
   for (const row of query(conn, `
     SELECT id, category_id, name, slug, tagline, description, details, price_minor,
@@ -285,6 +305,7 @@ function mapProducts(
     seenIds.add(id);
     seenSlugs.add(slug);
     rowsById.set(id, row);
+    const reviewSummary = reviewSummaries.get(id);
     products.push({
       id,
       name: asText(row.name) || slug,
@@ -301,6 +322,8 @@ function mapProducts(
       isFeatured: asBool(row.is_featured),
       isNewArrival: asBool(row.is_new_arrival),
       isBestSeller: asBool(row.is_best_seller),
+      averageRating: reviewSummary?.averageRating ?? null,
+      reviewCount: reviewSummary?.reviewCount ?? 0,
       createdAt: parseDjangoDate(row.created_at),
       updatedAt: parseDjangoDate(row.updated_at),
     });

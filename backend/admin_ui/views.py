@@ -16,7 +16,7 @@ from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.views import LoginView, LogoutView, redirect_to_login
 from django.core.paginator import Paginator
 from django.db import connection, transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Avg, Count, Q, Sum
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.storage import default_storage
 from django.db import IntegrityError, transaction
@@ -43,7 +43,7 @@ from access_control.services import (
     user_has_permission,
 )
 from catalog.bulk_import import BulkImportError, BulkProductImportService, job_data
-from catalog.models import Category, ImportJob, Product, ProductVariant
+from catalog.models import Category, ImportJob, Product, ProductReview, ProductVariant
 from catalog.services import (
     BulkImportTemplateService,
     ProductGenerationService,
@@ -885,7 +885,7 @@ class AdminPageView(View):
         },
         'analytics': {
             'title': 'Analytics Overview',
-            'subtitle': 'Deeper store business insights.',
+            'subtitle': 'Store performance, customer feedback and product ratings.',
             'primary_action': 'Export Report',
             'primary_url': '/admin/dashboard/reports/',
             'filters': ['Date range'],
@@ -917,7 +917,7 @@ class AdminPageView(View):
             'primary_action': 'Export Performance',
             'primary_url': '/admin/dashboard/performance/export/',
             'filters': ['Product performance'],
-            'columns': ['Product', 'Units Sold', 'Revenue', 'Stock'],
+            'columns': ['Product', 'Units Sold', 'Revenue', 'Stock', 'Average Rating', 'Reviews'],
             'rows': [
                 {'name': 'MODEZA Silk Wrap Dress', 'units': '34',
                     'revenue': 'KES 163,200', 'stock': '12'},
@@ -1534,12 +1534,37 @@ class AdminPageView(View):
             total_revenue = Decimal(Order.objects.filter(status__in=[
                                     'confirmed', 'processing', 'shipped', 'delivered']).aggregate(s=Sum('total_minor'))['s'] or 0) / Decimal(100)
             total_orders = Order.objects.count()
+            approved_reviews = ProductReview.objects.filter(is_approved=True)
+            review_summary = approved_reviews.aggregate(
+                average=Avg('rating'), count=Count('id'))
+            average_rating = review_summary['average']
+            approved_review_count = review_summary['count'] or 0
+            pending_review_count = ProductReview.objects.filter(
+                is_approved=False).count()
+            can_moderate_reviews = (
+                is_super_admin(request.user)
+                or request.user.is_superuser
+                or request.user.has_perm('catalog.change_productreview'))
             analytics_rows = [
                 {'name': 'Total Revenue', 'value': f'KES {total_revenue:.2f}',
                     'period': 'All Time'},
                 {'name': 'Total Orders', 'value': str(
                     total_orders), 'period': 'All Time'},
+                {'name': 'Average Product Rating',
+                    'value': f'{average_rating:.1f} / 5' if average_rating else '—',
+                    'period': f'{approved_review_count} approved reviews'},
+                {'name': 'Published Reviews',
+                    'value': str(approved_review_count), 'period': 'Visible to customers'},
+                {'name': 'Pending Reviews', 'value': str(pending_review_count),
+                    'period': 'Awaiting moderation',
+                    **({'link': '/admin/catalog/productreview/?is_approved__exact=0'}
+                       if can_moderate_reviews else {})},
             ]
+            analytics_rows.extend({
+                'name': f'{rating} star reviews',
+                'value': str(approved_reviews.filter(rating=rating).count()),
+                'period': 'Approved',
+            } for rating in range(5, 0, -1))
             page_data = dict(page_data)
             page_data['rows'] = analytics_rows
 
@@ -1559,9 +1584,16 @@ class AdminPageView(View):
 
         if page == 'performance':
             perf_rows = []
+            review_summaries = {
+                row['product_id']: row
+                for row in ProductReview.objects.filter(is_approved=True)
+                .values('product_id')
+                .annotate(average=Avg('rating'), count=Count('id'))
+            }
             items = OrderItem.objects.values('product__id', 'product_name').annotate(
                 units=Sum('quantity'), rev=Sum('line_total_minor')).order_by('-units')[:20]
             for it in items:
+                product_reviews = review_summaries.get(it['product__id']) or {}
                 try:
                     p = Product.objects.get(pk=it['product__id'])
                     stock = sum(v.stock_quantity for v in p.variants.all())
@@ -1572,7 +1604,11 @@ class AdminPageView(View):
                     'name': it['product_name'] or 'Unknown',
                     'units': str(it['units']),
                     'revenue': f'KES {rev:.2f}',
-                    'stock': str(stock)
+                    'stock': str(stock),
+                    'average_rating': (
+                        f"{product_reviews['average']:.1f} / 5"
+                        if product_reviews.get('average') is not None else '—'),
+                    'review_count': str(product_reviews.get('count') or 0),
                 })
             page_data = dict(page_data)
             page_data['rows'] = perf_rows

@@ -54,6 +54,8 @@ export interface ProductDTO {
   isFeatured?: boolean;
   isNewArrival?: boolean;
   isBestSeller?: boolean;
+  averageRating?: number | null;
+  reviewCount?: number;
   variants: ProductVariantDTO[];
   createdAt: string;
   updatedAt: string;
