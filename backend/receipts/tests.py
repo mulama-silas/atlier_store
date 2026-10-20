@@ -9,7 +9,6 @@ from django.core import mail
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from unittest.mock import patch
-from django.utils import timezone as django_timezone
 from rest_framework.test import APIClient
 
 from audit.models import AuditLog
@@ -17,7 +16,7 @@ from catalog.models import Category, Product, ProductVariant
 from orders.models import Order
 from payments.models import PaymentIntent
 
-from .models import Receipt, ReceiptSequence
+from .models import Receipt
 from .services import email_receipt, generate_receipt, next_receipt_number
 
 _TEMP_MEDIA = tempfile.mkdtemp(prefix='modeza-receipts-')
@@ -38,18 +37,9 @@ TEST_SECRET = 'test-secret-that-is-at-least-32-bytes'
     DEFAULT_FROM_EMAIL='receipts@modeza.test',
 )
 class ReceiptNumberTests(TestCase):
-    def test_numbers_are_sequential_per_year(self):
-        year = django_timezone.now().year
-        first = next_receipt_number()
-        second = next_receipt_number()
-        self.assertEqual(first, f'RCP-{year}-000001')
-        self.assertEqual(second, f'RCP-{year}-000002')
-        self.assertEqual(ReceiptSequence.objects.filter(year=year).count(), 1)
-        self.assertEqual(ReceiptSequence.objects.get(year=year).last_number, 2)
-
-    def test_number_matches_expected_format(self):
+    def test_number_matches_local_timestamp_format(self):
         self.assertTrue(
-            re.fullmatch(r'RCP-\d{4}-\d{6}', next_receipt_number()))
+            re.fullmatch(r'R-\d{8}-\d{6}', next_receipt_number()))
 
 
 @override_settings(
@@ -129,7 +119,7 @@ class ReceiptApiTests(TestCase):
 
         receipt = Receipt.objects.get(order=self.order)
         self.assertEqual(receipt.status, Receipt.Status.GENERATED)
-        self.assertTrue(re.match(r'RCP-\d{4}-\d{6}$', receipt.receipt_number))
+        self.assertTrue(re.match(r'R-\d{8}-\d{6}$', receipt.receipt_number))
         self.assertEqual(receipt.amount_minor, self.order.total_minor)
         self.assertEqual(receipt.currency, 'KES')
         self.assertEqual(receipt.gateway_reference, 'TXN-ABCDE12345')

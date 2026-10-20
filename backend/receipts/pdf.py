@@ -151,10 +151,12 @@ def render_receipt_pdf(receipt):
     name = _humanize(customer.get('fullName') or customer.get('full_name')
                      or customer.get('name'), 'Guest Customer')
     address_lines = [
-        _humanize(customer.get('addressLine1')
-                  or customer.get('address_line1')),
-        _humanize(customer.get('addressLine2')
-                  or customer.get('address_line2')),
+        value for value in (
+            _humanize(customer.get('addressLine1')
+                      or customer.get('address_line1')),
+            _humanize(customer.get('addressLine2')
+                      or customer.get('address_line2')),
+        ) if value
     ]
     city = _humanize(customer.get('city'), '')
     county = _humanize(customer.get('county')
@@ -162,25 +164,25 @@ def render_receipt_pdf(receipt):
     place = ', '.join(part for part in (city, county) if part)
     email = _humanize(customer.get('email'))
     phone = _humanize(customer.get('phone'))
-    billed_lines = ['<b>BILLED TO</b>', name]
+    billed_lines = ['<b>BILLED TO</b>', _html_escape(name)]
     if address_lines:
-        billed_lines.extend(address_lines)
+        billed_lines.extend(_html_escape(line) for line in address_lines)
     if place:
-        billed_lines.append(place)
+        billed_lines.append(_html_escape(place))
     if email:
-        billed_lines.append(email)
+        billed_lines.append(_html_escape(email))
     if phone:
-        billed_lines.append(phone)
+        billed_lines.append(_html_escape(phone))
 
     ref_lines = ['<b>ORDER REFERENCE</b>']
-    ref_lines.append(f'Order {order.order_number}')
+    ref_lines.append(f'Order {_html_escape(order.order_number)}')
+    placed = timezone.localtime(order.created_at).strftime('%d %b %Y')
+    ref_lines.append(f'Placed {_html_escape(placed)}')
     if receipt.gateway_reference:
-        ref_lines.append(f'M-Pesa Receipt: {receipt.gateway_reference}')
-    ref_lines.append(f'Payment: {_payment_label(order.payment_method)}')
-    ref_lines.append(receipt.currency or 'KES')
-    if order.customer and order.customer.get('fullName'):
-        placed = timezone.localtime(receipt.created_at).strftime('%d %b %Y')
-        ref_lines.insert(1, f'Placed {placed}')
+        ref_lines.append(
+            f'M-Pesa Receipt: {_html_escape(receipt.gateway_reference)}')
+    ref_lines.append(f'Payment: {_html_escape(_payment_label(order.payment_method))}')
+    ref_lines.append(_html_escape(receipt.currency or 'KES'))
 
     details = Table(
         [
@@ -248,27 +250,28 @@ def render_receipt_pdf(receipt):
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, CREAM]),
         ('TOPPADDING', (0, 1), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-        ('ALIGN', (-3, 1), (-1, -1), 'RIGHT'),
-        ('ALIGN', (-2, 0), (-1, 0), 'RIGHT'),
+        ('ALIGN', (4, 1), (4, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (-1, 0), 'LEFT'),
+        ('ALIGN', (4, 0), (4, 0), 'CENTER'),
+        ('ALIGN', (5, 0), (-1, 0), 'RIGHT'),
     ]
     items_table.setStyle(TableStyle(style))
     story.append(items_table)
     story.append(Spacer(1, 12))
 
     # -- Totals -------------------------------------------------------------
-    rows = [
-        _totals_row('Subtotal', _money(subtotal)),
-    ]
+    rows = [_totals_row('Subtotal', _money(subtotal))]
     if discount:
         label = f'Promotion{(" (" + coupon_code + ")") if coupon_code else ""}'
         rows.append(_totals_row(label, f'-{_money(discount)}'))
-    rows += [
+    rows.extend([
         _totals_row('Shipping', _money(shipping)),
         _totals_row('VAT (16%)', _money(tax)),
         _totals_row('Total', _money(total), bold=True),
         _totals_row('Amount Paid', _money(paid)),
         _totals_row('Balance Due', _money(balance)),
-    ]
+    ])
+    total_row = 2 + int(bool(discount))
     totals = Table(rows, colWidths=[target - 150, 150])
     totals.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica'),
@@ -279,11 +282,10 @@ def render_receipt_pdf(receipt):
         ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
         ('LEFTPADDING', (1, 0), (1, 0), 16),
         ('RIGHTPADDING', (1, 0), (1, -1), 0),
-        ('LINEABOVE', (0, 3), (-1, 3), 0.5, LINE),
-        ('TOPPADDING', (0, 3), (-1, 3), 6),
-        ('FONTNAME', (0, 3), (-1, 3), 'Helvetica-Bold'),
-        ('FONTNAME', (2, 3), (2, 3), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0, 3), (2, 3), GREEN),
+        ('LINEABOVE', (0, total_row), (-1, total_row), 0.7, LINE),
+        ('TOPPADDING', (0, total_row), (-1, total_row), 6),
+        ('FONTNAME', (0, total_row), (-1, total_row), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0, total_row), (-1, total_row), GREEN),
         ('TOPPADDING', (0, 4), (-1, 4), 6),
         ('TOPPADDING', (0, 5), (-1, 5), 6),
     ]))
@@ -298,7 +300,10 @@ def render_receipt_pdf(receipt):
     ]
     if balance and balance > 0:
         footer_lines[0] += f' Balance due remains {_money(balance)}.'
-    story.append(Paragraph('<br/>'.join(footer_lines), STYLE_FAINT))
+    footer_style = ParagraphStyle(
+        name='receipt-footer', parent=STYLE_FAINT, alignment=1,
+        fontSize=7, leading=9)
+    story.append(Paragraph('<br/>'.join(_html_escape(line) for line in footer_lines), footer_style))
     story.append(Spacer(1, 8))
     story.append(_rule())
     story.append(Spacer(1, 4))
@@ -306,7 +311,7 @@ def render_receipt_pdf(receipt):
         'This is a computer-generated official receipt and does not require a '
         f'signature. Receipt {_html_escape(receipt.receipt_number)} issued in '
         'accordance with Modeza Boutique records.',
-        STYLE_FAINT,
+        ParagraphStyle(name='receipt-legal', parent=STYLE_FAINT, alignment=1),
     ))
 
     buffer = io.BytesIO()

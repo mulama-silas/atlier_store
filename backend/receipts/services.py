@@ -25,7 +25,7 @@ from admin_ui.services import AdminNotificationService
 from audit.services import AuditLogService
 from emails.services import queue_email
 
-from .models import Receipt, ReceiptSequence
+from .models import Receipt
 from .pdf import render_receipt_pdf
 
 logger = logging.getLogger('receipts')
@@ -35,19 +35,10 @@ logger = logging.getLogger('receipts')
 # Numbering
 # ---------------------------------------------------------------------------
 
-@transaction.atomic
-def next_receipt_number():
-    """Mint the next sequential ``RCP-YYYY-NNNNNN`` number.
-
-    The per-year counter row is locked with ``select_for_update`` so
-    concurrent payments cannot be assigned the same number.
-    """
-    year = timezone.now().year
-    sequence, _ = ReceiptSequence.objects.select_for_update().get_or_create(
-        year=year)
-    sequence.last_number += 1
-    sequence.save(update_fields=['last_number', 'updated_at'])
-    return f'RCP-{year}-{sequence.last_number:06d}'
+def next_receipt_number(issued_at=None):
+    """Format a receipt number from its local issue date and second."""
+    issued_local = timezone.localtime(issued_at or timezone.now())
+    return issued_local.strftime('R-%Y%m%d-%H%M%S')
 
 
 def build_snapshot(order):
@@ -150,7 +141,8 @@ def _generate_impl(order, intent):
     checkout_request_id = _clean_checkout_request_id(intent)
 
     if existing is None:
-        receipt_number = next_receipt_number()
+        issued_at = timezone.now()
+        receipt_number = next_receipt_number(issued_at)
         receipt = Receipt.objects.create(
             order=order,
             receipt_number=receipt_number,
@@ -161,6 +153,7 @@ def _generate_impl(order, intent):
             checkout_request_id=checkout_request_id,
         )
     else:
+        issued_at = None
         receipt = existing
         receipt.snapshot = build_snapshot(order)
         receipt.amount_minor = order.total_minor
@@ -174,7 +167,7 @@ def _generate_impl(order, intent):
             'gateway_reference', 'checkout_request_id', 'updated_at'])
 
     try:
-        _render_and_store(receipt)
+        _render_and_store(receipt, generated_at=issued_at)
     except Exception:
         logger.exception(
             'PDF render/store failed for receipt %s.', receipt.receipt_number)
@@ -277,9 +270,10 @@ def regenerate_receipt(receipt):
     return receipt
 
 
-def _render_and_store(receipt):
+def _render_and_store(receipt, generated_at=None):
     """Render the PDF, persist to storage and record storage metadata."""
     order = receipt.order
+    receipt.generated_at = generated_at or timezone.now()
     pdf_bytes = render_receipt_pdf(receipt)
     pdf_key = f'receipts/{order.order_number}/{receipt.receipt_number}.pdf'
     content = ContentFile(pdf_bytes)
@@ -288,7 +282,6 @@ def _render_and_store(receipt):
     receipt.pdf_key = name
     receipt.pdf_url = default_storage.url(name)
     receipt.payload_size = len(pdf_bytes)
-    receipt.generated_at = timezone.now()
     receipt.status = Receipt.Status.GENERATED
     receipt.notes = ''
     receipt.save(update_fields=[

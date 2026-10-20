@@ -21,7 +21,7 @@ class Receipt(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.OneToOneField(
         Order, on_delete=models.CASCADE, related_name='receipt')
-    receipt_number = models.CharField(max_length=16, unique=True)
+    receipt_number = models.CharField(max_length=17, unique=True)
     status = models.CharField(
         max_length=12, choices=Status.choices, default=Status.GENERATED)
     # Immutable copy of the billed entity, bought items and totals.
@@ -54,11 +54,7 @@ class Receipt(models.Model):
 
 
 class ReceiptSequence(models.Model):
-    """Per-year counter used to mint sequential ``RCP-YYYY-NNNNNN`` numbers.
-
-    The row is locked with ``select_for_update`` inside the payment
-    transaction so two concurrent payments never receive the same number.
-    """
+    """Legacy per-year sequence retained for existing database records."""
 
     year = models.PositiveIntegerField(unique=True)
     last_number = models.PositiveIntegerField(default=0)
