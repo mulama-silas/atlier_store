@@ -133,7 +133,7 @@ class BulkImportTemplateService:
         ('image_2', 'NO', 'Secondary image filename.', 'Filename only'),
         ('image_3', 'NO', 'Third image filename.', 'Filename only'),
         ('image_4', 'NO', 'Fourth image filename.', 'Filename only'),
-        ('package', 'YES', 'ZIP root must contain products.xlsx and an images/ directory. Only these paths are processed.', 'MODEZA_IMPORT.zip'),
+        ('package', 'YES', 'ZIP must contain one products.xlsx workbook and an images/ directory. A single containing folder is supported.', 'MODEZA_IMPORT.zip'),
         ('image_naming', 'YES', 'Each image cell contains a filename only, without the images/ prefix.', 'Use the exact filename; JPG, JPEG, PNG and WEBP are supported'),
         ('variant_grouping', 'YES', 'Each worksheet row is one variant. Rows sharing product_code become one parent product.', 'Do not create one product per row'),
         ('stock', 'YES', 'Stock is the absolute quantity for the variant. Re-import updates stock through the existing inventory transaction flow.', 'Integer >= 0; zero is allowed and produces a warning'),

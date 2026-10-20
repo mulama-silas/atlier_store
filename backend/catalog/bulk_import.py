@@ -259,8 +259,10 @@ class BulkImportPackage:
             if len(PurePosixPath(name).parts) > max_depth:
                 self.errors.append(_issue('error', 'archive', f'Archive path is too deeply nested: {name}.'))
                 continue
+            path_parts = PurePosixPath(name).parts
+            lower_parts = tuple(part.casefold() for part in path_parts)
             if info.is_dir() or name.endswith('/'):
-                if name == 'images':
+                if 'images' in lower_parts:
                     has_images_dir = True
                 continue
             if info.file_size < 0 or info.file_size > max_entry:
@@ -270,11 +272,21 @@ class BulkImportPackage:
             if total_size > max_total:
                 self.errors.append(_issue('error', 'archive', 'Archive expands beyond the allowed size.'))
                 break
-            if name.lower() == 'products.xlsx':
+            if path_parts[-1].casefold() == 'products.xlsx':
+                if has_excel:
+                    self.errors.append(_issue(
+                        'error', 'archive',
+                        'The package must contain only one products.xlsx workbook.',
+                    ))
+                    continue
                 has_excel = True
                 self.members[name] = info
                 continue
-            if name == 'images' or name.startswith('images/'):
+            image_dir_index = next(
+                (index for index, part in enumerate(lower_parts) if part == 'images'),
+                None,
+            )
+            if image_dir_index is not None:
                 has_images_dir = True
                 image_count += 1
                 if image_count > max_images:
@@ -295,7 +307,7 @@ class BulkImportPackage:
         if archive_size and total_size > archive_size * 1000 and total_size > 100 * 1024 * 1024:
             self.errors.append(_issue('error', 'archive', 'Archive expansion ratio is unsafe.'))
         if not has_excel:
-            self.errors.append(_issue('error', 'archive', 'The package must contain products.xlsx at its root.'))
+            self.errors.append(_issue('error', 'archive', 'The package must contain a products.xlsx workbook.'))
         if not has_images_dir:
             self.errors.append(_issue('error', 'archive', 'The package must contain an images/ directory.'))
         if not self.image_members:
@@ -314,9 +326,14 @@ class BulkImportPackage:
         return data
 
     def read_excel(self):
-        candidates = [name for name in self.members if name.lower() == 'products.xlsx']
+        candidates = [
+            name for name in self.members
+            if PurePosixPath(name).name.casefold() == 'products.xlsx'
+        ]
         if not candidates:
-            raise BulkImportPackageError('The package must contain products.xlsx at its root.')
+            raise BulkImportPackageError('The package must contain a products.xlsx workbook.')
+        if len(candidates) > 1:
+            raise BulkImportPackageError('The package must contain only one products.xlsx workbook.')
         return self.read(candidates[0])
 
 
@@ -557,8 +574,6 @@ class BulkImportValidationService:
                     group['errors'].append(_issue('error', 'status', message))
                 else:
                     group['product']['status'] = status_value
-                if status_value and status_value != job.import_status:
-                    warnings.append(_issue('warning', 'status', f'Import status {job.get_import_status_display()} will be applied.', row_number))
             row['_price_minor'] = None
             try:
                 row['_price_minor'] = _money_to_minor(row.get('price'))
