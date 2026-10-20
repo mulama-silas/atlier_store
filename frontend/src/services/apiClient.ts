@@ -134,16 +134,14 @@ async function downloadBlob(endpoint: string, requireAuth = true): Promise<Blob>
   const headers = new Headers();
   headers.set('x-cart-id', cartId);
 
-  if (requireAuth) {
-    const session = (await supabase?.auth.getSession())?.data.session;
-    if (session?.access_token) {
-      headers.set('Authorization', `Bearer ${session.access_token}`);
-    } else {
-      const error = new Error('Authentication is required for this request.') as Error & { code?: string; status?: number };
-      error.code = 'AUTH_REQUIRED';
-      error.status = 401;
-      throw error;
-    }
+  const session = (await supabase?.auth.getSession())?.data.session;
+  if (session?.access_token) {
+    headers.set('Authorization', `Bearer ${session.access_token}`);
+  } else if (requireAuth) {
+    const error = new Error('Authentication is required for this request.') as Error & { code?: string; status?: number };
+    error.code = 'AUTH_REQUIRED';
+    error.status = 401;
+    throw error;
   }
 
   const res = await fetch(`${API_BASE_URL}${endpoint}`, { headers, credentials: 'include' as const });
@@ -380,13 +378,13 @@ export const api = {
 
   // Receipts
   async getOrderReceipt(orderNumber: string): Promise<ReceiptDTO> {
-    return request<ReceiptDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/receipt`, {}, true, true);
+    return request<ReceiptDTO>(`/api/orders/${encodeURIComponent(orderNumber)}/receipt`, {}, true, false);
   },
 
   async downloadReceipt(receiptNumber: string): Promise<Blob> {
     return downloadBlob(
       `/api/receipts/${encodeURIComponent(receiptNumber)}/download`,
-      true,
+      false,
     );
   },
 

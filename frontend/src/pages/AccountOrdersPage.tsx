@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, Check, Package, RefreshCw, Search, ShoppingBag, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, Download, Headphones, Package, RefreshCw, Search, ShoppingBag, Truck, UserRound, X } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrdersContext';
 import { useRouter } from '../router/RouterContext';
-import { AccountPageHeader } from '../components/account/AccountPageHeader';
 import { Button } from '../components/modeza/Button';
 import {
   AlertDialog,
@@ -19,10 +19,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../compone
 import { Input } from '../components/modeza/Input';
 import { Progress } from '../components/modeza/Progress';
 import { Tabs, TabsList, TabsTrigger } from '../components/modeza/Tabs';
-import { OrderProgress } from '../components/orders/OrderProgress';
-import { OrderItemRows } from '../components/orders/OrderItemRows';
+import { OrderItemThumb } from '../components/orders/OrderItemThumb';
 import { api } from '../services/apiClient';
 import { Order } from '../types';
+import { downloadOrderReceipt, isReceiptAvailableForOrder } from '../utils/receiptDownload';
 import { formatPrice } from '../utils/currency';
 import {
   formatOrderDate,
@@ -53,36 +53,34 @@ interface OrderCardProps {
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingReceived }) => {
   const { navigate } = useRouter();
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
   const totalItems = totalQuantity(order);
   const items = order.items;
-  const isActive = isActiveOrder(order.status);
   const statusMeta = ORDER_STATUS_META[order.status];
 
   const formatPlaced = () =>
     formatOrderDate(order.createdAt, { day: 'numeric', month: 'long', year: 'numeric' });
 
-  const completionTimestamp = useMemo(() => {
-    if (order.status === 'delivered' || order.status === 'received') {
-      const timelineTimestamp = order.timeline.find(
-        (event) => event.status === 'delivered' || event.status === 'received'
-      )?.timestamp;
-      return timelineTimestamp || order.updatedAt;
-    }
-    if (order.status === 'cancelled') {
-      const timelineTimestamp = order.timeline.find((event) => event.status === 'cancelled')?.timestamp;
-      return timelineTimestamp || order.updatedAt;
-    }
-    return '';
-  }, [order]);
-
   const openDetails = () => navigate(`/account/orders/${encodeURIComponent(order.orderNumber)}`);
+  const handleDownloadReceipt = async () => {
+    setDownloadingReceipt(true);
+    setReceiptError('');
+    try {
+      await downloadOrderReceipt(order.orderNumber);
+    } catch (error) {
+      setReceiptError(error instanceof Error ? error.message : 'The receipt could not be downloaded.');
+    } finally {
+      setDownloadingReceipt(false);
+    }
+  };
   return (
     <article aria-label={`Order ${order.orderNumber}`}>
       <Card className="overflow-hidden border-[#E8E5DF] shadow-xs">
-        <CardHeader className="block border-b border-[#F3F1ED] p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2.5">
+        <CardHeader className="block border-b border-[#F3F1ED] bg-[#FAF9F6] px-4 py-3.5 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="font-mono text-sm font-semibold tracking-tight text-[#181716] sm:text-base">
                   <a
                     href={`/account/orders/${encodeURIComponent(order.orderNumber)}`}
@@ -96,84 +94,69 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingR
                     {order.orderNumber}
                   </a>
                 </CardTitle>
-                <Badge variant={getStatusBadgeVariant(order.status)} size="sm" className="gap-1.5">
+              </div>
+              <p className="text-xs text-[#827E77]">Placed {formatPlaced()}</p>
+            </div>
+            <Badge variant={getStatusBadgeVariant(order.status)} size="sm" className="gap-1.5">
                   <span className={`h-1.5 w-1.5 rounded-full ${statusMeta.dotClass}`} aria-hidden="true" />
                   {statusMeta.label}
-                </Badge>
-              </div>
-              <p className="mt-2 text-xs text-[#827E77]">Placed {formatPlaced()}</p>
-            </div>
-            <div className="flex items-end justify-between gap-4 sm:block sm:text-right">
-              <div className="font-serif text-xl leading-none text-[#181716] sm:text-2xl">
-                {formatPrice(order.total)}
-              </div>
-              <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#827E77]">
-                {totalItems} {totalItems === 1 ? 'item' : 'items'}
-              </p>
-            </div>
+            </Badge>
           </div>
         </CardHeader>
 
         <CardContent className="p-0">
-          <div className="px-5 py-5 sm:px-6">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#827E77]">Order items ({items.length})</p>
-              <span className="text-[10px] uppercase tracking-[0.14em] text-[#A29E96]">{items.length} {items.length === 1 ? 'piece' : 'pieces'}</span>
+          <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex min-w-0 items-center gap-3.5">
+              {items.length > 0 ? (
+                <div className="flex shrink-0 items-center gap-2">
+                  {items.slice(0, 3).map((item) => (
+                    <OrderItemThumb key={item.id} item={item} className="h-14 w-12 rounded-lg border border-[#E8E5DF] sm:h-16 sm:w-14" />
+                  ))}
+                  {items.length > 3 && (
+                    <span className="flex h-14 w-12 items-center justify-center rounded-lg border border-dashed border-[#D8D3CB] bg-[#FAF9F6] text-xs font-semibold text-[#827E77] sm:h-16 sm:w-14">
+                      +{items.length - 3}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="flex h-14 w-12 shrink-0 items-center justify-center rounded-lg bg-[#F4ECE9] text-[#A2574F]">
+                  <Package className="h-5 w-5" aria-hidden="true" />
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-[#181716]">{totalItems} {totalItems === 1 ? 'item' : 'items'}</p>
+                <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#827E77]">
+                  {items.slice(0, 2).map((item) => item.productName).join(' · ')}{items.length > 2 ? ` + ${items.length - 2} more` : ''}
+                  {items.length === 0 ? 'No product details available' : ''}
+                </p>
+              </div>
             </div>
-            {items.length > 0 ? (
-              <OrderItemRows order={order} showSubtotal />
-            ) : (
-              <div className="rounded-xl border border-dashed border-[#D8D3CB] bg-[#FAF9F6] px-4 py-5 text-center text-sm text-[#63605A]">
-                No product details are available for this order.
+            <div className="flex shrink-0 items-center justify-between gap-4 border-t border-[#F3F1ED] pt-3 sm:border-0 sm:pt-0 sm:text-right">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.14em] text-[#827E77]">Order total</p>
+                <p className="mt-1 font-serif text-lg leading-none text-[#181716]">{formatPrice(order.total)}</p>
               </div>
-            )}
-          </div>
-
-          <div className="border-t border-[#F3F1ED]">
-            {order.status === 'cancelled' ? (
-              <div className="mx-5 my-5 flex items-start gap-2.5 rounded-xl border border-[#E8E5DF] bg-[#FAF9F6] px-4 py-3 sm:mx-6">
-                <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#827E77]" aria-hidden="true" />
-                <p className="text-xs leading-relaxed text-[#63605A]">
-                  Order cancelled
-                  {completionTimestamp ? (
-                    <span>
-                      {' '}on{' '}
-                      {formatOrderDate(completionTimestamp, { day: 'numeric', month: 'long', year: 'numeric' })}
-                    </span>
-                  ) : null}
-                  .
-                </p>
-              </div>
-            ) : order.status === 'delivered' || order.status === 'received' ? (
-              <div className="flex items-center gap-2 px-5 py-5 sm:px-6">
-                <Check className="h-3.5 w-3.5 shrink-0 text-[#2E5A44]" aria-hidden="true" />
-                <p className="text-xs font-medium text-[#2E5A44]">
-                  {statusMeta.label}
-                  {completionTimestamp ? (
-                    <span>
-                      {' '}on{' '}
-                      {formatOrderDate(completionTimestamp, { day: 'numeric', month: 'long', year: 'numeric' })}
-                    </span>
-                  ) : null}
-                </p>
-              </div>
-            ) : isActive ? (
-              <div className="px-5 py-5 sm:px-6">
-                <OrderProgress order={order} />
-              </div>
-            ) : null}
+              {order.status === 'cancelled' && <span className="text-[11px] text-[#827E77]">Cancelled</span>}
+            </div>
           </div>
         </CardContent>
 
-        <CardFooter className="flex-col gap-2.5 border-t border-[#F3F1ED] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <button
+        <CardFooter className="flex-col gap-2.5 border-t border-[#F3F1ED] p-4 sm:flex-row sm:justify-end sm:p-4">
+          <div className="flex w-full flex-col gap-2.5 sm:w-auto">
+          <div className="flex w-full flex-col gap-2.5 sm:flex-row">
+          <Button
             type="button"
-            onClick={() => navigate('/contact')}
-            className="text-left text-xs font-medium text-[#827E77] transition-colors hover:text-[#A2574F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#A2574F]"
+            variant="outline"
+            size="sm"
+            disabled={!isReceiptAvailableForOrder(order.status) || downloadingReceipt}
+            isLoading={downloadingReceipt}
+            onClick={() => void handleDownloadReceipt()}
+            title={isReceiptAvailableForOrder(order.status) ? 'Download this order receipt' : 'Receipt available after the order is confirmed'}
+            className="w-full gap-1.5 sm:w-auto"
           >
-            Need help? Contact MODEZA
-          </button>
-          <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
+            {!downloadingReceipt && <Download className="h-3.5 w-3.5" aria-hidden="true" />}
+            {downloadingReceipt ? 'Downloading receipt…' : 'Download receipt'}
+          </Button>
           {canMarkReceived(order.status, order.paymentMethod) && (
             <Button
               type="button"
@@ -190,6 +173,8 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onMarkReceived, isMarkingR
             View Order Details
             <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
+          </div>
+          {receiptError && <p role="alert" className="text-left text-xs text-[#9E332B]">{receiptError}</p>}
           </div>
         </CardFooter>
       </Card>
@@ -239,6 +224,7 @@ const OrdersLoadingState: React.FC = () => (
 
 export const AccountOrdersPage: React.FC = () => {
   const { navigate } = useRouter();
+  const { user, profile } = useAuth();
   const { orders, receiveOrder } = useOrders();
 
   const [hydratedOrders, setHydratedOrders] = useState<Order[] | null>(null);
@@ -308,6 +294,11 @@ export const AccountOrdersPage: React.FC = () => {
   const isLoading = syncStatus === 'loading' && mergedOrders.length === 0;
   const showError = syncStatus === 'error' && mergedOrders.length === 0;
   const hasNoOrders = mergedOrders.length === 0 && !showError;
+  const activeShipment = mergedOrders.find((order) => isActiveOrder(order.status));
+  const returnOrder = mergedOrders.find((order) => order.status === 'delivered' || order.status === 'received');
+  const customerName = (profile?.fullName || user?.user_metadata?.full_name || '').trim() || 'MODEZA Customer';
+  const customerEmail = profile?.email || user?.email || 'Your customer account';
+  const customerInitials = customerName.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
 
   const clearFilters = () => {
     setQuery('');
@@ -345,18 +336,23 @@ export const AccountOrdersPage: React.FC = () => {
   };
 
   return (
-    <section className="w-full space-y-7 sm:space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <AccountPageHeader
-          eyebrow="Account"
-          title="My Orders"
-          description="Track your purchases and view your order history."
-        />
+    <section className="w-full">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_17rem] xl:gap-7">
+      <main className="min-w-0 space-y-6">
+      <header className="flex flex-col gap-4 border-b border-[#EAE4DC] pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <button type="button" onClick={() => navigate('/shop')} className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-[#827E77] transition-colors hover:text-[#A2574F]">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to shop
+          </button>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A2574F]">Account · Order history</p>
+          <h1 className="mt-1 font-serif text-3xl tracking-tight text-[#211D1A] sm:text-4xl">My Orders</h1>
+          <p className="mt-1.5 text-sm text-[#746B64]">Your order history, all in one place.</p>
+        </div>
         <Badge variant="outline" size="lg" className="w-fit gap-2">
           <Package className="h-3.5 w-3.5" aria-hidden="true" />
           {mergedOrders.length} {mergedOrders.length === 1 ? 'order' : 'orders'}
         </Badge>
-      </div>
+      </header>
 
       {receiptError && (
         <div role="alert" className="rounded-xl border border-[#F8B4B4] bg-[#FDF2F2] px-4 py-3 text-sm text-[#9B1C1C]">
@@ -462,7 +458,7 @@ export const AccountOrdersPage: React.FC = () => {
               <h2 className="font-serif text-2xl text-[#181716]">Order history</h2>
               <Badge variant="default" size="sm">{visibleOrders.length} {visibleOrders.length === 1 ? 'result' : 'results'}</Badge>
             </div>
-            <div className="space-y-5">
+            <div className="space-y-3.5">
               {visibleOrders.map((order) => (
                 <OrderCard
                   key={order.id}
@@ -481,6 +477,61 @@ export const AccountOrdersPage: React.FC = () => {
             </div>
           </>
         )}
+      </div>
+      </main>
+
+      <aside className="space-y-4 xl:sticky xl:top-24" aria-label="Account quick links">
+        <Card className="border-[#EAE4DC] shadow-[0_8px_24px_rgba(43,34,28,0.035)]">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F4ECE9] text-sm font-semibold text-[#A2574F]" aria-hidden="true">
+                {customerInitials || <UserRound className="h-5 w-5" />}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#A2574F]">My profile</p>
+                <p className="mt-1 truncate text-sm font-semibold text-[#211D1A]">{customerName}</p>
+                <p className="truncate text-xs text-[#827E77]">{customerEmail}</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => navigate('/account/profile')} className="mt-4 w-full rounded-lg border border-[#EAE4DC] px-3 py-2 text-xs font-medium text-[#63605A] transition-colors hover:bg-[#FAF9F6] hover:text-[#A2574F]">
+              Manage profile
+            </button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#EAE4DC] shadow-[0_8px_24px_rgba(43,34,28,0.035)]">
+          <CardHeader className="space-y-1 px-4 pb-3 pt-4">
+            <CardTitle className="text-lg">Quick links</CardTitle>
+            <p className="text-xs text-[#827E77]">Helpful account shortcuts</p>
+          </CardHeader>
+          <CardContent className="space-y-1 px-3 pb-3 pt-0">
+            <button type="button" onClick={() => navigate(activeShipment ? `/track?order=${encodeURIComponent(activeShipment.orderNumber)}` : '/track')} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-[#FAF9F6]">
+              <Truck className="h-4 w-4 shrink-0 text-[#A2574F]" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-[#211D1A]">Track shipment</span>
+                <span className="mt-0.5 block text-[10px] text-[#827E77]">{activeShipment ? activeShipment.orderNumber : 'Follow an order'}</span>
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-[#A29E96]" aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => navigate(returnOrder ? `/account/orders/${encodeURIComponent(returnOrder.orderNumber)}` : '/account/orders')} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-[#FAF9F6]">
+              <Package className="h-4 w-4 shrink-0 text-[#A2574F]" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-[#211D1A]">Returns &amp; refunds</span>
+                <span className="mt-0.5 block text-[10px] text-[#827E77]">Order help and return requests</span>
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-[#A29E96]" aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => navigate('/contact')} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors hover:bg-[#FAF9F6]">
+              <Headphones className="h-4 w-4 shrink-0 text-[#A2574F]" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-[#211D1A]">Customer support</span>
+                <span className="mt-0.5 block text-[10px] text-[#827E77]">Get help from our team</span>
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-[#A29E96]" aria-hidden="true" />
+            </button>
+          </CardContent>
+        </Card>
+      </aside>
       </div>
 
       <AlertDialog

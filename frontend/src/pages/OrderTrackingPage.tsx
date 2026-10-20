@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   Clock,
+  Download,
   MapPin,
   PackageCheck,
   Search,
@@ -39,6 +40,7 @@ import { api } from '../services/apiClient';
 import { formatPrice } from '../utils/currency';
 import { mapServerOrder } from '../utils/orderMapper';
 import { canCancel, canMarkReceived, ORDER_STATUS_META } from '../utils/orderStatus';
+import { downloadOrderReceipt, isReceiptAvailableForOrder } from '../utils/receiptDownload';
 import { Order, OrderStatus, PaymentStatus } from '../types';
 
 export interface OrderTrackingPageProps {
@@ -147,6 +149,8 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
   const [pendingAction, setPendingAction] = useState<PendingOrderAction | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [referenceCopied, setReferenceCopied] = useState(false);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
 
   useEffect(() => {
     if (propOrderNum) {
@@ -228,6 +232,19 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
       window.setTimeout(() => setReferenceCopied(false), 1800);
     } catch {
       setErrorMsg('Order reference could not be copied. Please select it and copy manually.');
+    }
+  };
+
+  const handleDownloadReceipt = async () => {
+    if (!activeOrder) return;
+    setDownloadingReceipt(true);
+    setReceiptError('');
+    try {
+      await downloadOrderReceipt(activeOrder.orderNumber);
+    } catch (error) {
+      setReceiptError(error instanceof Error ? error.message : 'The receipt could not be downloaded.');
+    } finally {
+      setDownloadingReceipt(false);
     }
   };
 
@@ -613,6 +630,25 @@ export const OrderTrackingPage: React.FC<OrderTrackingPageProps> = ({ orderNumbe
                   <dd>{formatPrice(activeOrder.total)}</dd>
                 </div>
               </dl>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!isReceiptAvailableForOrder(activeOrder.status) || downloadingReceipt}
+                isLoading={downloadingReceipt}
+                onClick={() => void handleDownloadReceipt()}
+                title={isReceiptAvailableForOrder(activeOrder.status) ? 'Download this order receipt' : 'Receipt available after the order is confirmed'}
+                className="mt-5 w-full gap-2"
+              >
+                {!downloadingReceipt && <Download className="h-3.5 w-3.5" aria-hidden="true" />}
+                {downloadingReceipt ? 'Downloading receipt…' : 'Download receipt'}
+              </Button>
+              {!isReceiptAvailableForOrder(activeOrder.status) && (
+                <p className="mt-2 text-center text-[11px] text-[#827E77]">
+                  Receipt available after the order is confirmed.
+                </p>
+              )}
+              {receiptError && <p role="alert" className="mt-2 text-center text-xs text-[#9E332B]">{receiptError}</p>}
             </Card>
 
             <Card className="bg-[#FAF9F6] p-5 shadow-none sm:p-6">
