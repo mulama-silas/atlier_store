@@ -282,6 +282,9 @@ if LOAD_TEST_MODE:
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        # Must run before the Supabase authenticator: it only claims tokens
+        # carrying the local prefix and stands aside for everything else.
+        'accounts.authentication.LocalJWTAuthentication',
         'accounts.authentication.SupabaseJWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
@@ -309,6 +312,34 @@ SUPABASE_JWT_JWKS_URL = os.getenv(
     'SUPABASE_JWT_JWKS_URL',
     f'{SUPABASE_JWT_ISSUER}/.well-known/jwks.json' if SUPABASE_JWT_ISSUER else '',
 )
+
+# ---------------------------------------------------------------------------
+# Local storefront authentication (development only)
+#
+# In production customers sign in through Supabase Auth and Django only
+# verifies those JWTs (SupabaseJWTAuthentication above). Locally there is no
+# Supabase project to talk to, so this switch lets the storefront sign in
+# against Django's own `auth_user` table instead: registration, sign-in and
+# password changes then read and write the SQLite database, and nothing
+# leaves the machine.
+#
+# Opt-in with LOCAL_AUTH_ENABLED=true in backend/.env. It is hard-disabled
+# whenever DEBUG is off, so a Render deploy can never switch it on by
+# accident even if the variable were set there.
+# ---------------------------------------------------------------------------
+LOCAL_AUTH_ENABLED = DEBUG and _env_flag('LOCAL_AUTH_ENABLED', False)
+LOCAL_AUTH_SECRET = os.getenv('LOCAL_AUTH_SECRET', '').strip() or (
+    SECRET_KEY if LOCAL_AUTH_ENABLED else ''
+)
+# Local access tokens are long-lived enough to survive a coding session but
+# still bounded, so an abandoned dev token cannot linger forever.
+LOCAL_AUTH_TOKEN_TTL = _env_int('LOCAL_AUTH_TOKEN_TTL', 60 * 60 * 24 * 7)
+LOCAL_AUTH_ISSUER = 'modeza-local-auth'
+LOCAL_AUTH_AUDIENCE = 'modeza-local-auth'
+# Sentinel prefix on every locally issued token (`local.<jwt>`) so the local
+# authenticator can never mistake one for a Supabase access token, in either
+# direction.
+LOCAL_AUTH_TOKEN_PREFIX = 'local.'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

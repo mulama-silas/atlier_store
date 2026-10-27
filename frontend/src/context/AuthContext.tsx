@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../services/supabaseClient';
+import { authClient, authMode } from '../services/authClient';
 import { api } from '../services/apiClient';
 import { CustomerProfileDTO } from '../types/api';
 import { audit } from '../lib/logger';
@@ -36,25 +36,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const profileRequestUserId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!supabase) {
+    if (!authClient) {
       setIsLoading(false);
       return;
     }
 
     let mounted = true;
     let receivedAuthEvent = false;
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data } = authClient.onAuthStateChange((event, session) => {
       if (!mounted) return;
       receivedAuthEvent = true;
-      setUser(session?.user || null);
+      setUser((session?.user as unknown as User) || null);
       setIsPasswordRecovery(event === 'PASSWORD_RECOVERY');
       setIsLoading(false);
     });
 
-    void supabase.auth.getSession()
+    void authClient.getSession()
       .then(({ data: sessionData }) => {
         if (!mounted) return;
-        if (!receivedAuthEvent) setUser(sessionData.session?.user || null);
+        if (!receivedAuthEvent) setUser((sessionData.session?.user as unknown as User) || null);
         setIsLoading(false);
       })
       .catch(() => {
@@ -102,23 +102,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [refreshProfile]);
 
   const signIn = async (email: string, password: string) => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (!authClient) return { error: 'Account access is not configured yet.' };
+    const { error } = await authClient.signInWithPassword({ email: email.trim(), password });
     if (error) {
       void audit('login_failed', 'Storefront sign-in failed.', {}, { reason: error.message });
       return { error: error.message };
     }
-    void audit('login', 'Storefront sign-in succeeded.', { provider: 'supabase' });
+    void audit('login', 'Storefront sign-in succeeded.', { provider: authMode });
     return {};
   };
 
   const signUp = async (email: string, password: string, profile: { fullName: string; phone: string }) => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
+    if (!authClient) return { error: 'Account access is not configured yet.' };
     if (password.length < 8) return { error: 'Password must be at least 8 characters long.' };
     if (!profile.fullName.trim() || !profile.phone.trim()) {
       return { error: 'Enter your name and phone number to create an account.' };
     }
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await authClient.signUp({
       email: email.trim(),
       password,
       options: {
@@ -135,15 +135,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       void audit('registration_failed', 'Storefront account creation failed.', {}, { reason: error.message });
       return { error: error.message };
     }
-    void audit('signup', 'New storefront account created.', { provider: 'supabase' }, {
+    void audit('signup', 'New storefront account created.', { provider: authMode }, {
       needsVerification: !data.session,
     });
     return { needsVerification: !data.session };
   };
 
   const requestPasswordReset = async (email: string) => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    if (!authClient) return { error: 'Account access is not configured yet.' };
+    const { error } = await authClient.resetPasswordForEmail(email.trim(), {
       redirectTo: typeof window !== 'undefined'
         ? `${window.location.origin}/account`
         : undefined,
@@ -153,10 +153,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateRecoveredPassword = async (newPassword: string) => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
+    if (!authClient) return { error: 'Account access is not configured yet.' };
     if (!isPasswordRecovery) return { error: 'Open the password reset link from your email first.' };
     if (newPassword.length < 8) return { error: 'Password must be at least 8 characters long.' };
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    const { error } = await authClient.updateUser({ password: newPassword });
     if (error) return { error: error.message };
     setIsPasswordRecovery(false);
     void audit('password_reset', 'Account password reset completed.');
@@ -164,11 +164,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithGoogle = async () => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
+    if (!authClient) return { error: 'Account access is not configured yet.' };
     const redirectTo = typeof window !== 'undefined'
       ? `${window.location.origin}/account/complete-profile`
       : undefined;
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { error } = await authClient.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },
     });
@@ -181,15 +181,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
-    const { error } = await supabase.auth.signOut();
+    if (!authClient) return { error: 'Account access is not configured yet.' };
+    const { error } = await authClient.signOut();
     if (error) return { error: error.message };
     void audit('logout', 'Storefront sign-out.');
     return {};
   };
 
   const updateProfile = async (profile: { fullName: string; phone: string }) => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
+    if (!authClient) return { error: 'Account access is not configured yet.' };
     if (!user) return { error: 'You must be signed in to update your profile.' };
     try {
       const updatedProfile = await api.updateProfile({
@@ -213,14 +213,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updatePassword = async (currentPassword: string, newPassword: string) => {
-    if (!supabase) return { error: 'Account access is not configured yet.' };
+    if (!authClient) return { error: 'Account access is not configured yet.' };
     if (!user?.email) return { error: 'You must be signed in to change your password.' };
     if (newPassword.length < 8) return { error: 'Password must be at least 8 characters long.' };
     if (newPassword === currentPassword) return { error: 'New password must be different from the current one.' };
 
     // Verify the current password by re-authenticating before allowing the change.
     try {
-      const { data: verification, error: verifyError } = await supabase.auth.signInWithPassword({
+      const { data: verification, error: verifyError } = await authClient.signInWithPassword({
         email: user.email,
         password: currentPassword,
       });
@@ -228,7 +228,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: 'Current password is incorrect.' };
       }
 
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await authClient.updateUser({ password: newPassword });
       if (!error) {
         void audit('password_reset', 'Account password updated.');
       }
@@ -241,7 +241,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentUserProfile = user && profile?.id === user.id ? profile : null;
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isConfigured: Boolean(supabase), isPasswordRecovery, profile: currentUserProfile, profileLoading, profileError, refreshProfile, signIn, signUp, requestPasswordReset, updateRecoveredPassword, signInWithGoogle, updateProfile, updatePassword, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, isConfigured: Boolean(authClient), isPasswordRecovery, profile: currentUserProfile, profileLoading, profileError, refreshProfile, signIn, signUp, requestPasswordReset, updateRecoveredPassword, signInWithGoogle, updateProfile, updatePassword, signOut }}>
       {children}
     </AuthContext.Provider>
   );

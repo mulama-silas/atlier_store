@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { authClient } from './authClient';
 import { getOrCreateCartId } from './apiClient';
 
 // The assistant is served by Django. Gemini is NEVER called from here — the
@@ -91,7 +91,7 @@ async function authHeaders(): Promise<Headers> {
   headers.set('Content-Type', 'application/json');
   headers.set('x-cart-id', getOrCreateCartId());
   try {
-    const session = (await supabase?.auth.getSession())?.data.session;
+    const session = (await authClient?.getSession())?.data.session;
     if (session?.access_token) {
       headers.set('Authorization', `Bearer ${session.access_token}`);
     }

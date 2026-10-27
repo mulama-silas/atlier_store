@@ -1,4 +1,4 @@
-import { supabase } from '../services/supabaseClient';
+import { authClient } from '../services/authClient';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -78,10 +78,10 @@ export async function audit(
   data?: Record<string, unknown>
 ): Promise<void> {
   if (typeof window === 'undefined') return;
-  if (!supabase) return;
+  if (!authClient) return;
 
   try {
-    const session = (await supabase.auth.getSession())?.data?.session;
+    const session = (await authClient.getSession())?.data?.session;
     if (!session?.access_token) return;
 
     await fetch(`${API_BASE_URL}/api/audit/events`, {

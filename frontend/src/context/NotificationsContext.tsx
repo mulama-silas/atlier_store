@@ -3,7 +3,7 @@ import { CustomerNotification, ToastMessage } from '../types';
 import { ToastContainer } from '../components/ui/Toast';
 import { useAuth } from './AuthContext';
 import { api } from '../services/apiClient';
-import { supabase } from '../services/supabaseClient';
+import { authClient } from '../services/authClient';
 
 interface NotificationsContextValue {
   notifications: CustomerNotification[];
@@ -33,7 +33,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
     refreshInFlightRef.current = true;
     try {
-      const session = (await supabase?.auth.getSession())?.data.session;
+      const session = (await authClient?.getSession())?.data.session;
       if (!session?.access_token) {
         setNotifications([]);
         setUnreadCount(0);

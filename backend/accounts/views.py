@@ -1,10 +1,15 @@
 import logging
+import time
+import uuid
 
+import jwt
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -271,3 +276,208 @@ class MarkCustomerNotificationReadView(APIView):
         unread_count = CustomerNotification.objects.filter(
             user=request.user, is_read=False).count()
         return Response({'ok': True, 'unread_count': unread_count})
+
+
+# ---------------------------------------------------------------------------
+# Local storefront authentication (development only)
+#
+# These endpoints back VITE_AUTH_MODE=django: registration, sign-in and
+# password changes against the local database instead of Supabase Auth, so the
+# storefront can be exercised end to end with nothing but
+# `python manage.py runserver`. Each one answers 404 whenever
+# LOCAL_AUTH_ENABLED is off (which is every production deploy), so this adds
+# no authentication surface in production.
+# ---------------------------------------------------------------------------
+
+
+def _local_auth_error(code, message, details=None,
+                      http_status=status.HTTP_400_BAD_REQUEST):
+    """Project-wide error envelope, matching api_exception_handler's shape."""
+    error = {'code': code, 'message': message}
+    if details is not None:
+        error['details'] = details
+    return Response({'error': error}, status=http_status)
+
+
+def _local_auth_disabled_response():
+    return _local_auth_error(
+        'NOT_FOUND',
+        'Local authentication is disabled on this server.',
+        http_status=status.HTTP_404_NOT_FOUND,
+    )
+
+
+def _local_session_user(user):
+    """Supabase-shaped user payload, so the storefront needs no special casing."""
+    profile = CustomerProfile.objects.filter(user=user).first()
+    phone = profile.phone if profile else ''
+    full_name = ' '.join(user.get_full_name().split())
+    email = user.email or ''
+    return {
+        'id': user.username.removeprefix('supabase_'),
+        'email': email,
+        'aud': 'authenticated',
+        'role': getattr(user, 'supabase_role', 'customer'),
+        'user_metadata': {
+            'full_name': full_name,
+            'phone': phone,
+            'email': email,
+        },
+        'app_metadata': {'provider': 'local', 'role': 'customer'},
+        'identities': [{
+            'provider': 'local',
+            'identity_data': {
+                'email': email,
+                'full_name': full_name,
+                'phone': phone,
+            },
+        }],
+        'created_at': user.date_joined.isoformat() if user.date_joined else None,
+    }
+
+
+def _issue_local_session(user):
+    """Mint the bearer token the storefront sends as `Bearer local.<jwt>`."""
+    issued_at = int(time.time())
+    ttl = settings.LOCAL_AUTH_TOKEN_TTL
+    claims = {
+        'sub': str(user.pk),
+        'email': user.email or '',
+        'iat': issued_at,
+        'exp': issued_at + ttl,
+        'iss': settings.LOCAL_AUTH_ISSUER,
+        'aud': settings.LOCAL_AUTH_AUDIENCE,
+    }
+    token = jwt.encode(claims, settings.LOCAL_AUTH_SECRET, algorithm='HS256')
+    return Response({
+        'access_token': f'{settings.LOCAL_AUTH_TOKEN_PREFIX}{token}',
+        'token_type': 'bearer',
+        'expires_in': ttl,
+        'expires_at': issued_at + ttl,
+        'user': _local_session_user(user),
+    })
+
+
+class LocalRegisterView(APIView):
+    """Create a customer in the local `auth_user` table and sign them in.
+
+    Unlike the Supabase flow there is no email-verification step: the account
+    has to be usable from a browser tab that has no mail relay behind it.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not settings.LOCAL_AUTH_ENABLED:
+            return _local_auth_disabled_response()
+
+        email = str(request.data.get('email') or '').strip().lower()
+        password = str(request.data.get('password') or '')
+        full_name = ' '.join(str(request.data.get('fullName') or '').split())
+        phone = str(request.data.get('phone') or '').strip()
+
+        local_part, separator, domain = email.partition('@')
+        details = {}
+        if not separator or not local_part or '.' not in domain:
+            details['email'] = ['Enter a valid email address.']
+        if len(password) < 8:
+            details['password'] = ['Password must be at least 8 characters long.']
+        if not full_name:
+            details['fullName'] = ['Enter your name.']
+        if not phone:
+            details['phone'] = ['Enter your phone number.']
+        if details:
+            return _local_auth_error(
+                'VALIDATION_ERROR', 'Your account details are invalid.', details)
+
+        User = get_user_model()
+        if User.objects.filter(email__iexact=email).exists():
+            return _local_auth_error(
+                'EMAIL_TAKEN', 'An account with that email already exists.')
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=f'local_{uuid.uuid4().hex[:16]}',
+                email=email,
+                password=password,
+            )
+            name_parts = full_name.split(' ', 1)
+            user.first_name = name_parts[0]
+            user.last_name = name_parts[1] if len(name_parts) > 1 else ''
+            user.save(update_fields=['first_name', 'last_name'])
+            CustomerProfile.objects.update_or_create(
+                user=user, defaults={'phone': phone[:25]})
+
+        from audit.services import AuditLogService
+
+        AuditLogService.log(
+            'signup',
+            actor=user,
+            category='account',
+            object_type='customer',
+            object_id=user.pk,
+            object_repr=user.email or user.username,
+            result='success',
+            description='Account created through local development auth.',
+        )
+        return _issue_local_session(user)
+
+
+class LocalLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not settings.LOCAL_AUTH_ENABLED:
+            return _local_auth_disabled_response()
+
+        email = str(request.data.get('email') or '').strip().lower()
+        password = str(request.data.get('password') or '')
+
+        User = get_user_model()
+        user = User.objects.filter(email__iexact=email).first()
+        # check_password runs for unknown emails too, so a missing account and
+        # a wrong password take comparable time to reject.
+        credentials_valid = user is not None and user.check_password(password)
+        if not credentials_valid or (user is not None and not user.is_active):
+            return _local_auth_error(
+                'INVALID_CREDENTIALS',
+                'That email and password combination is not correct.',
+                http_status=status.HTTP_401_UNAUTHORIZED,
+            )
+        return _issue_local_session(user)
+
+
+class LocalPasswordView(APIView):
+    """Change the signed-in local user's password.
+
+    The storefront already re-authenticated with the current password through
+    its sign-in call before offering this form, so the bearer token is enough.
+    """
+
+    permission_classes = [IsAuthenticatedSupabaseUser]
+
+    def post(self, request):
+        if not settings.LOCAL_AUTH_ENABLED:
+            return _local_auth_disabled_response()
+
+        new_password = str(request.data.get('password') or '')
+        if len(new_password) < 8:
+            return _local_auth_error(
+                'VALIDATION_ERROR',
+                'Choose a password with at least 8 characters.',
+                {'password': ['Password must be at least 8 characters long.']})
+
+        request.user.set_password(new_password)
+        request.user.save(update_fields=['password'])
+        return Response({'ok': True, 'user': _local_session_user(request.user)})
+
+
+class LocalLogoutView(APIView):
+    """Local tokens are stateless; the client simply discards its copy."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if not settings.LOCAL_AUTH_ENABLED:
+            return _local_auth_disabled_response()
+        return Response({'ok': True})

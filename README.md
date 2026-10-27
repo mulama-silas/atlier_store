@@ -19,7 +19,7 @@ cd backend
 python -m venv ../.venv
 # activate venv, then:
 pip install -r requirements.txt
-cp .env.example .env          # fill in Supabase / payment keys
+# put your keys in backend/.env (gitignored), then:
 python manage.py migrate
 python manage.py runserver    # http://127.0.0.1:8000
 ```
@@ -28,16 +28,51 @@ python manage.py runserver    # http://127.0.0.1:8000
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local    # VITE_API_BASE_URL=http://127.0.0.1:8000, VITE_ADMIN_URL=...
 npm run dev                   # http://localhost:3000
 npm run lint && npm run build # typecheck + production build
 npm run test:api              # bundled API integration tests
 ```
 
-When the storefront uses its local Express/SQLite API (`VITE_API_BASE_URL=http://localhost:3000`),
-set `VITE_DJANGO_API_BASE_URL=http://127.0.0.1:8000` as well so verified-purchase
-reviews use Django's review and moderation endpoints. In production, leave this
-unset when `VITE_API_BASE_URL` already points to Django.
+### What dev mode reads from
+
+| | Development | Production |
+| --- | --- | --- |
+| Catalog, cart, orders, payments | Django → `backend/db.sqlite3` | Render → `DATABASE_URL` (PostgreSQL) |
+| Sign-in | Django `/api/auth/*` → `auth_user` (SQLite) | Supabase Auth (`VITE_SUPABASE_*` from Vercel) |
+| Customer API base | `VITE_API_BASE_URL=http://127.0.0.1:8000` | `VITE_API_BASE_URL=https://<backend>.onrender.com` |
+
+Two switches drive this, both already set in `frontend/.env`:
+
+```dotenv
+VITE_API_BASE_URL=http://127.0.0.1:8000   # every API call → Django → SQLite
+VITE_AUTH_MODE=django                     # sign-in → Django, not Supabase
+```
+
+Local sign-in needs a server-side switch as well, in `backend/.env`:
+
+```dotenv
+LOCAL_AUTH_ENABLED=true   # development only; hard-disabled whenever DEBUG is off
+```
+
+With it on, `POST /api/auth/register|login|password|logout` manage local
+`auth_user` rows and mint `local.<jwt>` bearer tokens that
+`LocalJWTAuthentication` verifies. With it off — every production deploy —
+those four routes answer **404** and `local.` tokens are ignored, so Django
+falls through to `SupabaseJWTAuthentication` exactly as before. Production
+(Vercel) should leave `VITE_AUTH_MODE` unset, which selects the Supabase client.
+
+Notes:
+
+- `frontend/.env` leaves `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` empty
+  locally so the Supabase client is `null` instead of pointing at a local stack
+  that is not running; the wishlist then falls back to `localStorage`.
+- The Express dev server (`npm run dev`) still serves the SPA, and its own
+  `/api/*` shim (hydrated read-only from the same SQLite file) remains usable:
+  `VITE_API_BASE_URL=http://localhost:3000` covers catalog, cart and orders,
+  but accounts, addresses, notifications and promotions exist only in Django —
+  which is why Django is the default.
+- Google sign-in and password-reset emails stay production-only; locally they
+  return an explanatory message instead of failing to fetch.
 
 ## Deploy the backend to Render
 

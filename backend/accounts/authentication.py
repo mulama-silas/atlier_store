@@ -223,3 +223,61 @@ class SupabaseJWTAuthentication(BaseAuthentication):
             user.email = email
             user.save(update_fields=['email'])
         return user, created
+
+
+class LocalJWTAuthentication(BaseAuthentication):
+    """Development-only authentication for locally issued storefront tokens.
+
+    The storefront's local sign-in endpoints mint these tokens against the
+    `auth_user` table in the SQLite database and send them as
+    ``Bearer local.<jwt>``. The ``local.`` prefix is what keeps the two
+    identity systems apart: any other bearer token — or a disabled local
+    mode — makes this class return ``None`` so DRF falls through to
+    :class:`SupabaseJWTAuthentication` exactly as before, which means
+    production behaviour is untouched.
+    """
+
+    keyword = b'bearer'
+    prefix = settings.LOCAL_AUTH_TOKEN_PREFIX
+
+    def authenticate_header(self, request):
+        return 'Bearer'
+
+    def authenticate(self, request):
+        if not settings.LOCAL_AUTH_ENABLED or not settings.LOCAL_AUTH_SECRET:
+            return None
+        parts = get_authorization_header(request).split()
+        if not parts or parts[0].lower() != self.keyword or len(parts) != 2:
+            return None
+        token = parts[1].decode('utf-8')
+        if not token.startswith(self.prefix):
+            return None
+        return self.authenticate_token(token[len(self.prefix):])
+
+    def authenticate_token(self, token):
+        try:
+            claims = jwt.decode(
+                token,
+                key=settings.LOCAL_AUTH_SECRET,
+                algorithms=['HS256'],
+                audience=settings.LOCAL_AUTH_AUDIENCE,
+                issuer=settings.LOCAL_AUTH_ISSUER,
+                options={'require': ['sub', 'exp', 'iat']},
+            )
+            user_id = int(claims['sub'])
+        except (jwt.PyJWTError, ValueError, TypeError) as exc:
+            raise AuthenticationFailed(
+                'Invalid or expired local access token.') from exc
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist as exc:
+            raise AuthenticationFailed('This local account no longer exists.') from exc
+        if not user.is_active:
+            raise AuthenticationFailed('This account is inactive.')
+        # Mirrors SupabaseJWTAuthentication so permission classes and the
+        # profile payload behave identically for both identity systems.
+        user.supabase_role = 'customer'
+        user.supabase_claims = {}
+        return user, token

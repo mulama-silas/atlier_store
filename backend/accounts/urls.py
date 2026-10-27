@@ -6,6 +6,10 @@ from .views import (
     CurrentUserView,
     CustomerAddressesView,
     CustomerAddressDetailView,
+    LocalLoginView,
+    LocalLogoutView,
+    LocalPasswordView,
+    LocalRegisterView,
     MarkAllCustomerNotificationsReadView,
     MarkCustomerNotificationsPresentedView,
     MarkCustomerNotificationReadView,
@@ -15,6 +19,11 @@ from .views import (
 
 urlpatterns = [
     path('auth/me', CurrentUserView.as_view(), name='current-user'),
+    # Development-only auth (404 in production, see LOCAL_AUTH_ENABLED).
+    path('auth/register', LocalRegisterView.as_view(), name='local-register'),
+    path('auth/login', LocalLoginView.as_view(), name='local-login'),
+    path('auth/password', LocalPasswordView.as_view(), name='local-password'),
+    path('auth/logout', LocalLogoutView.as_view(), name='local-logout'),
     path('admin/access', AdminAccessView.as_view(), name='admin-access'),
     path('admin/owner-access', OwnerAccessView.as_view(), name='owner-access'),
     path('notifications', CustomerNotificationsView.as_view(),

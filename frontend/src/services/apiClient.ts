@@ -15,7 +15,7 @@ import {
   ProductReviewDTO,
 } from '../types/api';
 import { CustomerNotification } from '../types';
-import { supabase } from './supabaseClient';
+import { authClient } from './authClient';
 import { setLastRequestId } from '../lib/requestId';
 
 const CART_STORAGE_KEY = 'modeza_server_cart_id';
@@ -60,7 +60,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
   let cartId = getOrCreateCartId();
 
   if (includeAuth) {
-    const session = (await supabase?.auth.getSession())?.data.session;
+    const session = (await authClient?.getSession())?.data.session;
     if (session?.access_token) {
       headers.set('Authorization', `Bearer ${session.access_token}`);
     } else {
@@ -90,8 +90,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}, includeAu
   let res = await fetch(`${baseUrl}${endpoint}`, requestOptions);
 
   // Supabase access tokens are short-lived. Refresh once before surfacing a 401.
-  if (res.status === 401 && retryUnauthorized && includeAuth && requireAuth && supabase && headers.has('Authorization')) {
-    const { data } = await supabase.auth.refreshSession();
+  if (res.status === 401 && retryUnauthorized && includeAuth && requireAuth && authClient && headers.has('Authorization')) {
+    const { data } = await authClient.refreshSession();
     const refreshedToken = data.session?.access_token;
     if (refreshedToken) {
       headers.set('Authorization', `Bearer ${refreshedToken}`);
@@ -140,7 +140,7 @@ async function downloadBlob(endpoint: string, requireAuth = true): Promise<Blob>
   const headers = new Headers();
   headers.set('x-cart-id', cartId);
 
-  const session = (await supabase?.auth.getSession())?.data.session;
+  const session = (await authClient?.getSession())?.data.session;
   if (session?.access_token) {
     headers.set('Authorization', `Bearer ${session.access_token}`);
   } else if (requireAuth) {
